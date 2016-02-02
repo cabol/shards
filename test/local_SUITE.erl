@@ -24,18 +24,19 @@
 all() -> [t_basic_ops].
 
 init_per_suite(Config) ->
+  shards:start(),
   Config.
 
 end_per_suite(Config) ->
+  shards:stop(),
   Config.
 
 init_per_testcase(_, Config) ->
-  init_tables(),
+  init_shards(),
   Config.
 
 end_per_testcase(_, Config) ->
-  shards:delete(?TAB),
-  ets:delete(?ETS_TAB),
+  delete_shards_pool(),
   Config.
 
 %%%===================================================================
@@ -43,7 +44,7 @@ end_per_testcase(_, Config) ->
 %%%===================================================================
 
 t_basic_ops(_Config) ->
-  true = cleanup_tables(),
+  true = cleanup_shards(),
 
   % insert some K/V pairs
   Obj1 = {kx, 1, a, "hi"},
@@ -88,18 +89,23 @@ t_basic_ops(_Config) ->
 %%% Internal functions
 %%%===================================================================
 
-init_tables() ->
+init_shards() ->
   shards:new(?TAB, [duplicate_bag, public, named_table]),
   shards_created(?TAB),
   ets:new(?ETS_TAB, [duplicate_bag, public, named_table]),
   ok.
 
-cleanup_tables() ->
+cleanup_shards() ->
   true = ets:delete_all_objects(?ETS_TAB),
   true = shards:delete_all_objects(?TAB),
   All = ets:match(?ETS_TAB, '$1'),
   All = shards:match(?TAB, '$1'),
   true.
+
+delete_shards_pool() ->
+  true = ets:delete(?ETS_TAB),
+  true = shards:delete(?TAB),
+  [] = supervisor:count_children(shards_pool_sup).
 
 lookup_keys(Mod, Tab, Keys) ->
   lists:foldr(fun(Key, Acc) ->

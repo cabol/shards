@@ -302,13 +302,14 @@ exit(_Info, _MFA, _LogReason, Reason)
 exit(Info, MFA, LogReason, Reason) ->
   {Fun, Args} = get_running(MFA),
   error_logger:format(
+    "\e[31m" ++
     "** Task ~p terminating~n" ++
     "** Started from ~p~n" ++
     "** When function  == ~p~n" ++
     "**      arguments == ~p~n" ++
     "** Reason for termination == ~n" ++
-    "** ~p~n", [self(), get_from(Info), Fun, Args, get_reason(LogReason)]
-  ),
+    "** ~p~n" ++
+    "\e[0m", [self(), get_from(Info), Fun, Args, get_reason(LogReason)]),
   exit(Reason).
 
 %% @private

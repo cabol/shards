@@ -38,38 +38,9 @@ init([Name, Options, PoolSize]) ->
     % save relationship between shard and shard name
     true = ets:insert(Name, {Shard, LocalShardName}),
     % shard worker spec
-    child(worker, shards_owner, [LocalShardName, Options], #{id => Shard})
+    shards_supervisor_spec:worker(
+      shards_owner, [LocalShardName, Options], #{id => Shard})
   end || Shard <- lists:seq(0, PoolSize - 1)],
 
   % launch shards supervisor
-  supervise(Children, #{strategy => one_for_one}).
-
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
-
-%% @private
-child(Type, Module, Args, Spec) when is_map(Spec) ->
-  #{
-    id       => maps:get(id, Spec, Module),
-    start    => maps:get(start, Spec, {Module, start_link, Args}),
-    restart  => maps:get(restart, Spec, permanent),
-    shutdown => maps:get(shutdown, Spec, 5000),
-    type     => Type,
-    modules  => maps:get(modules, Spec, [Module])
-  }.
-
-%% @private
-supervise(Children, SupFlags) ->
-  assert_unique_ids([Id || #{id := Id} <- Children]),
-  {ok, {SupFlags, Children}}.
-
-%% @private
-assert_unique_ids([]) ->
-  ok;
-assert_unique_ids([Id | Rest]) ->
-  case lists:member(Id, Rest) of
-    true -> throw({badarg, duplicated_id});
-    _    -> assert_unique_ids(Rest)
-  end.
+  shards_supervisor_spec:supervise(Children, #{strategy => one_for_one}).

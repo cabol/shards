@@ -1,5 +1,13 @@
 -module(shards).
 
+-behaviour(application).
+
+%% Application callbacks and functions
+-export([
+  start/0, stop/0,
+  start/2, stop/1
+]).
+
 %% ETS API
 -export([
   all/0,
@@ -26,6 +34,24 @@
 -define(DEFAULT_POOL_SIZE, 2).
 
 %%%===================================================================
+%%% Application callbacks and functions
+%%%===================================================================
+
+%% @doc Starts `shards' application.
+-spec start() -> {ok, _} | {error, term()}.
+start() -> application:ensure_all_started(shards).
+
+%% @doc Stops `shards' application.
+-spec stop() -> ok | {error, term()}.
+stop() -> application:stop(ebus).
+
+%% @hidden
+start(_StartType, _StartArgs) -> shards_pool_sup:start_link().
+
+%% @hidden
+stop(_State) -> ok.
+
+%%%===================================================================
 %%% ETS API
 %%%===================================================================
 
@@ -39,7 +65,7 @@ new(Name, Options) ->
 %% @doc
 %% @end
 new(Name, Options, PoolSize) ->
-  case shards_sup:start_link(Name, Options, PoolSize) of
+  case shards_pool_sup:start_child([Name, Options, PoolSize]) of
     {ok, _} -> Name;
     _       -> throw(badarg)
   end.
@@ -74,8 +100,8 @@ lookup_element(Tab, Key, Pos, PoolSize) ->
   call(Tab, Key, PoolSize, fun ets:lookup_element/3, [Key, Pos]).
 
 delete(Tab) ->
-  %% @TODO: Find a better way to stop the shards supervisor
-  exit(whereis(Tab), normal).
+  ok = shards_pool_sup:terminate_child(shards_pool_sup, whereis(Tab)),
+  true.
 
 %% @see ets:delete/2.
 delete(Tab, Key) ->

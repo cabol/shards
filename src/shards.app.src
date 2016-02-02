@@ -2,7 +2,7 @@
  [{description, "ETS with Sharding support."},
   {vsn, "0.1.0"},
   {registered, []},
-  {mod, {shards_app, []}},
+  {mod, {shards, []}},
   {applications, [kernel, stdlib]},
   {env,[]},
   {modules, []},
