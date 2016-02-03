@@ -49,7 +49,8 @@ shard_name(Name, Shard) ->
 
 -spec stop(atom()) -> ok.
 stop(ShardName) ->
-  exit(whereis(ShardName), normal).
+  true = exit(whereis(ShardName), normal),
+  ok.
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -57,11 +58,20 @@ stop(ShardName) ->
 
 %% @hidden
 init([Name, Options]) ->
-  Name = case lists:member(named_table, Options) of
-    true -> ets:new(Name, Options);
-    _    -> ets:new(Name, [named_table | Options])
+  NewOpts = validate_options(Options),
+  Name = ets:new(Name, NewOpts),
+  {ok, #{name => Name, opts => NewOpts}}.
+
+%% @private
+validate_options(Options) ->
+  Options1 = case lists:member(named_table, Options) of
+    true -> Options;
+    _    -> [named_table | Options]
   end,
-  {ok, #{name => Name, opts => Options}}.
+  case lists:member(public, Options1) of
+    true -> Options1;
+    _    -> [public | Options1]
+  end.
 
 %% @hidden
 handle_call(_Request, _From, State) ->
