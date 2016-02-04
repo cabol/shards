@@ -85,6 +85,35 @@
 -define(DEFAULT_POOL_SIZE, 2).
 
 %%%===================================================================
+%%% Types
+%%%===================================================================
+
+%% @type continuation() =
+%% {
+%%  Tab          :: atom(),
+%%  MatchSpec    :: ets:match_spec(),
+%%  Limit        :: pos_integer(),
+%%  Shard        :: non_neg_integer(),
+%%  Continuation :: ets:continuation()
+%% }.
+%%
+%% Defines the convention to `ets:select/1,3' continuation:
+%% <ul>
+%% <li>`Tab': Table name.</li>
+%% <li>`MatchSpec': The `ets:match_spec()'.</li>
+%% <li>`Limit': Results limit.</li>
+%% <li>`Shard': Shards number.</li>
+%% <li>`Continuation': The `ets:continuation()'.</li>
+%% </ul>
+-type continuation() :: {
+  Tab          :: atom(),
+  MatchSpec    :: ets:match_spec(),
+  Limit        :: pos_integer(),
+  Shard        :: non_neg_integer(),
+  Continuation :: ets:continuation()
+}.
+
+%%%===================================================================
 %%% Application callbacks and functions
 %%%===================================================================
 
@@ -582,13 +611,65 @@ select(Tab, MatchSpec) ->
   %% @TODO: Enhancement: Validate behavior when table type is an ordered_set
   lists:append(pmap(Tab, pool_size(Tab), fun ets:select/2, [MatchSpec])).
 
-select(_Tab, _MatchSpec, _Limit) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% This operation behaves like `ets:select/3'.
+%%
+%% The `PoolSize' is obtained internally by `shards'.
+%%
+%% @see ets:select/3.
+%% @end
+-spec select(Tab, MatchSpec, Limit) -> {[Match], Continuation} when
+  Tab          :: atom(),
+  MatchSpec    :: ets:match_spec(),
+  Limit        :: pos_integer(),
+  Match        :: term(),
+  Continuation :: continuation().
+select(Tab, MatchSpec, Limit) ->
+  select_(Tab, MatchSpec, Limit, Limit, pool_size(Tab) - 1, {[], nil}).
 
-select(_Continuation) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @private
+select_(Tab, MatchSpec, Limit, 0, Shard, {Acc, Continuation}) ->
+  {Acc, {Tab, MatchSpec, Limit, Shard, Continuation}};
+select_(Tab, MatchSpec, Limit, _, Shard, {Acc, _}) when Shard < 0 ->
+  {Acc, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}};
+select_(Tab, MatchSpec, Limit, I, Shard, {Acc, '$end_of_table'}) ->
+  select_(Tab, MatchSpec, Limit, I, Shard - 1, {Acc, nil});
+select_(Tab, MatchSpec, Limit, I, Shard, {Acc, _}) ->
+  ShardTab = shard_name(Tab, Shard),
+  case ets:select(ShardTab, MatchSpec, I) of
+    {L, Cont} ->
+      select_(Tab, MatchSpec, Limit, I - length(L), Shard, {Acc ++ L, Cont});
+    '$end_of_table' ->
+      select_(Tab, MatchSpec, Limit, I, Shard, {Acc, '$end_of_table'})
+  end.
+
+%% @doc
+%% This operation behaves like `ets:select/1'.
+%%
+%% The `PoolSize' is obtained internally by `shards'.
+%%
+%% @see ets:select/1.
+%% @end
+-spec select(Continuation) -> {[Match], Continuation} when
+  Match        :: term(),
+  Continuation :: continuation().
+select({_, _, Limit, _, _} = Continuation) ->
+  select_(Continuation, Limit, []).
+
+%% @private
+select_({Tab, MatchSpec, Limit, Shard, Continuation}, 0, Acc) ->
+  {Acc, {Tab, MatchSpec, Limit, Shard, Continuation}};
+select_({Tab, MatchSpec, Limit, Shard, _}, _, Acc) when Shard < 0 ->
+  {Acc, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}};
+select_({Tab, MatchSpec, Limit, Shard, '$end_of_table'}, I, Acc) ->
+  select_(Tab, MatchSpec, Limit, I, Shard - 1, {Acc, nil});
+select_({Tab, MatchSpec, Limit, Shard, Continuation}, I, Acc) ->
+  case ets:select(Continuation) of
+    {L, Cont} ->
+      select_({Tab, MatchSpec, Limit, Shard, Cont}, I - length(L), Acc ++ L);
+    '$end_of_table' ->
+      select_({Tab, MatchSpec, Limit, Shard, '$end_of_table'}, I, Acc)
+  end.
 
 %% @doc
 %% This operation behaves like `ets:select_count/2'.

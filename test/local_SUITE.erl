@@ -16,6 +16,7 @@
   t_basic_ops/1,
   t_match_ops/1,
   t_select_ops/1,
+  t_paginated_select_ops/1,
   t_update_ops/1,
   t_fold_ops/1,
   t_info_ops/1
@@ -36,6 +37,7 @@ all() -> [
   t_basic_ops,
   t_match_ops,
   t_select_ops,
+  t_paginated_select_ops,
   t_update_ops,
   t_fold_ops,
   t_info_ops
@@ -168,9 +170,48 @@ t_select_ops(_Config) ->
   R11 = lists:usort(shards:select(?SET, MS1)),
   1 = length(R11),
 
+  ct:print("\e[1;1m t_select_ops: \e[0m\e[32m[OK] \e[0m"),
+  ok.
+
+t_paginated_select_ops(_Config) ->
+  true = cleanup_shards(),
+
+  % MatchSpec
+  MS = ets:fun2ms(fun({K, V}) -> {K, V} end),
+
+  % test empty
+  {[], {_, _, _, _, '$end_of_table'}} = shards:select(?DUPLICATE_BAG, MS, 10),
+
+  % insert some values
+  KVPairs = [
+    {k1, 1}, {k2, 2}, {k3, 2}, {k1, 1}, {k4, 22}, {k5, 33},
+    {k11, 1}, {k22, 2}, {k33, 2}, {k44, 11}, {k55, 22}, {k55, 33}
+  ],
+  R0 = shards:insert(?DUPLICATE_BAG, KVPairs),
+  R0 = lists:duplicate(12, true),
+
+  % select/3
+  {R1, C1} = shards:select(?DUPLICATE_BAG, MS, 1),
+  1 = length(R1),
+  {R2, _} = shards:select(?DUPLICATE_BAG, MS, 20),
+  12 = length(R2),
+
+  % select/1 - by 1
+  select_by(C1, 1, length(KVPairs) - 1),
+
+  % select/1 - by 2
+  {R3, C2} = shards:select(?DUPLICATE_BAG, MS, 2),
+  2 = length(R3),
+  select_by(C2, 2, (length(KVPairs) - 2) div 2),
+
+  % select/1 - by 4
+  {R4, C3} = shards:select(?DUPLICATE_BAG, MS, 4),
+  4 = length(R4),
+  select_by(C3, 4, (length(KVPairs) - 4) div 4),
+
   %ct:print("\e[36m ~p \e[0m", [R2]),
 
-  ct:print("\e[1;1m t_select_ops: \e[0m\e[32m[OK] \e[0m"),
+  ct:print("\e[1;1m t_paginated_select_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_update_ops(_Config) ->
@@ -295,3 +336,11 @@ shards_created(Tab) ->
   lists:foreach(fun(Shard) ->
     true = lists:member(Shard, shards:all())
   end, shards:list(Tab)).
+
+select_by(Continuation, Limit, Intensity) ->
+  NewC = lists:foldl(fun(_, Acc) ->
+    {L, C} = shards:select(Acc),
+    Limit = length(L), C
+  end, Continuation, lists:seq(1, Intensity)),
+  {[], C1} = shards:select(NewC),
+  {[], _} = shards:select(C1).
