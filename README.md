@@ -1,4 +1,4 @@
-SHARDS
+Shards
 ======
 
 An OTP application

@@ -16,7 +16,7 @@
   t_basic_ops/1,
   t_match_ops/1,
   t_select_ops/1,
-  t_paginated_select_ops/1,
+  t_paginated_ops/1,
   t_update_ops/1,
   t_fold_ops/1,
   t_info_ops/1
@@ -37,7 +37,7 @@ all() -> [
   t_basic_ops,
   t_match_ops,
   t_select_ops,
-  t_paginated_select_ops,
+  t_paginated_ops,
   t_update_ops,
   t_fold_ops,
   t_info_ops
@@ -173,14 +173,21 @@ t_select_ops(_Config) ->
   ct:print("\e[1;1m t_select_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
-t_paginated_select_ops(_Config) ->
+t_paginated_ops(_Config) ->
+  MS = ets:fun2ms(fun({K, V}) -> {K, V} end),
+  Ops = [
+    {select, MS},
+    {select_reverse, MS},
+    {match, '$1'},
+    {match_object, '$1'}
+  ],
+  run_for_all(fun t_paginated_ops_/1, Ops).
+
+t_paginated_ops_({Op, Q}) ->
   true = cleanup_shards(),
 
-  % MatchSpec
-  MS = ets:fun2ms(fun({K, V}) -> {K, V} end),
-
   % test empty
-  {[], {_, _, _, _, '$end_of_table'}} = shards:select(?DUPLICATE_BAG, MS, 10),
+  {[], {_, _, _, _, '$end_of_table'}} = shards:Op(?DUPLICATE_BAG, Q, 10),
 
   % insert some values
   KVPairs = [
@@ -191,27 +198,25 @@ t_paginated_select_ops(_Config) ->
   R0 = lists:duplicate(12, true),
 
   % select/3
-  {R1, C1} = shards:select(?DUPLICATE_BAG, MS, 1),
+  {R1, C1} = shards:Op(?DUPLICATE_BAG, Q, 1),
   1 = length(R1),
-  {R2, _} = shards:select(?DUPLICATE_BAG, MS, 20),
+  {R2, _} = shards:Op(?DUPLICATE_BAG, Q, 20),
   12 = length(R2),
 
   % select/1 - by 1
-  select_by(C1, 1, length(KVPairs) - 1),
+  select_by(Op, C1, 1, length(KVPairs) - 1),
 
   % select/1 - by 2
-  {R3, C2} = shards:select(?DUPLICATE_BAG, MS, 2),
+  {R3, C2} = shards:Op(?DUPLICATE_BAG, Q, 2),
   2 = length(R3),
-  select_by(C2, 2, (length(KVPairs) - 2) div 2),
+  select_by(Op, C2, 2, (length(KVPairs) - 2) div 2),
 
   % select/1 - by 4
-  {R4, C3} = shards:select(?DUPLICATE_BAG, MS, 4),
+  {R4, C3} = shards:Op(?DUPLICATE_BAG, Q, 4),
   4 = length(R4),
-  select_by(C3, 4, (length(KVPairs) - 4) div 4),
+  select_by(Op, C3, 4, (length(KVPairs) - 4) div 4),
 
-  %ct:print("\e[36m ~p \e[0m", [R2]),
-
-  ct:print("\e[1;1m t_paginated_select_ops: \e[0m\e[32m[OK] \e[0m"),
+  ct:print("\e[1;1m t_paginated_ops ~p: \e[0m\e[32m[OK] \e[0m", [Op]),
   ok.
 
 t_update_ops(_Config) ->
@@ -337,10 +342,12 @@ shards_created(Tab) ->
     true = lists:member(Shard, shards:all())
   end, shards:list(Tab)).
 
-select_by(Continuation, Limit, Intensity) ->
+select_by(Op, Continuation, Limit, Intensity) ->
   NewC = lists:foldl(fun(_, Acc) ->
-    {L, C} = shards:select(Acc),
+    {L, C} = shards:Op(Acc),
     Limit = length(L), C
   end, Continuation, lists:seq(1, Intensity)),
-  {[], C1} = shards:select(NewC),
-  {[], _} = shards:select(C1).
+  {[], C1} = shards:Op(NewC),
+  {[], _} = shards:Op(C1).
+
+run_for_all(Fun, List) -> lists:foreach(Fun, List).

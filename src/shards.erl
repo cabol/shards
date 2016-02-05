@@ -479,13 +479,34 @@ lookup_element(Tab, Key, Pos, PoolSize) ->
 match(Tab, Pattern) ->
   lists:append(pmap(Tab, pool_size(Tab), fun ets:match/2, [Pattern])).
 
-match(_Tab, _Pattern, _Limit) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% This operation behaves like `ets:match/3'.
+%%
+%% The `PoolSize' is obtained internally by `shards'.
+%%
+%% @see ets:match/3.
+%% @end
+-spec match(Tab, Pattern, Limit) -> {[Match], Continuation} when
+  Tab          :: atom(),
+  Pattern      :: ets:match_pattern(),
+  Limit        :: pos_integer(),
+  Match        :: term(),
+  Continuation :: continuation().
+match(Tab, Pattern, Limit) ->
+  q(match, Tab, Pattern, Limit, Limit, pool_size(Tab) - 1, {[], nil}).
 
-match(_Continuation) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% This operation behaves like `ets:match/1'.
+%%
+%% The `PoolSize' is obtained internally by `shards'.
+%%
+%% @see ets:match/1.
+%% @end
+-spec match(Continuation) -> {[Match], Continuation} when
+  Match        :: term(),
+  Continuation :: continuation().
+match({_, _, Limit, _, _} = Continuation) ->
+  q(match, Continuation, Limit, []).
 
 %% @doc
 %% This operation behaves like `ets:match_delete/2'.
@@ -509,13 +530,34 @@ match_delete(Tab, Pattern) ->
 match_object(Tab, Pattern) ->
   lists:append(pmap(Tab, pool_size(Tab), fun ets:match_object/2, [Pattern])).
 
-match_object(_Tab, _Pattern, _Limit) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% This operation behaves like `ets:match_object/3'.
+%%
+%% The `PoolSize' is obtained internally by `shards'.
+%%
+%% @see ets:match_object/3.
+%% @end
+-spec match_object(Tab, Pattern, Limit) -> {[Match], Continuation} when
+  Tab          :: atom(),
+  Pattern      :: ets:match_pattern(),
+  Limit        :: pos_integer(),
+  Match        :: term(),
+  Continuation :: continuation().
+match_object(Tab, Pattern, Limit) ->
+  q(match_object, Tab, Pattern, Limit, Limit, pool_size(Tab) - 1, {[], nil}).
 
-match_object(_Continuation) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% This operation behaves like `ets:match_object/1'.
+%%
+%% The `PoolSize' is obtained internally by `shards'.
+%%
+%% @see ets:match_object/1.
+%% @end
+-spec match_object(Continuation) -> {[Match], Continuation} when
+  Match        :: term(),
+  Continuation :: continuation().
+match_object({_, _, Limit, _, _} = Continuation) ->
+  q(match_object, Continuation, Limit, []).
 
 match_spec_compile(_MatchSpec) ->
   %% @TODO: Implement this function.
@@ -624,23 +666,7 @@ select(Tab, MatchSpec) ->
   Match        :: term(),
   Continuation :: continuation().
 select(Tab, MatchSpec, Limit) ->
-  select_(Tab, MatchSpec, Limit, Limit, pool_size(Tab) - 1, {[], nil}).
-
-%% @private
-select_(Tab, MatchSpec, Limit, 0, Shard, {Acc, Continuation}) ->
-  {Acc, {Tab, MatchSpec, Limit, Shard, Continuation}};
-select_(Tab, MatchSpec, Limit, _, Shard, {Acc, _}) when Shard < 0 ->
-  {Acc, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}};
-select_(Tab, MatchSpec, Limit, I, Shard, {Acc, '$end_of_table'}) ->
-  select_(Tab, MatchSpec, Limit, I, Shard - 1, {Acc, nil});
-select_(Tab, MatchSpec, Limit, I, Shard, {Acc, _}) ->
-  ShardTab = shard_name(Tab, Shard),
-  case ets:select(ShardTab, MatchSpec, I) of
-    {L, Cont} ->
-      select_(Tab, MatchSpec, Limit, I - length(L), Shard, {Acc ++ L, Cont});
-    '$end_of_table' ->
-      select_(Tab, MatchSpec, Limit, I, Shard, {Acc, '$end_of_table'})
-  end.
+  q(select, Tab, MatchSpec, Limit, Limit, pool_size(Tab) - 1, {[], nil}).
 
 %% @doc
 %% This operation behaves like `ets:select/1'.
@@ -653,22 +679,7 @@ select_(Tab, MatchSpec, Limit, I, Shard, {Acc, _}) ->
   Match        :: term(),
   Continuation :: continuation().
 select({_, _, Limit, _, _} = Continuation) ->
-  select_(Continuation, Limit, []).
-
-%% @private
-select_({Tab, MatchSpec, Limit, Shard, Continuation}, 0, Acc) ->
-  {Acc, {Tab, MatchSpec, Limit, Shard, Continuation}};
-select_({Tab, MatchSpec, Limit, Shard, _}, _, Acc) when Shard < 0 ->
-  {Acc, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}};
-select_({Tab, MatchSpec, Limit, Shard, '$end_of_table'}, I, Acc) ->
-  select_(Tab, MatchSpec, Limit, I, Shard - 1, {Acc, nil});
-select_({Tab, MatchSpec, Limit, Shard, Continuation}, I, Acc) ->
-  case ets:select(Continuation) of
-    {L, Cont} ->
-      select_({Tab, MatchSpec, Limit, Shard, Cont}, I - length(L), Acc ++ L);
-    '$end_of_table' ->
-      select_({Tab, MatchSpec, Limit, Shard, '$end_of_table'}, I, Acc)
-  end.
+  q(select, Continuation, Limit, []).
 
 %% @doc
 %% This operation behaves like `ets:select_count/2'.
@@ -703,13 +714,39 @@ select_reverse(Tab, MatchSpec) ->
   %% @TODO: Enhancement: Validate behavior when table type is an ordered_set
   lists:append(pmap(Tab, pool_size(Tab), fun ets:select_reverse/2, [MatchSpec])).
 
-select_reverse(_Tab, _MatchSpec, _Limit) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% This operation behaves like `ets:select_reverse/3'.
+%%
+%% The `PoolSize' is obtained internally by `shards'.
+%%
+%% @see ets:select_reverse/3.
+%% @end
+-spec select_reverse(Tab, MatchSpec, Limit) -> {[Match], Continuation} when
+  Tab          :: atom(),
+  MatchSpec    :: ets:match_spec(),
+  Limit        :: pos_integer(),
+  Match        :: term(),
+  Continuation :: continuation().
+select_reverse(Tab, MatchSpec, Limit) ->
+  q(select_reverse,
+    Tab, MatchSpec,
+    Limit,
+    Limit,
+    pool_size(Tab) - 1,
+    {[], nil}).
 
-select_reverse(_Continuation) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% This operation behaves like `ets:select_reverse/1'.
+%%
+%% The `PoolSize' is obtained internally by `shards'.
+%%
+%% @see ets:select_reverse/1.
+%% @end
+-spec select_reverse(Continuation) -> {[Match], Continuation} when
+  Match        :: term(),
+  Continuation :: continuation().
+select_reverse({_, _, Limit, _, _} = Continuation) ->
+  q(select_reverse, Continuation, Limit, []).
 
 setopts(_Tab, _Opts) ->
   %% @TODO: Implement this function.
@@ -860,3 +897,33 @@ fold(Tab, PoolSize, Fold, [Fun, Acc]) ->
     ShardName = shard_name(Tab, Shard),
     apply(ets, Fold, [Fun, FoldAcc, ShardName])
   end, Acc, lists:seq(0, PoolSize - 1)).
+
+%% @private
+q(_, Tab, MatchSpec, Limit, 0, Shard, {Acc, Continuation}) ->
+  {Acc, {Tab, MatchSpec, Limit, Shard, Continuation}};
+q(_, Tab, MatchSpec, Limit, _, Shard, {Acc, _}) when Shard < 0 ->
+  {Acc, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}};
+q(F, Tab, MatchSpec, Limit, I, Shard, {Acc, '$end_of_table'}) ->
+  q(F, Tab, MatchSpec, Limit, I, Shard - 1, {Acc, nil});
+q(F, Tab, MatchSpec, Limit, I, Shard, {Acc, _}) ->
+  case ets:F(shard_name(Tab, Shard), MatchSpec, I) of
+    {L, Cont} ->
+      q(F, Tab, MatchSpec, Limit, I - length(L), Shard, {Acc ++ L, Cont});
+    '$end_of_table' ->
+      q(F, Tab, MatchSpec, Limit, I, Shard, {Acc, '$end_of_table'})
+  end.
+
+%% @private
+q(_, {Tab, MatchSpec, Limit, Shard, Continuation}, 0, Acc) ->
+  {Acc, {Tab, MatchSpec, Limit, Shard, Continuation}};
+q(_, {Tab, MatchSpec, Limit, Shard, _}, _, Acc) when Shard < 0 ->
+  {Acc, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}};
+q(F, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}, I, Acc) ->
+  q(F, Tab, MatchSpec, Limit, I, Shard - 1, {Acc, nil});
+q(F, {Tab, MatchSpec, Limit, Shard, Continuation}, I, Acc) ->
+  case ets:F(Continuation) of
+    {L, Cont} ->
+      q(F, {Tab, MatchSpec, Limit, Shard, Cont}, I - length(L), Acc ++ L);
+    '$end_of_table' ->
+      q(F, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}, I, Acc)
+  end.
