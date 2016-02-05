@@ -320,7 +320,7 @@ delete_shards_pool() ->
   true = shards:delete(?SET),
   true = ets:delete(?ETS_DUPLICATE_BAG),
   true = shards:delete(?DUPLICATE_BAG),
-  [] = supervisor:count_children(shards_pool_sup).
+  [] = supervisor:count_children(shards_sup).
 
 lookup_keys(Mod, Tab, Keys) ->
   lists:foldr(fun(Key, Acc) ->

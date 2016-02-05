@@ -126,7 +126,7 @@ start() -> application:ensure_all_started(shards).
 stop() -> application:stop(ebus).
 
 %% @hidden
-start(_StartType, _StartArgs) -> shards_pool_sup:start_link().
+start(_StartType, _StartArgs) -> shards_sup:start_link().
 
 %% @hidden
 stop(_State) -> ok.
@@ -148,7 +148,7 @@ all() -> ets:all().
 %% @see ets:delete/1.
 %% @end
 delete(Tab) ->
-  ok = shards_pool_sup:terminate_child(shards_pool_sup, whereis(Tab)),
+  ok = shards_sup:terminate_child(shards_sup, whereis(Tab)),
   true.
 
 %% @doc
@@ -547,8 +547,7 @@ member(Tab, Key, PoolSize) ->
 %% @doc
 %% This operation is the mirror of `ets:new/2', BUT it behaves totally
 %% different. When this function is called, instead of create a single
-%% table, a new supervision tree is created and added to
-%% `shards_pool_sup'.
+%% table, a new supervision tree is created and added to `shards_sup'.
 %%
 %% This supervision tree has a main supervisor `shards_sup' which
 %% creates a control ETS table and also creates `N' number of
@@ -575,7 +574,7 @@ new(Name, Options) ->
 %% Same as `shards:new/2' but receives the `PoolSize' explicitly.
 %% @end
 new(Name, Options, PoolSize) ->
-  case shards_pool_sup:start_child([Name, Options, PoolSize]) of
+  case shards_sup:start_child([Name, Options, PoolSize]) of
     {ok, _} -> Name;
     _       -> throw(badarg)
   end.
