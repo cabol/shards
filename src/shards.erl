@@ -6,9 +6,52 @@
 %%% preserves the same ETS semantics, with som exception which you
 %%% will find on the function doc.
 %%%
-%%% For some functions
-%%% Therefore, the call to the ETS control table, held by the shards
-%%% supervisor, is skipped.
+%%% Shards gives a top level view of a single logical ETS table,
+%%% but inside, that logical table is split in multiple physical
+%%% ETS tables called <b>shards</b>, where `Shards = [0 .. N-1]',
+%%% and `N' is the number of shards into which you want to split
+%%% the table.
+%%%
+%%% The K/V pairs are distributed across these shards, therefore,
+%%% some of the functions does not follows the same semantics as
+%%% the original ones ETS.
+%%%
+%%% A good example of that are the query-based functions, which
+%%% returns multiple results, and in case of `ordered_set', in
+%%% a particular order. E.g.:
+%%% <ul>
+%%% <li>`select/2', `select/3', `select/1'</li>
+%%% <li>`select_reverse/2', `select_reverse/3', `select_reverse/1'</li>
+%%% <li>`match/2', `match/3', `match/1'</li>
+%%% <li>`match_object/2', `match_object/3', `match_object/1'</li>
+%%% <li>etc...</li>
+%%% </ul>
+%%% For those cases, the order what results are returned is not
+%%% guaranteed to be the same as the original ETS functions.
+%%%
+%%% Additionally to the ETS functions, Shards provides, in some cases,
+%%% an additional function to receive the pool size (or number of
+%%% shards). In the compatible ETS functions, this parameter
+%%% `PoolSize' doesn't exist, so in those cases, Shards have to
+%%% figure out the value of the pool size, which is stored in a
+%%% control ETS table. For that reason, some additional functions
+%%% have been created, receiving the `PoolSize' and skipping the
+%%% call to the control ETS table (these functions promotes better
+%%% performance. E.g.:
+%%%
+%%% ```
+%%% % normal compatible ETS function
+%%% shards:lookup(table, key1).
+%%% % additional function (pool_size = 5)
+%%% shards:lookup(table, key1, 5).
+%%% '''
+%%%
+%%% Most of the cases, where the `PoolSize' is not specified, Shards
+%%% has to do an additional call to the ETS control table.
+%%%
+%%% Pools of shards can be added/removed dynamically. For example,
+%%% using `shards:new/2' or `shards:new/3' you can add more pools.
+%%% And `shards:delete/1' to remove the pool you wish.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(shards).
@@ -470,9 +513,8 @@ lookup_element(Tab, Key, Pos, PoolSize) ->
   call(Tab, Key, PoolSize, fun ets:lookup_element/3, [Key, Pos]).
 
 %% @doc
-%% This operation behaves like `ets:match/2'.
-%%
-%% The `PoolSize' is obtained internally by `shards'.
+%% This operation doesn't behaves exactly like `ets:match/2'.
+%% Remember shards architecture described at the beginning.
 %%
 %% @see ets:match/2.
 %% @end
@@ -480,38 +522,36 @@ match(Tab, Pattern) ->
   lists:append(pmap(Tab, pool_size(Tab), fun ets:match/2, [Pattern])).
 
 %% @doc
-%% This operation behaves like `ets:match/3'.
-%%
-%% The `PoolSize' is obtained internally by `shards'.
+%% This operation doesn't behaves exactly like `ets:match/3'.
+%% Remember shards architecture described at the beginning.
 %%
 %% @see ets:match/3.
 %% @end
--spec match(Tab, Pattern, Limit) -> {[Match], Continuation} when
+-spec match(Tab, Pattern, Limit) -> Response when
   Tab          :: atom(),
   Pattern      :: ets:match_pattern(),
   Limit        :: pos_integer(),
   Match        :: term(),
-  Continuation :: continuation().
+  Continuation :: continuation(),
+  Response     :: {[Match], Continuation} | '$end_of_table'.
 match(Tab, Pattern, Limit) ->
   q(match, Tab, Pattern, Limit, Limit, pool_size(Tab) - 1, {[], nil}).
 
 %% @doc
-%% This operation behaves like `ets:match/1'.
-%%
-%% The `PoolSize' is obtained internally by `shards'.
+%% This operation doesn't behaves exactly like `ets:match/1'.
+%% Remember shards architecture described at the beginning.
 %%
 %% @see ets:match/1.
 %% @end
--spec match(Continuation) -> {[Match], Continuation} when
+-spec match(Continuation) -> Response when
   Match        :: term(),
-  Continuation :: continuation().
+  Continuation :: continuation(),
+  Response     :: {[Match], Continuation} | '$end_of_table'.
 match({_, _, Limit, _, _} = Continuation) ->
   q(match, Continuation, Limit, []).
 
 %% @doc
 %% This operation behaves like `ets:match_delete/2'.
-%%
-%% The `PoolSize' is obtained internally by `shards'.
 %%
 %% @see ets:match_delete/2.
 %% @end
@@ -521,9 +561,8 @@ match_delete(Tab, Pattern) ->
 
 
 %% @doc
-%% This operation behaves like `ets:match_object/2'.
-%%
-%% The `PoolSize' is obtained internally by `shards'.
+%% This operation doesn't behaves exactly like `ets:match_object/2'.
+%% Remember shards architecture described at the beginning.
 %%
 %% @see ets:match_object/2.
 %% @end
@@ -531,31 +570,31 @@ match_object(Tab, Pattern) ->
   lists:append(pmap(Tab, pool_size(Tab), fun ets:match_object/2, [Pattern])).
 
 %% @doc
-%% This operation behaves like `ets:match_object/3'.
-%%
-%% The `PoolSize' is obtained internally by `shards'.
+%% This operation doesn't behaves exactly like `ets:match_object/3'.
+%% Remember shards architecture described at the beginning.
 %%
 %% @see ets:match_object/3.
 %% @end
--spec match_object(Tab, Pattern, Limit) -> {[Match], Continuation} when
+-spec match_object(Tab, Pattern, Limit) -> Response when
   Tab          :: atom(),
   Pattern      :: ets:match_pattern(),
   Limit        :: pos_integer(),
   Match        :: term(),
-  Continuation :: continuation().
+  Continuation :: continuation(),
+  Response     :: {[Match], Continuation} | '$end_of_table'.
 match_object(Tab, Pattern, Limit) ->
   q(match_object, Tab, Pattern, Limit, Limit, pool_size(Tab) - 1, {[], nil}).
 
 %% @doc
-%% This operation behaves like `ets:match_object/1'.
-%%
-%% The `PoolSize' is obtained internally by `shards'.
+%% This operation doesn't behaves exactly like `ets:match_object/1'.
+%% Remember shards architecture described at the beginning.
 %%
 %% @see ets:match_object/1.
 %% @end
--spec match_object(Continuation) -> {[Match], Continuation} when
+-spec match_object(Continuation) -> Response when
   Match        :: term(),
-  Continuation :: continuation().
+  Continuation :: continuation(),
+  Response     :: {[Match], Continuation} | '$end_of_table'.
 match_object({_, _, Limit, _, _} = Continuation) ->
   q(match_object, Continuation, Limit, []).
 
@@ -642,9 +681,8 @@ safe_fixtable(_Tab, _Fix) ->
   throw(unsupported_operation).
 
 %% @doc
-%% This operation behaves like `ets:select/2'.
-%%
-%% The `PoolSize' is obtained internally by `shards'.
+%% This operation doesn't behaves exactly like `ets:select/2'.
+%% Remember shards architecture described at the beginning.
 %%
 %% @see ets:select/2.
 %% @end
@@ -653,38 +691,36 @@ select(Tab, MatchSpec) ->
   lists:append(pmap(Tab, pool_size(Tab), fun ets:select/2, [MatchSpec])).
 
 %% @doc
-%% This operation behaves like `ets:select/3'.
-%%
-%% The `PoolSize' is obtained internally by `shards'.
+%% This operation doesn't behaves exactly like `ets:select/3'.
+%% Remember shards architecture described at the beginning.
 %%
 %% @see ets:select/3.
 %% @end
--spec select(Tab, MatchSpec, Limit) -> {[Match], Continuation} when
+-spec select(Tab, MatchSpec, Limit) -> Response when
   Tab          :: atom(),
   MatchSpec    :: ets:match_spec(),
   Limit        :: pos_integer(),
   Match        :: term(),
-  Continuation :: continuation().
+  Continuation :: continuation(),
+  Response     :: {[Match], Continuation} | '$end_of_table'.
 select(Tab, MatchSpec, Limit) ->
   q(select, Tab, MatchSpec, Limit, Limit, pool_size(Tab) - 1, {[], nil}).
 
 %% @doc
-%% This operation behaves like `ets:select/1'.
-%%
-%% The `PoolSize' is obtained internally by `shards'.
+%% This operation doesn't behaves exactly like `ets:select/1'.
+%% Remember shards architecture described at the beginning.
 %%
 %% @see ets:select/1.
 %% @end
--spec select(Continuation) -> {[Match], Continuation} when
+-spec select(Continuation) -> Response when
   Match        :: term(),
-  Continuation :: continuation().
+  Continuation :: continuation(),
+  Response     :: {[Match], Continuation} | '$end_of_table'.
 select({_, _, Limit, _, _} = Continuation) ->
   q(select, Continuation, Limit, []).
 
 %% @doc
 %% This operation behaves like `ets:select_count/2'.
-%%
-%% The `PoolSize' is obtained internally by `shards'.
 %%
 %% @see ets:select_count/2.
 %% @end
@@ -695,8 +731,6 @@ select_count(Tab, MatchSpec) ->
 %% @doc
 %% This operation behaves like `ets:select_delete/2'.
 %%
-%% The `PoolSize' is obtained internally by `shards'.
-%%
 %% @see ets:select_delete/2.
 %% @end
 select_delete(Tab, MatchSpec) ->
@@ -704,9 +738,8 @@ select_delete(Tab, MatchSpec) ->
   lists:foldl(fun(Res, Acc) -> Acc + Res end, 0, Results).
 
 %% @doc
-%% This operation behaves like `ets:select_reverse/2'.
-%%
-%% The `PoolSize' is obtained internally by `shards'.
+%% This operation doesn't behaves exactly like `ets:select_reverse/2'.
+%% Remember shards architecture described at the beginning.
 %%
 %% @see ets:select_reverse/2.
 %% @end
@@ -715,18 +748,18 @@ select_reverse(Tab, MatchSpec) ->
   lists:append(pmap(Tab, pool_size(Tab), fun ets:select_reverse/2, [MatchSpec])).
 
 %% @doc
-%% This operation behaves like `ets:select_reverse/3'.
-%%
-%% The `PoolSize' is obtained internally by `shards'.
+%% This operation doesn't behaves exactly like `ets:select_reverse/3'.
+%% Remember shards architecture described at the beginning.
 %%
 %% @see ets:select_reverse/3.
 %% @end
--spec select_reverse(Tab, MatchSpec, Limit) -> {[Match], Continuation} when
+-spec select_reverse(Tab, MatchSpec, Limit) -> Response when
   Tab          :: atom(),
   MatchSpec    :: ets:match_spec(),
   Limit        :: pos_integer(),
   Match        :: term(),
-  Continuation :: continuation().
+  Continuation :: continuation(),
+  Response     :: {[Match], Continuation} | '$end_of_table'.
 select_reverse(Tab, MatchSpec, Limit) ->
   q(select_reverse,
     Tab, MatchSpec,
@@ -736,15 +769,15 @@ select_reverse(Tab, MatchSpec, Limit) ->
     {[], nil}).
 
 %% @doc
-%% This operation behaves like `ets:select_reverse/1'.
-%%
-%% The `PoolSize' is obtained internally by `shards'.
+%% This operation doesn't behaves exactly like `ets:select_reverse/1'.
+%% Remember shards architecture described at the beginning.
 %%
 %% @see ets:select_reverse/1.
 %% @end
--spec select_reverse(Continuation) -> {[Match], Continuation} when
+-spec select_reverse(Continuation) -> Response when
   Match        :: term(),
-  Continuation :: continuation().
+  Continuation :: continuation(),
+  Response     :: {[Match], Continuation} | '$end_of_table'.
 select_reverse({_, _, Limit, _, _} = Continuation) ->
   q(select_reverse, Continuation, Limit, []).
 
@@ -901,6 +934,8 @@ fold(Tab, PoolSize, Fold, [Fun, Acc]) ->
 %% @private
 q(_, Tab, MatchSpec, Limit, 0, Shard, {Acc, Continuation}) ->
   {Acc, {Tab, MatchSpec, Limit, Shard, Continuation}};
+q(_, _, _, _, _, Shard, {[], _}) when Shard < 0 ->
+  '$end_of_table';
 q(_, Tab, MatchSpec, Limit, _, Shard, {Acc, _}) when Shard < 0 ->
   {Acc, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}};
 q(F, Tab, MatchSpec, Limit, I, Shard, {Acc, '$end_of_table'}) ->
@@ -916,8 +951,6 @@ q(F, Tab, MatchSpec, Limit, I, Shard, {Acc, _}) ->
 %% @private
 q(_, {Tab, MatchSpec, Limit, Shard, Continuation}, 0, Acc) ->
   {Acc, {Tab, MatchSpec, Limit, Shard, Continuation}};
-q(_, {Tab, MatchSpec, Limit, Shard, _}, _, Acc) when Shard < 0 ->
-  {Acc, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}};
 q(F, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}, I, Acc) ->
   q(F, Tab, MatchSpec, Limit, I, Shard - 1, {Acc, nil});
 q(F, {Tab, MatchSpec, Limit, Shard, Continuation}, I, Acc) ->

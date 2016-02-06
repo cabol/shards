@@ -187,7 +187,7 @@ t_paginated_ops_({Op, Q}) ->
   true = cleanup_shards(),
 
   % test empty
-  {[], {_, _, _, _, '$end_of_table'}} = shards:Op(?DUPLICATE_BAG, Q, 10),
+  '$end_of_table' = shards:Op(?DUPLICATE_BAG, Q, 10),
 
   % insert some values
   KVPairs = [
@@ -347,7 +347,6 @@ select_by(Op, Continuation, Limit, Intensity) ->
     {L, C} = shards:Op(Acc),
     Limit = length(L), C
   end, Continuation, lists:seq(1, Intensity)),
-  {[], C1} = shards:Op(NewC),
-  {[], _} = shards:Op(C1).
+  '$end_of_table' = shards:Op(NewC).
 
 run_for_all(Fun, List) -> lists:foreach(Fun, List).
