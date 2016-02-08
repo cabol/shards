@@ -119,8 +119,9 @@
 %% Extended API
 -export([
   shard_name/2,
-  shard/3,
+  shard/2,
   pool_size/1,
+  options/1,
   list/1
 ]).
 
@@ -263,9 +264,26 @@ file2tab(_Filename, _Options) ->
   %% @TODO: Implement this function.
   throw(unsupported_operation).
 
-first(_Tab) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% This operation behaves similar to `ets:first/1'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
+%%
+%% @see ets:first/1.
+%% @end
+first(Tab) ->
+  Shard = pool_size(Tab) - 1,
+  first(Tab, ets:first(shard_name(Tab, Shard)), Shard).
+
+%% @private
+first(Tab, '$end_of_table', Shard) when Shard > 0 ->
+  NextShard = Shard - 1,
+  first(Tab, ets:first(shard_name(Tab, NextShard)), NextShard);
+first(_, '$end_of_table', _) ->
+  '$end_of_table';
+first(_, Key, _) ->
+  Key.
 
 %% @doc
 %% This operation behaves like `ets:foldl/3'.
@@ -349,7 +367,7 @@ i(_Tab) ->
 -spec info(Tab) -> Result when
   Tab      :: atom(),
   Result   :: [InfoList],
-  InfoList :: [term()].
+  InfoList :: [term() | undefined].
 info(Tab) ->
   pmap(Tab, pool_size(Tab), fun ets:info/1).
 
@@ -364,7 +382,7 @@ info(Tab) ->
   Tab      :: atom(),
   Item     :: atom(),
   Result   :: [Value],
-  Value    :: term().
+  Value    :: [term() | undefined].
 info(Tab, Item) ->
   pmap(Tab, pool_size(Tab), fun ets:info/2, [Item]).
 
@@ -376,7 +394,7 @@ info(Tab, Item) ->
 -spec info_shard(Tab, Shard) -> Result when
   Tab      :: atom(),
   Shard    :: non_neg_integer(),
-  Result   :: [term()].
+  Result   :: [term()] | undefined.
 info_shard(Tab, Shard) ->
   ShardName = shard_name(Tab, Shard),
   ets:info(ShardName).
@@ -390,7 +408,7 @@ info_shard(Tab, Shard) ->
   Tab      :: atom(),
   Shard    :: non_neg_integer(),
   Item     :: atom(),
-  Result   :: [term()].
+  Result   :: term() | undefined.
 info_shard(Tab, Shard, Item) ->
   ShardName = shard_name(Tab, Shard),
   ets:info(ShardName, Item).
@@ -469,9 +487,31 @@ is_compiled_ms(_Term) ->
   %% @TODO: Implement this function.
   throw(unsupported_operation).
 
-last(_Tab) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% This operation behaves similar to `ets:last/1'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
+%%
+%% @see ets:last/1.
+%% @end
+last(Tab) ->
+  Options = options(Tab),
+  case lists:member(ordered_set, Options) of
+    true ->
+      last(Tab, ets:last(shard_name(Tab, 0)), 0, pool_size(Tab) - 1);
+    _ ->
+      first(Tab)
+  end.
+
+%% @private
+last(Tab, '$end_of_table', Shard, PoolSize) when Shard < PoolSize ->
+  NextShard = Shard + 1,
+  last(Tab, ets:last(shard_name(Tab, NextShard)), NextShard, PoolSize);
+last(_, '$end_of_table', _, _) ->
+  '$end_of_table';
+last(_, Key, _, _) ->
+  Key.
 
 %% @doc
 %% This operation behaves like `ets:lookup/2'.
@@ -513,8 +553,10 @@ lookup_element(Tab, Key, Pos, PoolSize) ->
   call(Tab, Key, PoolSize, fun ets:lookup_element/3, [Key, Pos]).
 
 %% @doc
-%% This operation doesn't behaves exactly like `ets:match/2'.
-%% Remember shards architecture described at the beginning.
+%% This operation behaves similar to `ets:match/2'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
 %%
 %% @see ets:match/2.
 %% @end
@@ -522,8 +564,10 @@ match(Tab, Pattern) ->
   lists:append(pmap(Tab, pool_size(Tab), fun ets:match/2, [Pattern])).
 
 %% @doc
-%% This operation doesn't behaves exactly like `ets:match/3'.
-%% Remember shards architecture described at the beginning.
+%% This operation behaves similar to `ets:match/3'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
 %%
 %% @see ets:match/3.
 %% @end
@@ -535,11 +579,20 @@ match(Tab, Pattern) ->
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
 match(Tab, Pattern, Limit) ->
-  q(match, Tab, Pattern, Limit, Limit, pool_size(Tab) - 1, {[], nil}).
+  q(match,
+    Tab,
+    Pattern,
+    Limit,
+    q_fun(Tab),
+    Limit,
+    pool_size(Tab) - 1,
+    {[], nil}).
 
 %% @doc
-%% This operation doesn't behaves exactly like `ets:match/1'.
-%% Remember shards architecture described at the beginning.
+%% This operation behaves similar to `ets:match/1'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
 %%
 %% @see ets:match/1.
 %% @end
@@ -547,8 +600,8 @@ match(Tab, Pattern, Limit) ->
   Match        :: term(),
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-match({_, _, Limit, _, _} = Continuation) ->
-  q(match, Continuation, Limit, []).
+match({Tab, _, Limit, _, _} = Continuation) ->
+  q(match, Continuation, q_fun(Tab), Limit, []).
 
 %% @doc
 %% This operation behaves like `ets:match_delete/2'.
@@ -561,8 +614,10 @@ match_delete(Tab, Pattern) ->
 
 
 %% @doc
-%% This operation doesn't behaves exactly like `ets:match_object/2'.
-%% Remember shards architecture described at the beginning.
+%% This operation behaves similar to `ets:match_object/2'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
 %%
 %% @see ets:match_object/2.
 %% @end
@@ -570,8 +625,10 @@ match_object(Tab, Pattern) ->
   lists:append(pmap(Tab, pool_size(Tab), fun ets:match_object/2, [Pattern])).
 
 %% @doc
-%% This operation doesn't behaves exactly like `ets:match_object/3'.
-%% Remember shards architecture described at the beginning.
+%% This operation behaves similar to `ets:match_object/3'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
 %%
 %% @see ets:match_object/3.
 %% @end
@@ -583,11 +640,20 @@ match_object(Tab, Pattern) ->
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
 match_object(Tab, Pattern, Limit) ->
-  q(match_object, Tab, Pattern, Limit, Limit, pool_size(Tab) - 1, {[], nil}).
+  q(match_object,
+    Tab,
+    Pattern,
+    Limit,
+    q_fun(Tab),
+    Limit,
+    pool_size(Tab) - 1,
+    {[], nil}).
 
 %% @doc
-%% This operation doesn't behaves exactly like `ets:match_object/1'.
-%% Remember shards architecture described at the beginning.
+%% This operation behaves similar to `ets:match_object/1'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
 %%
 %% @see ets:match_object/1.
 %% @end
@@ -595,8 +661,8 @@ match_object(Tab, Pattern, Limit) ->
   Match        :: term(),
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-match_object({_, _, Limit, _, _} = Continuation) ->
-  q(match_object, Continuation, Limit, []).
+match_object({Tab, _, Limit, _, _} = Continuation) ->
+  q(match_object, Continuation, q_fun(Tab), Limit, []).
 
 match_spec_compile(_MatchSpec) ->
   %% @TODO: Implement this function.
@@ -660,13 +726,56 @@ new(Name, Options, PoolSize) ->
     _       -> throw(badarg)
   end.
 
-next(_Tab, _Key1) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% This operation behaves similar to `ets:next/2'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
+%%
+%% @see ets:next/2.
+%% @end
+next(Tab, Key1) ->
+  Shard = shard(Key1, pool_size(Tab)),
+  ShardName = shard_name(Tab, Shard),
+  next(Tab, ets:next(ShardName, Key1), Shard).
 
-prev(_Tab, _Key1) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @private
+next(Tab, '$end_of_table', Shard) when Shard > 0 ->
+  NextShard = Shard - 1,
+  next(Tab, ets:first(shard_name(Tab, NextShard)), NextShard);
+next(_, '$end_of_table', _) ->
+  '$end_of_table';
+next(_, Key2, _) ->
+  Key2.
+
+%% @doc
+%% This operation behaves similar to `ets:prev/2'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
+%%
+%% @see ets:prev/2.
+%% @end
+prev(Tab, Key1) ->
+  Options = options(Tab),
+  case lists:member(ordered_set, Options) of
+    true ->
+      PoolSize = pool_size(Tab),
+      Shard = shard(Key1, PoolSize),
+      ShardName = shard_name(Tab, Shard),
+      prev(Tab, ets:prev(ShardName, Key1), Shard, PoolSize - 1);
+    _ ->
+      next(Tab, Key1)
+  end.
+
+%% @private
+prev(Tab, '$end_of_table', Shard, PoolSize) when Shard < PoolSize ->
+  NextShard = Shard + 1,
+  prev(Tab, ets:last(shard_name(Tab, NextShard)), NextShard, PoolSize);
+prev(_, '$end_of_table', _, _) ->
+  '$end_of_table';
+prev(_, Key2, _, _) ->
+  Key2.
 
 rename(_Tab, _Name) ->
   %% @TODO: Implement this function.
@@ -681,8 +790,10 @@ safe_fixtable(_Tab, _Fix) ->
   throw(unsupported_operation).
 
 %% @doc
-%% This operation doesn't behaves exactly like `ets:select/2'.
-%% Remember shards architecture described at the beginning.
+%% This operation behaves similar to `ets:select/2'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
 %%
 %% @see ets:select/2.
 %% @end
@@ -691,8 +802,10 @@ select(Tab, MatchSpec) ->
   lists:append(pmap(Tab, pool_size(Tab), fun ets:select/2, [MatchSpec])).
 
 %% @doc
-%% This operation doesn't behaves exactly like `ets:select/3'.
-%% Remember shards architecture described at the beginning.
+%% This operation behaves similar to `ets:select/3'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
 %%
 %% @see ets:select/3.
 %% @end
@@ -704,11 +817,20 @@ select(Tab, MatchSpec) ->
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
 select(Tab, MatchSpec, Limit) ->
-  q(select, Tab, MatchSpec, Limit, Limit, pool_size(Tab) - 1, {[], nil}).
+  q(select,
+    Tab,
+    MatchSpec,
+    Limit,
+    q_fun(Tab),
+    Limit,
+    pool_size(Tab) - 1,
+    {[], nil}).
 
 %% @doc
-%% This operation doesn't behaves exactly like `ets:select/1'.
-%% Remember shards architecture described at the beginning.
+%% This operation behaves similar to `ets:select/1'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
 %%
 %% @see ets:select/1.
 %% @end
@@ -716,8 +838,8 @@ select(Tab, MatchSpec, Limit) ->
   Match        :: term(),
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-select({_, _, Limit, _, _} = Continuation) ->
-  q(select, Continuation, Limit, []).
+select({Tab, _, Limit, _, _} = Continuation) ->
+  q(select, Continuation, q_fun(Tab), Limit, []).
 
 %% @doc
 %% This operation behaves like `ets:select_count/2'.
@@ -738,8 +860,10 @@ select_delete(Tab, MatchSpec) ->
   lists:foldl(fun(Res, Acc) -> Acc + Res end, 0, Results).
 
 %% @doc
-%% This operation doesn't behaves exactly like `ets:select_reverse/2'.
-%% Remember shards architecture described at the beginning.
+%% This operation behaves similar to `ets:select_reverse/2'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
 %%
 %% @see ets:select_reverse/2.
 %% @end
@@ -748,8 +872,10 @@ select_reverse(Tab, MatchSpec) ->
   lists:append(pmap(Tab, pool_size(Tab), fun ets:select_reverse/2, [MatchSpec])).
 
 %% @doc
-%% This operation doesn't behaves exactly like `ets:select_reverse/3'.
-%% Remember shards architecture described at the beginning.
+%% This operation behaves similar to `ets:select_reverse/3'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
 %%
 %% @see ets:select_reverse/3.
 %% @end
@@ -764,13 +890,16 @@ select_reverse(Tab, MatchSpec, Limit) ->
   q(select_reverse,
     Tab, MatchSpec,
     Limit,
+    q_fun(Tab),
     Limit,
     pool_size(Tab) - 1,
     {[], nil}).
 
 %% @doc
-%% This operation doesn't behaves exactly like `ets:select_reverse/1'.
-%% Remember shards architecture described at the beginning.
+%% This operation behaves similar to `ets:select_reverse/1'.
+%% The order in which results are returned, might be not the same
+%% as the original ETS function. Remember shards architecture
+%% described at the beginning.
 %%
 %% @see ets:select_reverse/1.
 %% @end
@@ -778,8 +907,8 @@ select_reverse(Tab, MatchSpec, Limit) ->
   Match        :: term(),
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-select_reverse({_, _, Limit, _, _} = Continuation) ->
-  q(select_reverse, Continuation, Limit, []).
+select_reverse({Tab, _, Limit, _, _} = Continuation) ->
+  q(select_reverse, Continuation, q_fun(Tab), Limit, []).
 
 setopts(_Tab, _Opts) ->
   %% @TODO: Implement this function.
@@ -890,15 +1019,19 @@ update_element(Tab, Key, ElementSpec, PoolSize) ->
 shard_name(Tab, Shard) ->
   shards_owner:shard_name(Tab, Shard).
 
--spec shard(atom(), term(), pos_integer()) -> atom().
-shard(Tab, Key, PoolSize) ->
-  Shard = erlang:phash2(Key) rem PoolSize,
-  shard_name(Tab, Shard).
+-spec shard(term(), pos_integer()) -> non_neg_integer().
+shard(Key, PoolSize) ->
+  erlang:phash2(Key) rem PoolSize.
 
 -spec pool_size(atom()) -> pos_integer().
 pool_size(Tab) ->
   [{_, PoolSize}] = ets:lookup(Tab, pool_size),
   PoolSize.
+
+-spec options(atom()) -> [term()].
+options(Tab) ->
+  [{_, Options}] = ets:lookup(Tab, options),
+  Options.
 
 -spec list(atom()) -> [atom()].
 list(Tab) ->
@@ -910,8 +1043,8 @@ list(Tab) ->
 
 %% @private
 call(Tab, Key, PoolSize, Fun, Args) ->
-  Shard = shard(Tab, Key, PoolSize),
-  apply(erlang, apply, [Fun, [Shard | Args]]).
+  ShardName = shard_name(Tab, shard(Key, PoolSize)),
+  apply(erlang, apply, [Fun, [ShardName | Args]]).
 
 %% @private
 pmap(Tab, PoolSize, Fun) ->
@@ -932,31 +1065,42 @@ fold(Tab, PoolSize, Fold, [Fun, Acc]) ->
   end, Acc, lists:seq(0, PoolSize - 1)).
 
 %% @private
-q(_, Tab, MatchSpec, Limit, 0, Shard, {Acc, Continuation}) ->
+q(_, Tab, MatchSpec, Limit, _, 0, Shard, {Acc, Continuation}) ->
   {Acc, {Tab, MatchSpec, Limit, Shard, Continuation}};
-q(_, _, _, _, _, Shard, {[], _}) when Shard < 0 ->
+q(_, _, _, _, _, _, Shard, {[], _}) when Shard < 0 ->
   '$end_of_table';
-q(_, Tab, MatchSpec, Limit, _, Shard, {Acc, _}) when Shard < 0 ->
+q(_, Tab, MatchSpec, Limit, _, _, Shard, {Acc, _}) when Shard < 0 ->
   {Acc, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}};
-q(F, Tab, MatchSpec, Limit, I, Shard, {Acc, '$end_of_table'}) ->
-  q(F, Tab, MatchSpec, Limit, I, Shard - 1, {Acc, nil});
-q(F, Tab, MatchSpec, Limit, I, Shard, {Acc, _}) ->
+q(F, Tab, MatchSpec, Limit, QFun, I, Shard, {Acc, '$end_of_table'}) ->
+  q(F, Tab, MatchSpec, Limit, QFun, I, Shard - 1, {Acc, nil});
+q(F, Tab, MatchSpec, Limit, QFun, I, Shard, {Acc, _}) ->
   case ets:F(shard_name(Tab, Shard), MatchSpec, I) of
     {L, Cont} ->
-      q(F, Tab, MatchSpec, Limit, I - length(L), Shard, {Acc ++ L, Cont});
+      NewAcc = {QFun(L, Acc), Cont},
+      q(F, Tab, MatchSpec, Limit, QFun, I - length(L), Shard, NewAcc);
     '$end_of_table' ->
-      q(F, Tab, MatchSpec, Limit, I, Shard, {Acc, '$end_of_table'})
+      q(F, Tab, MatchSpec, Limit, QFun, I, Shard, {Acc, '$end_of_table'})
   end.
 
 %% @private
-q(_, {Tab, MatchSpec, Limit, Shard, Continuation}, 0, Acc) ->
+q(_, {Tab, MatchSpec, Limit, Shard, Continuation}, _, 0, Acc) ->
   {Acc, {Tab, MatchSpec, Limit, Shard, Continuation}};
-q(F, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}, I, Acc) ->
-  q(F, Tab, MatchSpec, Limit, I, Shard - 1, {Acc, nil});
-q(F, {Tab, MatchSpec, Limit, Shard, Continuation}, I, Acc) ->
+q(F, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}, QFun, I, Acc) ->
+  q(F, Tab, MatchSpec, Limit, QFun, I, Shard - 1, {Acc, nil});
+q(F, {Tab, MatchSpec, Limit, Shard, Continuation}, QFun, I, Acc) ->
   case ets:F(Continuation) of
     {L, Cont} ->
-      q(F, {Tab, MatchSpec, Limit, Shard, Cont}, I - length(L), Acc ++ L);
+      NewAcc = QFun(L, Acc),
+      q(F, {Tab, MatchSpec, Limit, Shard, Cont}, QFun, I - length(L), NewAcc);
     '$end_of_table' ->
-      q(F, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}, I, Acc)
+      q(F, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}, QFun, I, Acc)
+  end.
+
+%% @private
+q_fun(Tab) ->
+  case info_shard(Tab, 0, type) of
+    ordered_set ->
+      fun(L1, L0) -> lists:foldl(fun(E, Acc) -> [E | Acc] end, L0, L1) end;
+    _ ->
+      fun(L1, L0) -> L1 ++ L0 end
   end.

@@ -17,6 +17,7 @@
   t_match_ops/1,
   t_select_ops/1,
   t_paginated_ops/1,
+  t_first_last_next_prev_ops/1,
   t_update_ops/1,
   t_fold_ops/1,
   t_info_ops/1
@@ -28,6 +29,10 @@
 -define(ETS_DUPLICATE_BAG, ets_test_duplicate_bag).
 -define(SET, test_set).
 -define(ETS_SET, ets_test_set).
+-define(ORDERED_SET, test_ordered_set).
+-define(ETS_ORDERED_SET, ets_test_ordered_set).
+-define(SHARDS_TABS, [?SET, ?DUPLICATE_BAG, ?ORDERED_SET]).
+-define(ETS_TABS, [?ETS_SET, ?ETS_DUPLICATE_BAG, ?ETS_ORDERED_SET]).
 
 %%%===================================================================
 %%% Common Test
@@ -38,6 +43,7 @@ all() -> [
   t_match_ops,
   t_select_ops,
   t_paginated_ops,
+  t_first_last_next_prev_ops,
   t_update_ops,
   t_fold_ops,
   t_info_ops
@@ -181,42 +187,109 @@ t_paginated_ops(_Config) ->
     {match, '$1'},
     {match_object, '$1'}
   ],
-  run_for_all(fun t_paginated_ops_/1, Ops).
+  Args = [{Tab, Op} || Tab <- ?SHARDS_TABS, Op <- Ops],
+  run_foreach(fun t_paginated_ops_/1, Args).
 
-t_paginated_ops_({Op, Q}) ->
+t_paginated_ops_({Tab, {Op, Q}} = Args) ->
   true = cleanup_shards(),
 
   % test empty
-  '$end_of_table' = shards:Op(?DUPLICATE_BAG, Q, 10),
+  '$end_of_table' = shards:Op(Tab, Q, 10),
 
   % insert some values
   KVPairs = [
     {k1, 1}, {k2, 2}, {k3, 2}, {k1, 1}, {k4, 22}, {k5, 33},
     {k11, 1}, {k22, 2}, {k33, 2}, {k44, 11}, {k55, 22}, {k55, 33}
   ],
-  R0 = shards:insert(?DUPLICATE_BAG, KVPairs),
+  R0 = shards:insert(Tab, KVPairs),
   R0 = lists:duplicate(12, true),
 
+  %% length
+  Len = case Tab of
+    ?DUPLICATE_BAG -> 12;
+    _              -> 10
+  end,
+
   % select/3
-  {R1, C1} = shards:Op(?DUPLICATE_BAG, Q, 1),
+  {R1, C1} = shards:Op(Tab, Q, 1),
   1 = length(R1),
-  {R2, _} = shards:Op(?DUPLICATE_BAG, Q, 20),
-  12 = length(R2),
+  {R2, _} = shards:Op(Tab, Q, 20),
+  Len = length(R2),
 
   % select/1 - by 1
-  select_by(Op, C1, 1, length(KVPairs) - 1),
+  {R11, Calls1} = select_by(Op, C1, 1),
+  Calls1 = Len,
+  R2 = R11 ++ R1,
 
   % select/1 - by 2
-  {R3, C2} = shards:Op(?DUPLICATE_BAG, Q, 2),
+  {R3, C2} = shards:Op(Tab, Q, 2),
   2 = length(R3),
-  select_by(Op, C2, 2, (length(KVPairs) - 2) div 2),
+  {R22, Calls2} = select_by(Op, C2, 2),
+  Calls2 = round(Len / 2),
+  R2 = R22 ++ R3,
 
   % select/1 - by 4
-  {R4, C3} = shards:Op(?DUPLICATE_BAG, Q, 4),
+  {R4, C3} = shards:Op(Tab, Q, 4),
   4 = length(R4),
-  select_by(Op, C3, 4, (length(KVPairs) - 4) div 4),
+  {R44, Calls3} = select_by(Op, C3, 4),
+  Calls3 = round(Len / 4),
+  R2 = R44 ++ R4,
 
-  ct:print("\e[1;1m t_paginated_ops ~p: \e[0m\e[32m[OK] \e[0m", [Op]),
+  ct:print("\e[1;1m t_paginated_ops(~p): \e[0m\e[32m[OK] \e[0m", [Args]),
+  ok.
+
+t_first_last_next_prev_ops(_Config) ->
+  true = cleanup_shards(),
+
+  '$end_of_table' = shards:first(?SET),
+  '$end_of_table' = shards:last(?SET),
+  '$end_of_table' = shards:first(?ORDERED_SET),
+  '$end_of_table' = shards:last(?ORDERED_SET),
+
+  true = shards:insert(?SET, {k1, 1}),
+  true = shards:insert(?ORDERED_SET, {k1, 1}),
+  F1 = shards:first(?SET),
+  F1 = shards:last(?SET),
+  F1 = shards:first(?ORDERED_SET),
+  F1 = shards:last(?ORDERED_SET),
+
+  % insert some values
+  KVPairs = [
+    {k1, 1}, {k2, 2}, {k3, 2}, {k4, 22}, {k5, 33},
+    {k11, 1}, {k22, 2}, {k33, 2}, {k44, 11}, {k55, 22}
+  ],
+  R0 = shards:insert(?SET, KVPairs),
+  R0 = shards:insert(?ORDERED_SET, KVPairs),
+  R0 = lists:duplicate(10, true),
+
+  % match spec
+  MS = ets:fun2ms(fun({K, V}) -> {K, V} end),
+
+  % check first-next against select for 'set'
+  L1 = [Last | _] = first_next_traversal(?SET, 10, []),
+  '$end_of_table' = shards:next(?SET, Last),
+  {L11, _} = shards:select(?SET, MS, 10),
+  L1 = [K || {K, _} <- L11],
+
+  % check first-next against select for 'ordered_set'
+  L2 = [Last2 | _] = first_next_traversal(?ORDERED_SET, 10, []),
+  '$end_of_table' = shards:next(?ORDERED_SET, Last2),
+  {L22, _} = shards:select(?ORDERED_SET, MS, 10),
+  L2 = [K || {K, _} <- L22],
+
+  % check last-prev against select for 'set'
+  L3 = [Last3 | _] = last_prev_traversal(?SET, 10, []),
+  '$end_of_table' = shards:prev(?SET, Last3),
+  {L33, _} = shards:select(?SET, MS, 10),
+  L3 = L1 = [K || {K, _} <- L33],
+
+  % check last-prev against select for 'ordered_set'
+  L4 = [Last4 | _] = last_prev_traversal(?ORDERED_SET, 10, []),
+  '$end_of_table' = shards:prev(?ORDERED_SET, Last4),
+  {L44, _} = shards:select(?ORDERED_SET, MS, 10),
+  L4 = [K || {K, _} <- lists:reverse(L44)],
+
+  ct:print("\e[1;1m t_first_last_next_prev_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_update_ops(_Config) ->
@@ -308,24 +381,28 @@ t_info_ops(_Config) ->
 init_shards() ->
   shards:new(?SET, [set]),
   shards:new(?DUPLICATE_BAG, [duplicate_bag], 5),
-  shards_created([?SET, ?DUPLICATE_BAG]),
+  shards:new(?ORDERED_SET, [ordered_set]),
+  shards_created([?SET, ?DUPLICATE_BAG, ?ORDERED_SET]),
   ets:new(?ETS_SET, [set, public, named_table]),
   ets:new(?ETS_DUPLICATE_BAG, [duplicate_bag, public, named_table]),
+  ets:new(?ETS_ORDERED_SET, [ordered_set, public, named_table]),
   ok.
 
 cleanup_shards() ->
-  true = ets:delete_all_objects(?ETS_DUPLICATE_BAG),
-  true = shards:delete_all_objects(?DUPLICATE_BAG),
-  All = ets:match(?ETS_DUPLICATE_BAG, '$1'),
-  All = shards:match(?DUPLICATE_BAG, '$1'),
+  L = lists:duplicate(3, true),
+  L = [shards:delete_all_objects(Tab) || Tab <- ?SHARDS_TABS],
+  L = [ets:delete_all_objects(Tab) || Tab <- ?ETS_TABS],
+  All = [ets:match(Tab, '$1') || Tab <- ?ETS_TABS],
+  All = [shards:match(Tab, '$1') || Tab <- ?SHARDS_TABS],
   true.
 
 delete_shards_pool() ->
-  true = ets:delete(?ETS_SET),
-  true = shards:delete(?SET),
-  true = ets:delete(?ETS_DUPLICATE_BAG),
-  true = shards:delete(?DUPLICATE_BAG),
+  L = lists:duplicate(3, true),
+  L = [shards:delete(Tab) || Tab <- ?SHARDS_TABS],
+  L = [ets:delete(Tab) || Tab <- ?ETS_TABS],
   [] = supervisor:count_children(shards_sup).
+
+run_foreach(Fun, List) -> lists:foreach(Fun, List).
 
 lookup_keys(Mod, Tab, Keys) ->
   lists:foldr(fun(Key, Acc) ->
@@ -342,11 +419,28 @@ shards_created(Tab) ->
     true = lists:member(Shard, shards:all())
   end, shards:list(Tab)).
 
-select_by(Op, Continuation, Limit, Intensity) ->
-  NewC = lists:foldl(fun(_, Acc) ->
-    {L, C} = shards:Op(Acc),
-    Limit = length(L), C
-  end, Continuation, lists:seq(1, Intensity)),
-  '$end_of_table' = shards:Op(NewC).
+select_by(Op, Continuation, Limit) ->
+  select_by(Op, shards:Op(Continuation), Limit, {[], 1}).
 
-run_for_all(Fun, List) -> lists:foreach(Fun, List).
+select_by(_, '$end_of_table', _, Acc) ->
+  Acc;
+select_by(Op, {L, Continuation}, Limit, {Acc, Calls}) ->
+  select_by(Op, shards:Op(Continuation), Limit, {L ++ Acc, Calls + 1}).
+
+first_next_traversal(_, 0, Acc) ->
+  Acc;
+first_next_traversal(_, _, ['$end_of_table' | Acc]) ->
+  Acc;
+first_next_traversal(Tab, Limit, []) ->
+  first_next_traversal(Tab, Limit - 1, [shards:first(Tab)]);
+first_next_traversal(Tab, Limit, [Key | _] = Acc) ->
+  first_next_traversal(Tab, Limit - 1, [shards:next(Tab, Key) | Acc]).
+
+last_prev_traversal(_, 0, Acc) ->
+  Acc;
+last_prev_traversal(_, _, ['$end_of_table' | Acc]) ->
+  Acc;
+last_prev_traversal(Tab, Limit, []) ->
+  last_prev_traversal(Tab, Limit - 1, [shards:last(Tab)]);
+last_prev_traversal(Tab, Limit, [Key | _] = Acc) ->
+  last_prev_traversal(Tab, Limit - 1, [shards:prev(Tab, Key) | Acc]).

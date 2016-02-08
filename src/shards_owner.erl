@@ -41,7 +41,7 @@
 start_link(Name, Options) ->
   gen_server:start_link({local, Name}, ?MODULE, [Name, Options], []).
 
--spec shard_name(atom(), pos_integer()) -> atom().
+-spec shard_name(atom(), non_neg_integer()) -> atom().
 shard_name(Name, Shard) ->
   Bin = <<(atom_to_binary(Name, utf8))/binary, "_",
           (integer_to_binary(Shard))/binary>>,

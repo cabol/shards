@@ -32,7 +32,7 @@ start_link(Name, Options, PoolSize) ->
 init([Name, Options, PoolSize]) ->
   % ETS table to hold control info.
   Name = ets:new(Name, [set, named_table, {read_concurrency, true}]),
-  true = ets:insert(Name, {pool_size, PoolSize}),
+  true = ets:insert(Name, [{pool_size, PoolSize}, {options, Options}]),
 
   % create children
   Children = [begin
