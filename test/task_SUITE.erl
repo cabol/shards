@@ -5,13 +5,12 @@
 %% Common Test
 -export([all/0]).
 
-%% Others
--export([wait_and_send/2, create_task_in_other_process/0]).
-
 %% Tests
--export([t_async1/1, t_async2/1, t_async3/1]).
--export([t_start1/1, t_start2/1, t_start3/1]).
--export([t_start_link1/1, t_start_link2/1, t_start_link3/1]).
+-export([
+  t_async1/1, t_async2/1, t_async3/1,
+  t_start1/1, t_start2/1, t_start3/1,
+  t_start_link1/1, t_start_link2/1, t_start_link3/1
+]).
 
 %% Test Errors
 -export([
@@ -28,26 +27,26 @@
   t_await_raises_from_non_owner_proc/1
 ]).
 
+%% Others
+-export([
+  wait_and_send/2,
+  create_task_in_other_process/0
+]).
+
+-define(EXCLUDED_FUNS, [
+  module_info,
+  all,
+  wait_and_send,
+  create_task_in_other_process
+]).
+
 %%%===================================================================
 %%% Common Test
 %%%===================================================================
 
-all() -> [
-  t_async1, t_async2, t_async3,
-  t_start1, t_start2, t_start3,
-  t_start_link1, t_start_link2, t_start_link3,
-  t_await_timeout,
-  t_await_normal,
-  t_await_task_throw,
-  t_await_task_error,
-  t_await_undef_module_error,
-  t_await_undef_fun_error,
-  t_await_undef_mfa_error,
-  t_await_task_exit,
-  t_await_noconnection,
-  t_await_noconnection_from_named_monitor,
-  t_await_raises_from_non_owner_proc
-].
+all() ->
+  Exports = ?MODULE:module_info(exports),
+  [F || {F, _} <- Exports, not lists:member(F, ?EXCLUDED_FUNS)].
 
 wait_and_send(Caller, Atom) ->
   Caller ! ready,

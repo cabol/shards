@@ -20,17 +20,29 @@
   t_first_last_next_prev_ops/1,
   t_update_ops/1,
   t_fold_ops/1,
-  t_info_ops/1
+  t_info_ops/1,
+  t_unsupported_ops/1
 ]).
 
 -include_lib("stdlib/include/ms_transform.hrl").
 
--define(DUPLICATE_BAG, test_duplicate_bag).
--define(ETS_DUPLICATE_BAG, ets_test_duplicate_bag).
+-define(EXCLUDED_FUNS, [
+  module_info,
+  all,
+  init_per_suite,
+  end_per_suite,
+  init_per_testcase,
+  end_per_testcase
+]).
+
 -define(SET, test_set).
--define(ETS_SET, ets_test_set).
+-define(DUPLICATE_BAG, test_duplicate_bag).
 -define(ORDERED_SET, test_ordered_set).
+
+-define(ETS_DUPLICATE_BAG, ets_test_duplicate_bag).
+-define(ETS_SET, ets_test_set).
 -define(ETS_ORDERED_SET, ets_test_ordered_set).
+
 -define(SHARDS_TABS, [?SET, ?DUPLICATE_BAG, ?ORDERED_SET]).
 -define(ETS_TABS, [?ETS_SET, ?ETS_DUPLICATE_BAG, ?ETS_ORDERED_SET]).
 
@@ -38,16 +50,9 @@
 %%% Common Test
 %%%===================================================================
 
-all() -> [
-  t_basic_ops,
-  t_match_ops,
-  t_select_ops,
-  t_paginated_ops,
-  t_first_last_next_prev_ops,
-  t_update_ops,
-  t_fold_ops,
-  t_info_ops
-].
+all() ->
+  Exports = ?MODULE:module_info(exports),
+  [F || {F, _} <- Exports, not lists:member(F, ?EXCLUDED_FUNS)].
 
 init_per_suite(Config) ->
   shards:start(),
@@ -70,6 +75,10 @@ end_per_testcase(_, Config) ->
 %%%===================================================================
 
 t_basic_ops(_Config) ->
+  Tables = lists:zip(?SHARDS_TABS, ?ETS_TABS),
+  run_foreach(fun t_basic_ops_/1, Tables).
+
+t_basic_ops_({Tab, EtsTab} = Args) ->
   true = cleanup_shards(),
 
   % insert some K/V pairs
@@ -81,44 +90,50 @@ t_basic_ops(_Config) ->
     {k22, 22},
     Obj1
   ],
-  7 = length(shards:insert(?DUPLICATE_BAG, KVPairs)),
-  true = shards:insert(?DUPLICATE_BAG, Obj1),
-  true = ets:insert(?ETS_DUPLICATE_BAG, KVPairs),
-  true = ets:insert(?ETS_DUPLICATE_BAG, Obj1),
+  7 = length(shards:insert(Tab, KVPairs)),
+  true = shards:insert(Tab, Obj1),
+  true = ets:insert(EtsTab, KVPairs),
+  true = ets:insert(EtsTab, Obj1),
 
   % insert new
-  false = ets:insert_new(?ETS_DUPLICATE_BAG, [Obj1, {k3, <<"V3">>}]),
-  [false, true] = shards:insert_new(?DUPLICATE_BAG, [Obj1, {k3, <<"V3">>}]),
-  true = ets:insert_new(?ETS_DUPLICATE_BAG, {k3, <<"V3">>}),
-  false = shards:insert_new(?DUPLICATE_BAG, {k3, <<"V3">>}),
+  false = ets:insert_new(EtsTab, [Obj1, {k3, <<"V3">>}]),
+  [false, true] = shards:insert_new(Tab, [Obj1, {k3, <<"V3">>}]),
+  true = ets:insert_new(EtsTab, {k3, <<"V3">>}),
+  false = shards:insert_new(Tab, {k3, <<"V3">>}),
 
   % select and match
-  R1 = lists:usort(ets:select(?ETS_DUPLICATE_BAG, [{{'$1', '$2'}, [], ['$$']}])),
-  R1 = lists:usort(shards:select(?DUPLICATE_BAG, [{{'$1', '$2'}, [], ['$$']}])),
-  R2 = lists:usort(ets:match(?ETS_DUPLICATE_BAG, '$1')),
-  R2 = lists:usort(shards:match(?DUPLICATE_BAG, '$1')),
+  R1 = lists:usort(ets:select(EtsTab, [{{'$1', '$2'}, [], ['$$']}])),
+  R1 = lists:usort(shards:select(Tab, [{{'$1', '$2'}, [], ['$$']}])),
+  R2 = lists:usort(ets:match(EtsTab, '$1')),
+  R2 = lists:usort(shards:match(Tab, '$1')),
 
   % lookup
-  R3 = ets:lookup_element(?ETS_DUPLICATE_BAG, k1, 2),
-  R3 = shards:lookup_element(?DUPLICATE_BAG, k1, 2),
-  R4 = lookup_keys(ets, ?ETS_DUPLICATE_BAG, [k1, k2, k3, kx]),
-  R4 = lookup_keys(shards, ?DUPLICATE_BAG, [k1, k2, k3, kx]),
+  R3 = ets:lookup_element(EtsTab, k1, 2),
+  R3 = shards:lookup_element(Tab, k1, 2),
+  R4 = lookup_keys(ets, EtsTab, [k1, k2, k3, kx]),
+  R4 = lookup_keys(shards, Tab, [k1, k2, k3, kx]),
 
   % delete
-  true = ets:delete_object(?ETS_DUPLICATE_BAG, Obj1),
-  true = ets:delete(?ETS_DUPLICATE_BAG, k2),
-  true = shards:delete_object(?DUPLICATE_BAG, Obj1),
-  true = shards:delete(?DUPLICATE_BAG, k2),
-  [] = lookup_keys(ets, ?ETS_DUPLICATE_BAG, [k1, k2, kx]),
-  [] = lookup_keys(shards, ?DUPLICATE_BAG, [k1, k2, kx]),
+  true = ets:delete_object(EtsTab, Obj1),
+  true = ets:delete(EtsTab, k2),
+  true = shards:delete_object(Tab, Obj1),
+  true = shards:delete(Tab, k2),
+  R5 = lookup_keys(ets, EtsTab, [k1, k2, kx]),
+  R5 = lookup_keys(shards, Tab, [k1, k2, kx]),
 
   % member
-  true = shards:member(?DUPLICATE_BAG, k1),
-  true = ets:member(?ETS_DUPLICATE_BAG, k1),
-  false = shards:member(?DUPLICATE_BAG, kx),
-  false = ets:member(?ETS_DUPLICATE_BAG, kx),
+  true = shards:member(Tab, k1),
+  true = ets:member(EtsTab, k1),
+  false = shards:member(Tab, kx),
+  false = ets:member(EtsTab, kx),
 
-  ct:print("\e[1;1m t_basic_ops: \e[0m\e[32m[OK] \e[0m"),
+  % take
+  R6 = ets:take(EtsTab, k1),
+  R6 = shards:take(Tab, k1),
+  [] = ets:lookup(EtsTab, k1),
+  [] = shards:lookup(Tab, k1),
+
+  ct:print("\e[1;1m t_basic_ops(~p): \e[0m\e[32m[OK] \e[0m", [Args]),
   ok.
 
 t_match_ops(_Config) ->
@@ -374,6 +389,30 @@ t_info_ops(_Config) ->
   ct:print("\e[1;1m t_info_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
+t_unsupported_ops(_Config) ->
+  true = cleanup_shards(),
+
+  UnsupportedOps = [
+    {fun2ms, [any]},
+    {i, [any]},
+    {init_table, [any, any]},
+    {is_compiled_ms, [any]},
+    {match_spec_compile, [any]},
+    {match_spec_run, [any, any]},
+    {slot, [any, any]},
+    {test_ms, [any, any]}
+  ],
+
+  lists:foreach(fun({Op, Args}) ->
+    try apply(shards, Op, Args)
+    catch
+      _:unsupported_operation -> ok
+    end
+  end, UnsupportedOps),
+
+  ct:print("\e[1;1m t_unsupported_ops: \e[0m\e[32m[OK] \e[0m"),
+  ok.
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -407,8 +446,8 @@ run_foreach(Fun, List) -> lists:foreach(Fun, List).
 lookup_keys(Mod, Tab, Keys) ->
   lists:foldr(fun(Key, Acc) ->
     case Mod:lookup(Tab, Key) of
-      [Value] -> [Value | Acc];
-      _       -> Acc
+      []     -> Acc;
+      Values -> Values ++ Acc
     end
   end, [], Keys).
 

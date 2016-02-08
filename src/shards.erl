@@ -329,7 +329,7 @@ from_dets(_Tab, _DetsTab) ->
 
 %% @doc
 %% <p><font color="red"><b>WARNING:</b> Please use `ets:fun2ms/1'
-%% instead</font></p>
+%% instead.</font></p>
 %%
 %% Since this function uses `parse_transform', it isn't possible
 %% to call `ets:fun2ms/1' from `shards'. Besides, it isn't
@@ -353,8 +353,10 @@ give_away(_Tab, _Pid, _GiftData) ->
 %% @end
 i() -> ets:i().
 
+%% @doc
+%% <p><font color="red"><b>WARNING:</b> NOT SUPPORTED.</font></p>
+%% @end
 i(_Tab) ->
-  %% @TODO: Implement this function.
   throw(unsupported_operation).
 
 %% @doc
@@ -413,8 +415,10 @@ info_shard(Tab, Shard, Item) ->
   ShardName = shard_name(Tab, Shard),
   ets:info(ShardName, Item).
 
+%% @doc
+%% <p><font color="red"><b>WARNING:</b> NOT SUPPORTED.</font></p>
+%% @end
 init_table(_Tab, _InitFun) ->
-  %% @TODO: Implement this function.
   throw(unsupported_operation).
 
 %% @doc
@@ -483,8 +487,14 @@ insert_new(Tab, ObjectOrObjects, PoolSize) when is_tuple(ObjectOrObjects) ->
   [Key | _] = tuple_to_list(ObjectOrObjects),
   call(Tab, Key, PoolSize, fun ets:insert_new/2, [ObjectOrObjects]).
 
+%% @doc
+%% <p><font color="red"><b>WARNING:</b> Please use
+%% `ets:is_compiled_ms/1' instead, since the
+%% effect is the same.</font></p>
+%%
+%% @see ets:is_compiled_ms/1.
+%% @end
 is_compiled_ms(_Term) ->
-  %% @TODO: Implement this function.
   throw(unsupported_operation).
 
 %% @doc
@@ -664,12 +674,24 @@ match_object(Tab, Pattern, Limit) ->
 match_object({Tab, _, Limit, _, _} = Continuation) ->
   q(match_object, Continuation, q_fun(Tab), Limit, []).
 
+%% @doc
+%% <p><font color="red"><b>WARNING:</b> Please use
+%% `ets:match_spec_compile/1' instead, since the
+%% effect is the same.</font></p>
+%%
+%% @see ets:match_spec_compile/1.
+%% @end
 match_spec_compile(_MatchSpec) ->
-  %% @TODO: Implement this function.
   throw(unsupported_operation).
 
+%% @doc
+%% <p><font color="red"><b>WARNING:</b> Please use
+%% `ets:match_spec_run/2' instead, since the
+%% effect is the same.</font></p>
+%%
+%% @see ets:match_spec_run/2.
+%% @end
 match_spec_run(_List, _CompiledMatchSpec) ->
-  %% @TODO: Implement this function.
   throw(unsupported_operation).
 
 %% @doc
@@ -777,8 +799,10 @@ prev(_, '$end_of_table', _, _) ->
 prev(_, Key2, _, _) ->
   Key2.
 
+%% @doc
+%% <p><font color="red"><b>WARNING:</b> NOT SUPPORTED.</font></p>
+%% @end
 rename(_Tab, _Name) ->
-  %% @TODO: Implement this function.
   throw(unsupported_operation).
 
 repair_continuation(_Continuation, _MatchSpec) ->
@@ -914,8 +938,10 @@ setopts(_Tab, _Opts) ->
   %% @TODO: Implement this function.
   throw(unsupported_operation).
 
+%% @doc
+%% <p><font color="red"><b>WARNING:</b> NOT SUPPORTED.</font></p>
+%% @end
 slot(_Tab, _I) ->
-  %% @TODO: Implement this function.
   throw(unsupported_operation).
 
 tab2file(_Tab, _Filename) ->
@@ -942,13 +968,34 @@ table(_Tab, _Options) ->
   %% @TODO: Implement this function.
   throw(unsupported_operation).
 
+%% @doc
+%% <p><font color="red"><b>WARNING:</b> Please use
+%% `ets:test_ms/2' instead, since the
+%% effect is the same.</font></p>
+%%
+%% @see ets:test_ms/2.
+%% @end
 test_ms(_Tuple, _MatchSpec) ->
-  %% @TODO: Implement this function.
   throw(unsupported_operation).
 
-take(_Tab, _Key) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% This operation behaves like `ets:take/2'.
+%%
+%% <b>IMPORTANT: This function makes an additional call to an ETS
+%% table to fetch the pool size (used by `shards' internally).
+%% If you want to skip this step you should use
+%% `shards:take/3' instead.</b>
+%%
+%% @see ets:take/2.
+%% @end
+take(Tab, Key) ->
+  take(Tab, Key, pool_size(Tab)).
+
+%% @doc
+%% Same as `shards:take/2' but receives the `PoolSize' explicitly.
+%% @end
+take(Tab, Key, PoolSize) ->
+  call(Tab, Key, PoolSize, fun ets:take/2, [Key]).
 
 to_dets(_Tab, _DetsTab) ->
   %% @TODO: Implement this function.
