@@ -256,13 +256,41 @@ delete_object(Tab, Object, PoolSize) when is_tuple(Object) ->
   [Key | _] = tuple_to_list(Object),
   call(Tab, Key, PoolSize, fun ets:delete_object/2, [Object]).
 
-file2tab(_Filename) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @equiv file2tab(Filenames, [])
+file2tab(Filenames) ->
+  file2tab(Filenames, []).
 
-file2tab(_Filename, _Options) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% Similar to `shards:file2tab/2'. Moreover, it restores the
+%% supervision tree for the `shards' corresponding to the given
+%% files, such as if they had been created using `shards:new/2,3'.
+%%
+%% @see ets:file2tab/2.
+%% @end
+-spec file2tab(Filenames, Options) -> Response when
+  Filenames :: [file:name()],
+  Tab       :: atom(),
+  Options   :: [Option],
+  Option    :: {verify, boolean()},
+  Reason    :: term(),
+  Response  :: [{ok, Tab} | {error, Reason}].
+file2tab(Filenames, Options) ->
+  try
+    ShardTabs = [{First, _} | _] = [begin
+      case tabfile_info(FN) of
+        {ok, Info} ->
+          {name, ShardTabName} = lists:keyfind(name, 1, Info),
+          {ShardTabName, FN};
+        {error, Reason} ->
+          throw({error, Reason})
+      end
+    end || FN <- Filenames],
+    TabName = name_from_shard(First),
+    _ = new(TabName, [{restore, ShardTabs, Options}], length(Filenames)),
+    {ok, TabName}
+  catch
+    _:Error -> Error
+  end.
 
 %% @doc
 %% This operation behaves similar to `ets:first/1'.
@@ -323,8 +351,10 @@ foldr(Function, Acc0, Tab) ->
 foldr(Function, Acc0, Tab, PoolSize) ->
   fold(Tab, PoolSize, foldr, [Function, Acc0]).
 
+%% @doc
+%% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
+%% @end
 from_dets(_Tab, _DetsTab) ->
-  %% @TODO: Implement this function.
   throw(unsupported_operation).
 
 %% @doc
@@ -341,8 +371,10 @@ from_dets(_Tab, _DetsTab) ->
 fun2ms(_LiteralFun) ->
   throw(unsupported_operation).
 
+%% @doc
+%% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
+%% @end
 give_away(_Tab, _Pid, _GiftData) ->
-  %% @TODO: Implement this function.
   throw(unsupported_operation).
 
 %% @doc
@@ -351,10 +383,11 @@ give_away(_Tab, _Pid, _GiftData) ->
 %%
 %% @see ets:i/0.
 %% @end
-i() -> ets:i().
+i() ->
+  ets:i().
 
 %% @doc
-%% <p><font color="red"><b>WARNING:</b> NOT SUPPORTED.</font></p>
+%% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
 %% @end
 i(_Tab) ->
   throw(unsupported_operation).
@@ -416,7 +449,7 @@ info_shard(Tab, Shard, Item) ->
   ets:info(ShardName, Item).
 
 %% @doc
-%% <p><font color="red"><b>WARNING:</b> NOT SUPPORTED.</font></p>
+%% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
 %% @end
 init_table(_Tab, _InitFun) ->
   throw(unsupported_operation).
@@ -488,14 +521,12 @@ insert_new(Tab, ObjectOrObjects, PoolSize) when is_tuple(ObjectOrObjects) ->
   call(Tab, Key, PoolSize, fun ets:insert_new/2, [ObjectOrObjects]).
 
 %% @doc
-%% <p><font color="red"><b>WARNING:</b> Please use
-%% `ets:is_compiled_ms/1' instead, since the
-%% effect is the same.</font></p>
+%% Equivalent to `ets:is_compiled_ms/1'.
 %%
 %% @see ets:is_compiled_ms/1.
 %% @end
-is_compiled_ms(_Term) ->
-  throw(unsupported_operation).
+is_compiled_ms(Term) ->
+  ets:is_compiled_ms(Term).
 
 %% @doc
 %% This operation behaves similar to `ets:last/1'.
@@ -675,24 +706,20 @@ match_object({Tab, _, Limit, _, _} = Continuation) ->
   q(match_object, Continuation, q_fun(Tab), Limit, []).
 
 %% @doc
-%% <p><font color="red"><b>WARNING:</b> Please use
-%% `ets:match_spec_compile/1' instead, since the
-%% effect is the same.</font></p>
+%% Equivalent to `ets:match_spec_compile/1'.
 %%
 %% @see ets:match_spec_compile/1.
 %% @end
-match_spec_compile(_MatchSpec) ->
-  throw(unsupported_operation).
+match_spec_compile(MatchSpec) ->
+  ets:match_spec_compile(MatchSpec).
 
 %% @doc
-%% <p><font color="red"><b>WARNING:</b> Please use
-%% `ets:match_spec_run/2' instead, since the
-%% effect is the same.</font></p>
+%% Equivalent to `ets:match_spec_run/2'.
 %%
 %% @see ets:match_spec_run/2.
 %% @end
-match_spec_run(_List, _CompiledMatchSpec) ->
-  throw(unsupported_operation).
+match_spec_run(List, CompiledMatchSpec) ->
+  ets:match_spec_run(List, CompiledMatchSpec).
 
 %% @doc
 %% This operation behaves like `ets:member/2'.
@@ -800,7 +827,7 @@ prev(_, Key2, _, _) ->
   Key2.
 
 %% @doc
-%% <p><font color="red"><b>WARNING:</b> NOT SUPPORTED.</font></p>
+%% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
 %% @end
 rename(_Tab, _Name) ->
   throw(unsupported_operation).
@@ -822,7 +849,6 @@ safe_fixtable(_Tab, _Fix) ->
 %% @see ets:select/2.
 %% @end
 select(Tab, MatchSpec) ->
-  %% @TODO: Enhancement: Validate behavior when table type is an ordered_set
   lists:append(pmap(Tab, pool_size(Tab), fun ets:select/2, [MatchSpec])).
 
 %% @doc
@@ -892,7 +918,6 @@ select_delete(Tab, MatchSpec) ->
 %% @see ets:select_reverse/2.
 %% @end
 select_reverse(Tab, MatchSpec) ->
-  %% @TODO: Enhancement: Validate behavior when table type is an ordered_set
   lists:append(pmap(Tab, pool_size(Tab), fun ets:select_reverse/2, [MatchSpec])).
 
 %% @doc
@@ -939,26 +964,51 @@ setopts(_Tab, _Opts) ->
   throw(unsupported_operation).
 
 %% @doc
-%% <p><font color="red"><b>WARNING:</b> NOT SUPPORTED.</font></p>
+%% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
 %% @end
 slot(_Tab, _I) ->
   throw(unsupported_operation).
 
-tab2file(_Tab, _Filename) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @equiv tab2file(Tab, Filename, [])
+tab2file(Tab, Filename) ->
+  tab2file(Tab, Filename, []).
 
-tab2file(_Tab, _Filename, _Options) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% Similar to `shards:tab2file/3', but it returns a list of
+%% responses for each shard table instead.
+%%
+%% @see ets:tab2file/3.
+%% @end
+-spec tab2file(Tab, Filenames, Options) -> Response when
+  Tab       :: atom(),
+  Filenames :: [file:name()],
+  Options   :: [Option],
+  Option    :: {extended_info, [ExtInfo]} | {sync, boolean()},
+  ExtInfo   :: md5sum | object_count,
+  ShardTab  :: atom(),
+  ShardRes  :: ok | {error, Reason},
+  Reason    :: term(),
+  Response  :: [{ShardTab, ShardRes}].
+tab2file(Tab, Filenames, Options) ->
+  [begin
+     ets:tab2file(Shard, Filename, Options)
+   end || {Shard, Filename} <- lists:zip(list(Tab), Filenames)].
 
-tab2list(_Tab) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% This operation behaves like `ets:tab2list/1'.
+%%
+%% @see ets:tab2list/1.
+%% @end
+tab2list(Tab) ->
+  lists:append(pmap(Tab, pool_size(Tab), fun ets:tab2list/1)).
 
-tabfile_info(_Filename) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% Equivalent to `ets:tabfile_info/1'.
+%%
+%% @see ets:tabfile_info/1.
+%% @end
+tabfile_info(Filename) ->
+  ets:tabfile_info(Filename).
 
 table(_Tab) ->
   %% @TODO: Implement this function.
@@ -969,14 +1019,12 @@ table(_Tab, _Options) ->
   throw(unsupported_operation).
 
 %% @doc
-%% <p><font color="red"><b>WARNING:</b> Please use
-%% `ets:test_ms/2' instead, since the
-%% effect is the same.</font></p>
+%% Equivalent to `ets:test_ms/2'.
 %%
 %% @see ets:test_ms/2.
 %% @end
-test_ms(_Tuple, _MatchSpec) ->
-  throw(unsupported_operation).
+test_ms(Tuple, MatchSpec) ->
+  ets:test_ms(Tuple, MatchSpec).
 
 %% @doc
 %% This operation behaves like `ets:take/2'.
@@ -997,8 +1045,10 @@ take(Tab, Key) ->
 take(Tab, Key, PoolSize) ->
   call(Tab, Key, PoolSize, fun ets:take/2, [Key]).
 
+%% @doc
+%% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
+%% @end
 to_dets(_Tab, _DetsTab) ->
-  %% @TODO: Implement this function.
   throw(unsupported_operation).
 
 %% @doc
@@ -1110,6 +1160,19 @@ fold(Tab, PoolSize, Fold, [Fun, Acc]) ->
     ShardName = shard_name(Tab, Shard),
     apply(ets, Fold, [Fun, FoldAcc, ShardName])
   end, Acc, lists:seq(0, PoolSize - 1)).
+
+%% @private
+name_from_shard(ShardTabName) ->
+  BinShardTabName = atom_to_binary(ShardTabName, utf8),
+  Tokens = binary:split(BinShardTabName, <<"_">>, [global]),
+  binary_to_atom(join_bin(lists:droplast(Tokens), <<"_">>), utf8).
+
+%% @private
+join_bin(BinL, Separator) when is_list(BinL) ->
+  lists:foldl(fun
+    (X, <<"">>) -> <<X/binary>>;
+    (X, Acc)    -> <<Acc/binary, Separator/binary, X/binary>>
+  end, <<"">>, BinL).
 
 %% @private
 q(_, Tab, MatchSpec, Limit, _, 0, Shard, {Acc, Continuation}) ->

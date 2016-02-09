@@ -29,11 +29,11 @@ start_link() ->
 start_child(Args) ->
   supervisor:start_child(?MODULE, Args).
 
--spec terminate_child(SupRef, Id) -> Result when
-  SupRef :: supervisor:sup_ref(),
-  Id     :: pid() | supervisor:child_id(),
-  Result :: ok | {error, Error},
-  Error  :: not_found | simple_one_for_one.
+-spec terminate_child(SupRef, Id) -> Response when
+  SupRef   :: supervisor:sup_ref(),
+  Id       :: pid() | supervisor:child_id(),
+  Error    :: not_found | simple_one_for_one,
+  Response :: ok | {error, Error}.
 terminate_child(SupRef, Id) ->
   supervisor:terminate_child(SupRef, Id).
 

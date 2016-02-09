@@ -21,6 +21,8 @@
   t_update_ops/1,
   t_fold_ops/1,
   t_info_ops/1,
+  t_tab2list_tab2file_file2tab/1,
+  t_equivalent_ops/1,
   t_unsupported_ops/1
 ]).
 
@@ -389,6 +391,56 @@ t_info_ops(_Config) ->
   ct:print("\e[1;1m t_info_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
+t_tab2list_tab2file_file2tab(_Config) ->
+  true = cleanup_shards(),
+
+  % insert some values
+  KVPairs = [{k1, 1}, {k2, 2}, {k3, 3}, {k4, 4}],
+  true = ets:insert(?ETS_SET, KVPairs),
+  [true, true, true, true] = shards:insert(?SET, KVPairs),
+
+  % check tab2list/1
+  R1 = lists:usort(shards:tab2list(?SET)),
+  R1 = lists:usort(ets:tab2list(?ETS_SET)),
+  4 = length(R1),
+
+  % save tab to files
+  [ok, ok] = shards:tab2file(?SET, ["myfile0", "myfile1"]),
+
+  % delete table
+  shards:delete(?SET),
+
+  % restore table from files
+  {error, _} = shards:file2tab(["myfile0", "wrong_file"]),
+  {ok, ?SET} = shards:file2tab(["myfile0", "myfile1"]),
+
+  % check
+  [_, _] = shards:info(?SET),
+  KVPairs = lookup_keys(shards, ?SET, [k1, k2, k3, k4]),
+
+  ct:print("\e[1;1m t_tab2list_tab2file_file2tab: \e[0m\e[32m[OK] \e[0m"),
+  ok.
+
+t_equivalent_ops(_Config) ->
+  true = cleanup_shards(),
+
+  MS = ets:fun2ms(fun({K, V}) -> {K, V} end),
+
+  R1 = ets:is_compiled_ms(MS),
+  R1 = shards:is_compiled_ms(MS),
+
+  R2 = ets:match_spec_compile(MS),
+  R2 = shards:match_spec_compile(MS),
+
+  R3 = ets:match_spec_run([{k1, 1}], R2),
+  R3 = shards:match_spec_run([{k1, 1}], R2),
+
+  R4 = ets:test_ms({k1, 1}, MS),
+  R4 = shards:test_ms({k1, 1}, MS),
+
+  ct:print("\e[1;1m t_equivalent_ops: \e[0m\e[32m[OK] \e[0m"),
+  ok.
+
 t_unsupported_ops(_Config) ->
   true = cleanup_shards(),
 
@@ -396,11 +448,10 @@ t_unsupported_ops(_Config) ->
     {fun2ms, [any]},
     {i, [any]},
     {init_table, [any, any]},
-    {is_compiled_ms, [any]},
-    {match_spec_compile, [any]},
-    {match_spec_run, [any, any]},
     {slot, [any, any]},
-    {test_ms, [any, any]}
+    {to_dets, [any, any]},
+    {from_dets, [any, any]},
+    {give_away, [any, any, any]}
   ],
 
   lists:foreach(fun({Op, Args}) ->

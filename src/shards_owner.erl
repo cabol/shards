@@ -57,6 +57,10 @@ stop(ShardName) ->
 %%%===================================================================
 
 %% @hidden
+init([Name, [{restore, ShardTabs, Options}]]) ->
+  {Name, Filename} = lists:keyfind(Name, 1, ShardTabs),
+  {ok, _} = ets:file2tab(Filename, Options),
+  {ok, #{name => Name, opts => []}};
 init([Name, Options]) ->
   NewOpts = validate_options(Options),
   Name = ets:new(Name, NewOpts),
