@@ -11,6 +11,8 @@
 -export([
   start_link/2,
   shard_name/2,
+  give_away/3,
+  setopts/2,
   stop/1
 ]).
 
@@ -47,6 +49,14 @@ shard_name(Name, Shard) ->
           (integer_to_binary(Shard))/binary>>,
   binary_to_atom(Bin, utf8).
 
+-spec give_away(atom(), pid(), term()) -> boolean().
+give_away(Name, Pid, GiftData) ->
+  gen_server:call(Name, {give_away, Pid, GiftData}).
+
+-spec setopts(atom(), [term()]) -> boolean().
+setopts(Name, Options) ->
+  gen_server:call(Name, {setopts, Options}).
+
 -spec stop(atom()) -> ok.
 stop(ShardName) ->
   true = exit(whereis(ShardName), normal),
@@ -78,6 +88,12 @@ validate_options(Options) ->
   end.
 
 %% @hidden
+handle_call({give_away, Pid, GiftData}, _From, #{name := Name} = State) ->
+  Response = ets:give_away(Name, Pid, GiftData),
+  {reply, Response, State};
+handle_call({setopts, Options}, _From, #{name := Name} = State) ->
+  Response = ets:setopts(Name, Options),
+  {reply, Response, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 

@@ -438,6 +438,14 @@ t_equivalent_ops(_Config) ->
   R4 = ets:test_ms({k1, 1}, MS),
   R4 = shards:test_ms({k1, 1}, MS),
 
+  Shards = shards:list(?SET),
+  R5 = [ets:table(T) || T <- Shards],
+  R5 = shards:table(?SET),
+
+  true = shards:setopts(?SET, [{heir, none}]),
+
+  true = shards:give_away(?SET, self(), []),
+
   ct:print("\e[1;1m t_equivalent_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
@@ -450,8 +458,7 @@ t_unsupported_ops(_Config) ->
     {init_table, [any, any]},
     {slot, [any, any]},
     {to_dets, [any, any]},
-    {from_dets, [any, any]},
-    {give_away, [any, any, any]}
+    {from_dets, [any, any]}
   ],
 
   lists:foreach(fun({Op, Args}) ->

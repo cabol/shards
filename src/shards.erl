@@ -372,10 +372,24 @@ fun2ms(_LiteralFun) ->
   throw(unsupported_operation).
 
 %% @doc
-%% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
+%% Equivalent to `ets:give_away/3' for each shard table. It returns
+%% a `boolean()' instead that just `true'. Returns `true' if the
+%% function was applied successfully on each shard, otherwise
+%% `false' is returned.
+%%
+%% <p><font color="red"><b>WARNING: It is not recommended execute
+%% this function, since it might cause an unexpected behavior.
+%% Once this function is executed, `shards' doesn't control/manage
+%% the ETS shards anymore. So from this point, you should use
+%% ETS API instead. Also it is recommended to run `shards:delete/1'
+%% after run this function.
+%% </b></font></p>
+%%
+%% @see ets:give_away/3.
 %% @end
-give_away(_Tab, _Pid, _GiftData) ->
-  throw(unsupported_operation).
+give_away(Tab, Pid, GiftData) ->
+  L = pmap(Tab, pool_size(Tab), fun shards_owner:give_away/3, [Pid, GiftData]),
+  lists:foldl(fun(E, Acc) -> Acc and E end, true, L).
 
 %% @doc
 %% Equivalent to `ets:i/0'. You can also call `ets:i/0' directly
@@ -959,9 +973,22 @@ select_reverse(Tab, MatchSpec, Limit) ->
 select_reverse({Tab, _, Limit, _, _} = Continuation) ->
   q(select_reverse, Continuation, q_fun(Tab), Limit, []).
 
-setopts(_Tab, _Opts) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% Equivalent to `ets:setopts/2' for each shard table. It returns
+%% a `boolean()' instead that just `true'. Returns `true' if the
+%% function was applied successfully on each shard, otherwise
+%% `false' is returned.
+%%
+%% @see ets:setopts/2.
+%% @end
+-spec setopts(Tab, Opts) -> boolean() when
+  Tab      :: atom(),
+  Opts     :: Opt | [Opt],
+  Opt      :: {heir, pid(), HeirData} | {heir, none},
+  HeirData :: term().
+setopts(Tab, Opts) ->
+  L = pmap(Tab, pool_size(Tab), fun shards_owner:setopts/2, [Opts]),
+  lists:foldl(fun(E, Acc) -> Acc and E end, true, L).
 
 %% @doc
 %% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
@@ -974,7 +1001,7 @@ tab2file(Tab, Filename) ->
   tab2file(Tab, Filename, []).
 
 %% @doc
-%% Similar to `shards:tab2file/3', but it returns a list of
+%% Similar to `ets:tab2file/3', but it returns a list of
 %% responses for each shard table instead.
 %%
 %% @see ets:tab2file/3.
@@ -1010,13 +1037,26 @@ tab2list(Tab) ->
 tabfile_info(Filename) ->
   ets:tabfile_info(Filename).
 
-table(_Tab) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @equiv table(Tab, [])
+table(Tab) ->
+  table(Tab, []).
 
-table(_Tab, _Options) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+%% @doc
+%% Similar to `ets:table/2', but it returns a list of `ets:table/2'
+%% responses, one for each shard table.
+%%
+%% @see ets:table/2.
+%% @end
+-spec table(Tab, Options) -> [QueryHandle] when
+  Tab            :: atom(),
+  QueryHandle    :: qlc:query_handle(),
+  Options        :: [Option] | Option,
+  Option         :: {n_objects, NObjects} | {traverse, TraverseMethod},
+  NObjects       :: default | pos_integer(),
+  MatchSpec      :: ets:match_spec(),
+  TraverseMethod :: first_next | last_prev | select | {select, MatchSpec}.
+table(Tab, Options) ->
+  pmap(Tab, pool_size(Tab), fun ets:table/2, [Options]).
 
 %% @doc
 %% Equivalent to `ets:test_ms/2'.
