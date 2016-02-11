@@ -21,13 +21,16 @@ all: compile
 compile:
 	$(REBAR) compile
 
+dist:
+	REBAR_PROFILE=dist $(REBAR) compile
+
 clean:
 	rm -rf ebin/* test/*.beam logs log
 	$(REBAR) clean
 
 distclean: clean
 	$(REBAR) clean --all
-	rm -rf _build logs log doc *.dump
+	rm -rf _build logs log doc *.dump c_src/*.o priv/*.so
 
 dialyze:
 	$(REBAR) dialyzer
