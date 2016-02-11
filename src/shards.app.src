@@ -1,5 +1,5 @@
-{application, shards,
- [{description, "ETS with Sharding support."},
+{application, shards, [
+  {description, "ETS with Sharding support."},
   {vsn, "0.1.0"},
   {registered, []},
   {mod, {shards, []}},
@@ -12,5 +12,4 @@
     {"GitHub", "https://github.com/cabol/shards"},
     {"Docs", "http://cabol.github.io/shards"}
   ]}
- ]
-}.
+]}.

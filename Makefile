@@ -30,7 +30,7 @@ clean:
 
 distclean: clean
 	$(REBAR) clean --all
-	rm -rf _build logs log doc *.dump c_src/*.o priv/*.so
+	rm -rf _build logs log edoc *.dump c_src/*.o priv/*.so
 
 dialyze:
 	$(REBAR) dialyzer
@@ -43,5 +43,5 @@ tests: compile
 shell: compile
 	erl -pa $(BUILD_PATH) -s shards -config ${CONFIG}
 
-doc:
+edoc:
 	$(REBAR) edoc

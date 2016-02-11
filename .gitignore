@@ -27,5 +27,5 @@ log
 logs
 data
 *.sh
-doc
-priv
+edoc
+priv/*.so
