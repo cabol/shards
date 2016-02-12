@@ -1188,10 +1188,14 @@ pmap(Tab, PoolSize, Fun) ->
 
 %% @private
 pmap(Tab, PoolSize, Fun, Args) ->
-  [shards_task:await(Task) || Task <- [shards_task:async(fun() ->
-    ShardName = shard_name(Tab, Shard),
-    apply(erlang, apply, [Fun, [ShardName | Args]])
-  end) || Shard <- lists:seq(0, PoolSize - 1)]].
+  Tasks = lists:foldl(fun(Shard, Acc) ->
+    AsyncTask = shards_task:async(fun() ->
+      apply(erlang, apply, [Fun, [shard_name(Tab, Shard) | Args]])
+    end), [AsyncTask | Acc]
+  end, [], lists:seq(0, PoolSize - 1)),
+  lists:foldl(fun(Task, Acc) ->
+    [shards_task:await(Task) | Acc]
+  end, [], Tasks).
 
 %% @private
 fold(Tab, PoolSize, Fold, [Fun, Acc]) ->
