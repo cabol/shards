@@ -92,7 +92,7 @@ t_basic_ops_({Tab, EtsTab} = Args) ->
     {k22, 22},
     Obj1
   ],
-  7 = length(shards:insert(Tab, KVPairs)),
+  true = shards:insert(Tab, KVPairs),
   true = shards:insert(Tab, Obj1),
   true = ets:insert(EtsTab, KVPairs),
   true = ets:insert(EtsTab, Obj1),
@@ -143,7 +143,7 @@ t_match_ops(_Config) ->
 
   % insert some values
   true = ets:insert(?ETS_SET, [{k1, 1}, {k2, 2}, {k3, 2}]),
-  [true, true, true] = shards:insert(?SET, [{k1, 1}, {k2, 2}, {k3, 2}]),
+  true = shards:insert(?SET, [{k1, 1}, {k2, 2}, {k3, 2}]),
 
   % match/2
   R1 = lists:usort(ets:match(?ETS_SET, '$1')),
@@ -168,7 +168,7 @@ t_select_ops(_Config) ->
 
   % insert some values
   true = ets:insert(?ETS_SET, [{k1, 1}, {k2, 2}, {k3, 2}]),
-  [true, true, true] = shards:insert(?SET, [{k1, 1}, {k2, 2}, {k3, 2}]),
+  true = shards:insert(?SET, [{k1, 1}, {k2, 2}, {k3, 2}]),
 
   % select/2
   MS1 = ets:fun2ms(fun({K, V}) -> {K, V} end),
@@ -218,8 +218,7 @@ t_paginated_ops_({Tab, {Op, Q}} = Args) ->
     {k1, 1}, {k2, 2}, {k3, 2}, {k1, 1}, {k4, 22}, {k5, 33},
     {k11, 1}, {k22, 2}, {k33, 2}, {k44, 11}, {k55, 22}, {k55, 33}
   ],
-  R0 = shards:insert(Tab, KVPairs),
-  R0 = lists:duplicate(12, true),
+  true = shards:insert(Tab, KVPairs),
 
   %% length
   Len = case Tab of
@@ -275,9 +274,8 @@ t_first_last_next_prev_ops(_Config) ->
     {k1, 1}, {k2, 2}, {k3, 2}, {k4, 22}, {k5, 33},
     {k11, 1}, {k22, 2}, {k33, 2}, {k44, 11}, {k55, 22}
   ],
-  R0 = shards:insert(?SET, KVPairs),
-  R0 = shards:insert(?ORDERED_SET, KVPairs),
-  R0 = lists:duplicate(10, true),
+  true = shards:insert(?SET, KVPairs),
+  true = shards:insert(?ORDERED_SET, KVPairs),
 
   % match spec
   MS = ets:fun2ms(fun({K, V}) -> {K, V} end),
@@ -336,7 +334,7 @@ t_fold_ops(_Config) ->
 
   % insert some values
   true = ets:insert(?ETS_SET, [{k1, 1}, {k2, 2}, {k3, 3}]),
-  [true, true, true] = shards:insert(?SET, [{k1, 1}, {k2, 2}, {k3, 3}]),
+  true = shards:insert(?SET, [{k1, 1}, {k2, 2}, {k3, 3}]),
 
   % foldl
   Foldl = fun({_, V}, Acc) -> [V | Acc] end,
@@ -397,7 +395,7 @@ t_tab2list_tab2file_file2tab(_Config) ->
   % insert some values
   KVPairs = [{k1, 1}, {k2, 2}, {k3, 3}, {k4, 4}],
   true = ets:insert(?ETS_SET, KVPairs),
-  [true, true, true, true] = shards:insert(?SET, KVPairs),
+  true = shards:insert(?SET, KVPairs),
 
   % check tab2list/1
   R1 = lists:usort(shards:tab2list(?SET)),

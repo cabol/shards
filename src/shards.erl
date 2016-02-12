@@ -469,11 +469,10 @@ init_table(_Tab, _InitFun) ->
   throw(unsupported_operation).
 
 %% @doc
-%% This operation behaves like `ets:insert/2' BUT it is not atomic,
-%% which means if it fails inserting some K/V pair, only that K/V
-%% pair is affected, the rest may be successfully inserted.
-%%
-%% This function returns a list if the `ObjectOrObjects' is a list.
+%% This operation behaves similar to `ets:insert/2', with a big
+%% difference, <b>it is not atomic</b>. This means if it fails
+%% inserting some K/V pair, previous inserted KV pairs are not
+%% rolled back.
 %%
 %% <b>IMPORTANT: This function makes an additional call to an ETS
 %% table to fetch the pool size (used by `shards' internally).
@@ -492,11 +491,11 @@ insert(Tab, ObjectOrObjects) ->
   Tab             :: atom(),
   ObjectOrObjects :: tuple() | [tuple()],
   PoolSize        :: pos_integer(),
-  Result          :: true | [true].
+  Result          :: true.
 insert(Tab, ObjectOrObjects, PoolSize) when is_list(ObjectOrObjects) ->
   lists:foldr(fun(Object, Acc) ->
-    [insert(Tab, Object, PoolSize) | Acc]
-  end, [], ObjectOrObjects);
+    Acc and insert(Tab, Object, PoolSize)
+  end, true, ObjectOrObjects);
 insert(Tab, ObjectOrObjects, PoolSize) when is_tuple(ObjectOrObjects) ->
   [Key | _] = tuple_to_list(ObjectOrObjects),
   call(Tab, Key, PoolSize, fun ets:insert/2, [ObjectOrObjects]).
