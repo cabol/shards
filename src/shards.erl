@@ -212,7 +212,8 @@ delete(Tab, Key) ->
 %% Same as `shards:delete/2' but receives the `PoolSize' explicitly.
 %% @end
 delete(Tab, Key, PoolSize) ->
-  call(Tab, Key, PoolSize, fun ets:delete/2, [Key]).
+  _ = mapred(Tab, Key, PoolSize, {fun ets:delete/2, [Key]}, nil),
+  true.
 
 %% @doc
 %% This operation behaves like `ets:delete_all_objects/1'.
@@ -254,7 +255,8 @@ delete_object(Tab, Object) ->
 %% @end
 delete_object(Tab, Object, PoolSize) when is_tuple(Object) ->
   [Key | _] = tuple_to_list(Object),
-  call(Tab, Key, PoolSize, fun ets:delete_object/2, [Object]).
+  _ = mapred(Tab, Key, PoolSize, {fun ets:delete_object/2, [Object]}, nil),
+  true.
 
 %% @equiv file2tab(Filenames, [])
 file2tab(Filenames) ->
@@ -388,8 +390,9 @@ fun2ms(_LiteralFun) ->
 %% @see ets:give_away/3.
 %% @end
 give_away(Tab, Pid, GiftData) ->
-  L = pmap(Tab, pool_size(Tab), fun shards_owner:give_away/3, [Pid, GiftData]),
-  lists:foldl(fun(E, Acc) -> Acc and E end, true, L).
+  Map = {fun shards_owner:give_away/3, [Pid, GiftData]},
+  Reduce = fun(R) -> lists:foldl(fun(E, Acc) -> Acc and E end, true, R) end,
+  mapred(Tab, pool_size(Tab), Map, Reduce).
 
 %% @doc
 %% Equivalent to `ets:i/0'. You can also call `ets:i/0' directly
@@ -497,8 +500,7 @@ insert(Tab, ObjectOrObjects, PoolSize) when is_list(ObjectOrObjects) ->
     Acc and insert(Tab, Object, PoolSize)
   end, true, ObjectOrObjects);
 insert(Tab, ObjectOrObjects, PoolSize) when is_tuple(ObjectOrObjects) ->
-  [Key | _] = tuple_to_list(ObjectOrObjects),
-  call(Tab, Key, PoolSize, fun ets:insert/2, [ObjectOrObjects]).
+  set(Tab, ObjectOrObjects, PoolSize, fun ets:insert/2).
 
 %% @doc
 %% This operation behaves like `ets:insert_new/2' BUT it is not atomic,
@@ -530,8 +532,7 @@ insert_new(Tab, ObjectOrObjects, PoolSize) when is_list(ObjectOrObjects) ->
     [insert_new(Tab, Object, PoolSize) | Acc]
   end, [], ObjectOrObjects);
 insert_new(Tab, ObjectOrObjects, PoolSize) when is_tuple(ObjectOrObjects) ->
-  [Key | _] = tuple_to_list(ObjectOrObjects),
-  call(Tab, Key, PoolSize, fun ets:insert_new/2, [ObjectOrObjects]).
+  set_new(Tab, ObjectOrObjects, PoolSize, fun ets:insert_new/2).
 
 %% @doc
 %% Equivalent to `ets:is_compiled_ms/1'.
@@ -584,7 +585,7 @@ lookup(Tab, Key) ->
 %% Same as `shards:lookup/2' but receives the `PoolSize' explicitly.
 %% @end
 lookup(Tab, Key, PoolSize) ->
-  call(Tab, Key, PoolSize, fun ets:lookup/2, [Key]).
+  mapred(Tab, Key, PoolSize, {fun ets:lookup/2, [Key]}, fun lists:append/1).
 
 %% @doc
 %% This operation behaves like `ets:lookup_element/3'.
@@ -604,7 +605,21 @@ lookup_element(Tab, Key, Pos) ->
 %% explicitly.
 %% @end
 lookup_element(Tab, Key, Pos, PoolSize) ->
-  call(Tab, Key, PoolSize, fun ets:lookup_element/3, [Key, Pos]).
+  ShardName = shard_name(Tab, shard(Key, PoolSize)),
+  case ets:info(ShardName, type) of
+    T when T =:= bag; T=:= duplicate_bag ->
+      Fun = fun(Tx, Kx, Px) -> catch(ets:lookup_element(Tx, Kx, Px)) end,
+      L = lists:filter(fun
+        ({'EXIT', _}) -> false;
+        (_)           -> true
+      end, pmap(Tab, PoolSize, Fun, [Key, Pos])),
+      case L of
+        [] -> exit({badarg, erlang:get_stacktrace()});
+        _  -> lists:append(L)
+      end;
+    _ ->
+      ets:lookup_element(ShardName, Key, Pos)
+  end.
 
 %% @doc
 %% This operation behaves similar to `ets:match/2'.
@@ -615,7 +630,9 @@ lookup_element(Tab, Key, Pos, PoolSize) ->
 %% @see ets:match/2.
 %% @end
 match(Tab, Pattern) ->
-  lists:append(pmap(Tab, pool_size(Tab), fun ets:match/2, [Pattern])).
+  Map = {fun ets:match/2, [Pattern]},
+  Reduce = fun lists:append/1,
+  mapred(Tab, pool_size(Tab), Map, Reduce).
 
 %% @doc
 %% This operation behaves similar to `ets:match/3'.
@@ -663,8 +680,11 @@ match({Tab, _, Limit, _, _} = Continuation) ->
 %% @see ets:match_delete/2.
 %% @end
 match_delete(Tab, Pattern) ->
-  Results = pmap(Tab, pool_size(Tab), fun ets:match_delete/2, [Pattern]),
-  lists:foldl(fun(Res, Acc) -> Acc and Res end, true, Results).
+  Map = {fun ets:match_delete/2, [Pattern]},
+  Reduce = fun(R) ->
+    lists:foldl(fun(Res, Acc) -> Acc and Res end, true, R)
+  end,
+  mapred(Tab, pool_size(Tab), Map, Reduce).
 
 
 %% @doc
@@ -676,7 +696,9 @@ match_delete(Tab, Pattern) ->
 %% @see ets:match_object/2.
 %% @end
 match_object(Tab, Pattern) ->
-  lists:append(pmap(Tab, pool_size(Tab), fun ets:match_object/2, [Pattern])).
+  Map = {fun ets:match_object/2, [Pattern]},
+  Reduce = fun lists:append/1,
+  mapred(Tab, pool_size(Tab), Map, Reduce).
 
 %% @doc
 %% This operation behaves similar to `ets:match_object/3'.
@@ -751,7 +773,11 @@ member(Tab, Key) ->
 %% Same as `shards:member/2' but receives the `PoolSize' explicitly.
 %% @end
 member(Tab, Key, PoolSize) ->
-  call(Tab, Key, PoolSize, fun ets:member/2, [Key]).
+  ReduceFun = fun
+    (R) when is_list(R) -> lists:member(true, R);
+    (R)                 -> R
+  end,
+  mapred(Tab, Key, PoolSize, {fun ets:member/2, [Key]}, ReduceFun).
 
 %% @doc
 %% This operation is the mirror of `ets:new/2', BUT it behaves totally
@@ -862,7 +888,9 @@ safe_fixtable(_Tab, _Fix) ->
 %% @see ets:select/2.
 %% @end
 select(Tab, MatchSpec) ->
-  lists:append(pmap(Tab, pool_size(Tab), fun ets:select/2, [MatchSpec])).
+  Map = {fun ets:select/2, [MatchSpec]},
+  Reduce = fun lists:append/1,
+  mapred(Tab, pool_size(Tab), Map, Reduce).
 
 %% @doc
 %% This operation behaves similar to `ets:select/3'.
@@ -910,8 +938,9 @@ select({Tab, _, Limit, _, _} = Continuation) ->
 %% @see ets:select_count/2.
 %% @end
 select_count(Tab, MatchSpec) ->
-  Results = pmap(Tab, pool_size(Tab), fun ets:select_count/2, [MatchSpec]),
-  lists:foldl(fun(Res, Acc) -> Acc + Res end, 0, Results).
+  Map = {fun ets:select_count/2, [MatchSpec]},
+  Reduce = fun(R) -> lists:foldl(fun(Res, Acc) -> Acc + Res end, 0, R) end,
+  mapred(Tab, pool_size(Tab), Map, Reduce).
 
 %% @doc
 %% This operation behaves like `ets:select_delete/2'.
@@ -919,8 +948,9 @@ select_count(Tab, MatchSpec) ->
 %% @see ets:select_delete/2.
 %% @end
 select_delete(Tab, MatchSpec) ->
-  Results = pmap(Tab, pool_size(Tab), fun ets:select_delete/2, [MatchSpec]),
-  lists:foldl(fun(Res, Acc) -> Acc + Res end, 0, Results).
+  Map = {fun ets:select_delete/2, [MatchSpec]},
+  Reduce = fun(R) -> lists:foldl(fun(Res, Acc) -> Acc + Res end, 0, R) end,
+  mapred(Tab, pool_size(Tab), Map, Reduce).
 
 %% @doc
 %% This operation behaves similar to `ets:select_reverse/2'.
@@ -931,7 +961,9 @@ select_delete(Tab, MatchSpec) ->
 %% @see ets:select_reverse/2.
 %% @end
 select_reverse(Tab, MatchSpec) ->
-  lists:append(pmap(Tab, pool_size(Tab), fun ets:select_reverse/2, [MatchSpec])).
+  Map = {fun ets:select_reverse/2, [MatchSpec]},
+  Reduce = fun lists:append/1,
+  mapred(Tab, pool_size(Tab), Map, Reduce).
 
 %% @doc
 %% This operation behaves similar to `ets:select_reverse/3'.
@@ -986,8 +1018,9 @@ select_reverse({Tab, _, Limit, _, _} = Continuation) ->
   Opt      :: {heir, pid(), HeirData} | {heir, none},
   HeirData :: term().
 setopts(Tab, Opts) ->
-  L = pmap(Tab, pool_size(Tab), fun shards_owner:setopts/2, [Opts]),
-  lists:foldl(fun(E, Acc) -> Acc and E end, true, L).
+  Map = {fun shards_owner:setopts/2, [Opts]},
+  Reduce = fun(R) -> lists:foldl(fun(E, Acc) -> Acc and E end, true, R) end,
+  mapred(Tab, pool_size(Tab), Map, Reduce).
 
 %% @doc
 %% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
@@ -1026,7 +1059,7 @@ tab2file(Tab, Filenames, Options) ->
 %% @see ets:tab2list/1.
 %% @end
 tab2list(Tab) ->
-  lists:append(pmap(Tab, pool_size(Tab), fun ets:tab2list/1)).
+  mapred(Tab, pool_size(Tab), fun ets:tab2list/1, fun lists:append/1).
 
 %% @doc
 %% Equivalent to `ets:tabfile_info/1'.
@@ -1082,7 +1115,7 @@ take(Tab, Key) ->
 %% Same as `shards:take/2' but receives the `PoolSize' explicitly.
 %% @end
 take(Tab, Key, PoolSize) ->
-  call(Tab, Key, PoolSize, fun ets:take/2, [Key]).
+  mapred(Tab, Key, PoolSize, {fun ets:take/2, [Key]}, fun lists:append/1).
 
 %% @doc
 %% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
@@ -1116,7 +1149,7 @@ update_counter(Tab, Key, UpdateOp) ->
 %% @see ets:update_counter/4.
 %% @end
 update_counter(Tab, Key, UpdateOp, PoolSize) when is_integer(PoolSize) ->
-  call(Tab, Key, PoolSize, fun ets:update_counter/3, [Key, UpdateOp]);
+  mapred(Tab, Key, PoolSize, {fun ets:update_counter/3, [Key, UpdateOp]}, nil);
 update_counter(Tab, Key, UpdateOp, Default) when is_tuple(Default) ->
   update_counter(Tab, Key, UpdateOp, Default, pool_size(Tab)).
 
@@ -1125,7 +1158,8 @@ update_counter(Tab, Key, UpdateOp, Default) when is_tuple(Default) ->
 %% explicitly.
 %% @end
 update_counter(Tab, Key, UpdateOp, Default, PoolSize) ->
-  call(Tab, Key, PoolSize, fun ets:update_counter/4, [Key, UpdateOp, Default]).
+  Map = {fun ets:update_counter/4, [Key, UpdateOp, Default]},
+  mapred(Tab, Key, PoolSize, Map, nil).
 
 %% @doc
 %% This operation behaves like `ets:update_element/3'.
@@ -1145,7 +1179,8 @@ update_element(Tab, Key, ElementSpec) ->
 %% explicitly.
 %% @end
 update_element(Tab, Key, ElementSpec, PoolSize) ->
-  call(Tab, Key, PoolSize, fun ets:update_element/3, [Key, ElementSpec]).
+  Map = {fun ets:update_element/3, [Key, ElementSpec]},
+  mapred(Tab, Key, PoolSize, Map, nil).
 
 %%%===================================================================
 %%% Extended API
@@ -1178,9 +1213,54 @@ list(Tab) ->
 %%%===================================================================
 
 %% @private
-call(Tab, Key, PoolSize, Fun, Args) ->
+set(Tab, ObjectOrObjects, PoolSize, SetFun) ->
+  [Key | _] = tuple_to_list(ObjectOrObjects),
   ShardName = shard_name(Tab, shard(Key, PoolSize)),
-  apply(erlang, apply, [Fun, [ShardName | Args]]).
+  case ets:info(ShardName, type) of
+    T when T =:= bag; T =:= duplicate_bag ->
+      OtherShardName = shard_name(Tab, shard({Key, os:timestamp()}, PoolSize)),
+      SetFun(OtherShardName, ObjectOrObjects);
+    _ ->
+      SetFun(ShardName, ObjectOrObjects)
+  end.
+
+%% @private
+set_new(Tab, ObjectOrObjects, PoolSize, SetFun) ->
+  [Key | _] = tuple_to_list(ObjectOrObjects),
+  ShardName = shard_name(Tab, shard(Key, PoolSize)),
+  case ets:info(ShardName, type) of
+    T when T =:= bag; T =:= duplicate_bag ->
+      case lists:append(pmap(Tab, PoolSize, fun ets:lookup/2, [Key])) of
+        [] ->
+          NewKey = {Key, os:timestamp()},
+          OtherShardName = shard_name(Tab, shard(NewKey, PoolSize)),
+          SetFun(OtherShardName, ObjectOrObjects);
+        _ ->
+          false
+      end;
+    _ ->
+      SetFun(ShardName, ObjectOrObjects)
+  end.
+
+%% @private
+mapred(Tab, PoolSize, Map, Reduce) ->
+  mapred(Tab, nil, PoolSize, Map, Reduce).
+
+%% @private
+mapred(Tab, Key, PoolSize, Map, nil) ->
+  mapred(Tab, Key, PoolSize, Map, fun(R) -> R end);
+mapred(Tab, nil, PoolSize, {MapFun, Args}, ReduceFun) ->
+  ReduceFun(pmap(Tab, PoolSize, MapFun, Args));
+mapred(Tab, nil, PoolSize, MapFun, ReduceFun) ->
+  ReduceFun(pmap(Tab, PoolSize, MapFun));
+mapred(Tab, Key, PoolSize, {MapFun, Args}, ReduceFun) ->
+  ShardName = shard_name(Tab, shard(Key, PoolSize)),
+  case ets:info(ShardName, type) of
+    T when T =:= bag; T =:= duplicate_bag ->
+      ReduceFun(pmap(Tab, PoolSize, MapFun, Args));
+    _ ->
+      apply(erlang, apply, [MapFun, [ShardName | Args]])
+  end.
 
 %% @private
 pmap(Tab, PoolSize, Fun) ->

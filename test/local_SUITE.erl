@@ -109,19 +109,31 @@ t_basic_ops_({Tab, EtsTab} = Args) ->
   R2 = lists:usort(ets:match(EtsTab, '$1')),
   R2 = lists:usort(shards:match(Tab, '$1')),
 
+  % lookup element
+  case Tab of
+    ?DUPLICATE_BAG ->
+      R3 = ets:lookup_element(EtsTab, k1, 2),
+      LenR3 = length(R3),
+      R31 = shards:lookup_element(Tab, k1, 2),
+      LenR3 = length(R31),
+      SortR3 = lists:usort(R3),
+      SortR3 = lists:usort(R31);
+    _ ->
+      R3 = ets:lookup_element(EtsTab, k1, 2),
+      R3 = shards:lookup_element(Tab, k1, 2)
+  end,
+
   % lookup
-  R3 = ets:lookup_element(EtsTab, k1, 2),
-  R3 = shards:lookup_element(Tab, k1, 2),
-  R4 = lookup_keys(ets, EtsTab, [k1, k2, k3, kx]),
-  R4 = lookup_keys(shards, Tab, [k1, k2, k3, kx]),
+  R4 = lists:sort(lookup_keys(ets, EtsTab, [k1, k2, k3, kx])),
+  R4 = lists:sort(lookup_keys(shards, Tab, [k1, k2, k3, kx])),
 
   % delete
   true = ets:delete_object(EtsTab, Obj1),
   true = ets:delete(EtsTab, k2),
   true = shards:delete_object(Tab, Obj1),
   true = shards:delete(Tab, k2),
-  R5 = lookup_keys(ets, EtsTab, [k1, k2, kx]),
-  R5 = lookup_keys(shards, Tab, [k1, k2, kx]),
+  R5 = lists:sort(lookup_keys(ets, EtsTab, [k1, k2, kx])),
+  R5 = lists:sort(lookup_keys(shards, Tab, [k1, k2, kx])),
 
   % member
   true = shards:member(Tab, k1),
@@ -130,8 +142,8 @@ t_basic_ops_({Tab, EtsTab} = Args) ->
   false = ets:member(EtsTab, kx),
 
   % take
-  R6 = ets:take(EtsTab, k1),
-  R6 = shards:take(Tab, k1),
+  R6 = lists:sort(ets:take(EtsTab, k1)),
+  R6 = lists:sort(shards:take(Tab, k1)),
   [] = ets:lookup(EtsTab, k1),
   [] = shards:lookup(Tab, k1),
 
@@ -495,7 +507,11 @@ delete_shards_pool() ->
   L = lists:duplicate(3, true),
   L = [shards:delete(Tab) || Tab <- ?SHARDS_TABS],
   L = [ets:delete(Tab) || Tab <- ?ETS_TABS],
-  [] = supervisor:count_children(shards_sup).
+  Count = supervisor:count_children(shards_sup),
+  {_, 0} = lists:keyfind(workers, 1, Count),
+  {_, 0} = lists:keyfind(supervisors, 1, Count),
+  {_, 0} = lists:keyfind(active, 1, Count),
+  ok.
 
 run_foreach(Fun, List) -> lists:foreach(Fun, List).
 
