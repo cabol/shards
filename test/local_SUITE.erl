@@ -40,13 +40,26 @@
 -define(SET, test_set).
 -define(DUPLICATE_BAG, test_duplicate_bag).
 -define(ORDERED_SET, test_ordered_set).
+-define(SHARDED_DUPLICATE_BAG, test_sharded_duplicate_bag).
 
--define(ETS_DUPLICATE_BAG, ets_test_duplicate_bag).
 -define(ETS_SET, ets_test_set).
+-define(ETS_DUPLICATE_BAG, ets_test_duplicate_bag).
 -define(ETS_ORDERED_SET, ets_test_ordered_set).
+-define(ETS_SHARDED_DUPLICATE_BAG, ets_test_sharded_duplicate_bag).
 
--define(SHARDS_TABS, [?SET, ?DUPLICATE_BAG, ?ORDERED_SET]).
--define(ETS_TABS, [?ETS_SET, ?ETS_DUPLICATE_BAG, ?ETS_ORDERED_SET]).
+-define(SHARDS_TABS, [
+  ?SET,
+  ?DUPLICATE_BAG,
+  ?ORDERED_SET,
+  ?SHARDED_DUPLICATE_BAG
+]).
+
+-define(ETS_TABS, [
+  ?ETS_SET,
+  ?ETS_DUPLICATE_BAG,
+  ?ETS_ORDERED_SET,
+  ?ETS_SHARDED_DUPLICATE_BAG
+]).
 
 %%%===================================================================
 %%% Common Test
@@ -111,13 +124,17 @@ t_basic_ops_({Tab, EtsTab} = Args) ->
 
   % lookup element
   case Tab of
-    ?DUPLICATE_BAG ->
+    ?SHARDED_DUPLICATE_BAG ->
       R3 = ets:lookup_element(EtsTab, k1, 2),
       LenR3 = length(R3),
       R31 = shards:lookup_element(Tab, k1, 2),
       LenR3 = length(R31),
       SortR3 = lists:usort(R3),
-      SortR3 = lists:usort(R31);
+      SortR3 = lists:usort(R31),
+
+      try shards:lookup_element(Tab, wrong, 2)
+      catch _:{badarg, _} -> ok
+      end;
     _ ->
       R3 = ets:lookup_element(EtsTab, k1, 2),
       R3 = shards:lookup_element(Tab, k1, 2)
@@ -234,14 +251,17 @@ t_paginated_ops_({Tab, {Op, Q}} = Args) ->
 
   %% length
   Len = case Tab of
-    ?DUPLICATE_BAG -> 12;
-    _              -> 10
+    _ when Tab =:= ?DUPLICATE_BAG; Tab =:= ?SHARDED_DUPLICATE_BAG ->
+      12;
+    _ ->
+      10
   end,
 
   % select/3
   {R1, C1} = shards:Op(Tab, Q, 1),
   1 = length(R1),
   {R2, _} = shards:Op(Tab, Q, 20),
+  ct:pal(">>> [~p] ~p -- ~p", [Tab, Len, length(R2)]),
   Len = length(R2),
 
   % select/1 - by 1
@@ -489,14 +509,23 @@ init_shards() ->
   shards:new(?SET, [set]),
   shards:new(?DUPLICATE_BAG, [duplicate_bag], 5),
   shards:new(?ORDERED_SET, [ordered_set]),
-  shards_created([?SET, ?DUPLICATE_BAG, ?ORDERED_SET]),
+  shards:new(?SHARDED_DUPLICATE_BAG, [sharded_duplicate_bag], 5),
+
+  shards_created(?SHARDS_TABS),
+  {set, 2} = shards:control_info(?SET),
+  {duplicate_bag, 5} = shards:control_info(?DUPLICATE_BAG),
+  {ordered_set, 2} = shards:control_info(?ORDERED_SET),
+  {sharded_duplicate_bag, 5} = shards:control_info(?SHARDED_DUPLICATE_BAG),
+  duplicate_bag = ets:info(shards:shard_name(?SHARDED_DUPLICATE_BAG, 0), type),
+
   ets:new(?ETS_SET, [set, public, named_table]),
   ets:new(?ETS_DUPLICATE_BAG, [duplicate_bag, public, named_table]),
   ets:new(?ETS_ORDERED_SET, [ordered_set, public, named_table]),
+  ets:new(?ETS_SHARDED_DUPLICATE_BAG, [duplicate_bag, public, named_table]),
   ok.
 
 cleanup_shards() ->
-  L = lists:duplicate(3, true),
+  L = lists:duplicate(4, true),
   L = [shards:delete_all_objects(Tab) || Tab <- ?SHARDS_TABS],
   L = [ets:delete_all_objects(Tab) || Tab <- ?ETS_TABS],
   All = [ets:match(Tab, '$1') || Tab <- ?ETS_TABS],
@@ -504,7 +533,7 @@ cleanup_shards() ->
   true.
 
 delete_shards_pool() ->
-  L = lists:duplicate(3, true),
+  L = lists:duplicate(4, true),
   L = [shards:delete(Tab) || Tab <- ?SHARDS_TABS],
   L = [ets:delete(Tab) || Tab <- ?ETS_TABS],
   Count = supervisor:count_children(shards_sup),
@@ -524,7 +553,7 @@ lookup_keys(Mod, Tab, Keys) ->
   end, [], Keys).
 
 shards_created(TabL) when is_list(TabL) ->
- lists:foreach(fun shards_created/1, TabL);
+  lists:foreach(fun shards_created/1, TabL);
 shards_created(Tab) ->
   lists:foreach(fun(Shard) ->
     true = lists:member(Shard, shards:all())

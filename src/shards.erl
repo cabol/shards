@@ -67,8 +67,8 @@
 %% ETS API
 -export([
   all/0,
-  delete/1, delete/2, delete/3,
-  delete_object/2, delete_object/3,
+  delete/1, delete/2,
+  delete_object/2,
   delete_all_objects/1, delete_all_objects/2,
   file2tab/1, file2tab/2,
   first/1,
@@ -81,18 +81,18 @@
   info/1, info/2,
   info_shard/2, info_shard/3,
   init_table/2,
-  insert/2, insert/3,
-  insert_new/2, insert_new/3,
+  insert/2,
+  insert_new/2,
   is_compiled_ms/1,
   last/1,
-  lookup/2, lookup/3,
-  lookup_element/3, lookup_element/4,
+  lookup/2,
+  lookup_element/3,
   match/2, match/3, match/1,
   match_delete/2,
   match_object/2, match_object/3, match_object/1,
   match_spec_compile/1,
   match_spec_run/2,
-  member/2, member/3,
+  member/2,
   new/2, new/3,
   next/2,
   prev/2,
@@ -112,16 +112,17 @@
   test_ms/2,
   take/2,
   to_dets/2,
-  update_counter/3, update_counter/4, update_counter/5,
-  update_element/3, update_element/4
+  update_counter/3, update_counter/4,
+  update_element/3
 ]).
 
 %% Extended API
 -export([
   shard_name/2,
   shard/2,
+  control_info/1,
+  type/1,
   pool_size/1,
-  options/1,
   list/1
 ]).
 
@@ -198,21 +199,10 @@ delete(Tab) ->
 %% @doc
 %% This operation behaves like `ets:delete/2'.
 %%
-%% <b>IMPORTANT: This function makes an additional call to an ETS
-%% table to fetch the pool size (used by `shards' internally).
-%% If you want to skip this step you should use `shards:insert/3'
-%% instead.</b>
-%%
 %% @see ets:delete/2.
 %% @end
 delete(Tab, Key) ->
-  delete(Tab, Key, pool_size(Tab)).
-
-%% @doc
-%% Same as `shards:delete/2' but receives the `PoolSize' explicitly.
-%% @end
-delete(Tab, Key, PoolSize) ->
-  _ = mapred(Tab, Key, PoolSize, {fun ets:delete/2, [Key]}, nil),
+  mapred(Tab, Key, {fun ets:delete/2, [Key]}, nil),
   true.
 
 %% @doc
@@ -239,23 +229,11 @@ delete_all_objects(Tab, PoolSize) ->
 %% @doc
 %% This operation behaves like `ets:delete_object/2'.
 %%
-%% <b>IMPORTANT: This function makes an additional call to an ETS
-%% table to fetch the pool size (used by `shards' internally).
-%% If you want to skip this step you should use `shards:insert/3'
-%% instead.</b>
-%%
 %% @see ets:delete_object/2.
 %% @end
-delete_object(Tab, Object) ->
-  delete_object(Tab, Object, pool_size(Tab)).
-
-%% @doc
-%% Same as `shards:delete_object/2' but receives the `PoolSize'
-%% explicitly.
-%% @end
-delete_object(Tab, Object, PoolSize) when is_tuple(Object) ->
+delete_object(Tab, Object) when is_tuple(Object) ->
   [Key | _] = tuple_to_list(Object),
-  _ = mapred(Tab, Key, PoolSize, {fun ets:delete_object/2, [Object]}, nil),
+  mapred(Tab, Key, {fun ets:delete_object/2, [Object]}, nil),
   true.
 
 %% @equiv file2tab(Filenames, [])
@@ -392,7 +370,7 @@ fun2ms(_LiteralFun) ->
 give_away(Tab, Pid, GiftData) ->
   Map = {fun shards_owner:give_away/3, [Pid, GiftData]},
   Reduce = fun(R) -> lists:foldl(fun(E, Acc) -> Acc and E end, true, R) end,
-  mapred(Tab, pool_size(Tab), Map, Reduce).
+  mapred(Tab, Map, Reduce).
 
 %% @doc
 %% Equivalent to `ets:i/0'. You can also call `ets:i/0' directly
@@ -477,30 +455,14 @@ init_table(_Tab, _InitFun) ->
 %% inserting some K/V pair, previous inserted KV pairs are not
 %% rolled back.
 %%
-%% <b>IMPORTANT: This function makes an additional call to an ETS
-%% table to fetch the pool size (used by `shards' internally).
-%% If you want to skip this step you should use `shards:insert/3'
-%% instead.</b>
-%%
 %% @see ets:insert/2.
 %% @end
-insert(Tab, ObjectOrObjects) ->
-  insert(Tab, ObjectOrObjects, pool_size(Tab)).
-
-%% @doc
-%% Same as `shards:insert/2' but receives the `PoolSize' explicitly.
-%% @end
--spec insert(Tab, ObjectOrObjects, PoolSize) -> Result when
-  Tab             :: atom(),
-  ObjectOrObjects :: tuple() | [tuple()],
-  PoolSize        :: pos_integer(),
-  Result          :: true.
-insert(Tab, ObjectOrObjects, PoolSize) when is_list(ObjectOrObjects) ->
-  lists:foldr(fun(Object, Acc) ->
-    Acc and insert(Tab, Object, PoolSize)
-  end, true, ObjectOrObjects);
-insert(Tab, ObjectOrObjects, PoolSize) when is_tuple(ObjectOrObjects) ->
-  set(Tab, ObjectOrObjects, PoolSize, fun ets:insert/2).
+insert(Tab, ObjectOrObjects) when is_list(ObjectOrObjects) ->
+  lists:foreach(fun(Object) ->
+    true = insert(Tab, Object)
+  end, ObjectOrObjects), true;
+insert(Tab, ObjectOrObjects) when is_tuple(ObjectOrObjects) ->
+  set(Tab, ObjectOrObjects, fun ets:insert/2).
 
 %% @doc
 %% This operation behaves like `ets:insert_new/2' BUT it is not atomic,
@@ -509,30 +471,18 @@ insert(Tab, ObjectOrObjects, PoolSize) when is_tuple(ObjectOrObjects) ->
 %%
 %% This function returns a list if the `ObjectOrObjects' is a list.
 %%
-%% <b>IMPORTANT: This function makes an additional call to an ETS
-%% table to fetch the pool size (used by `shards' internally).
-%% If you want to skip this step you should use `shards:insert_new/3'
-%% instead.</b>
-%%
 %% @see ets:insert_new/2.
 %% @end
-insert_new(Tab, ObjectOrObjects) ->
-  insert_new(Tab, ObjectOrObjects, pool_size(Tab)).
-
-%% @doc
-%% Same as `shards:insert_new/2' but receives the `PoolSize' explicitly.
-%% @end
--spec insert_new(Tab, ObjectOrObjects, PoolSize) -> Result when
+-spec insert_new(Tab, ObjectOrObjects) -> Result when
   Tab             :: atom(),
   ObjectOrObjects :: tuple() | [tuple()],
-  PoolSize        :: pos_integer(),
   Result          :: boolean() | [boolean()].
-insert_new(Tab, ObjectOrObjects, PoolSize) when is_list(ObjectOrObjects) ->
+insert_new(Tab, ObjectOrObjects) when is_list(ObjectOrObjects) ->
   lists:foldr(fun(Object, Acc) ->
-    [insert_new(Tab, Object, PoolSize) | Acc]
+    [insert_new(Tab, Object) | Acc]
   end, [], ObjectOrObjects);
-insert_new(Tab, ObjectOrObjects, PoolSize) when is_tuple(ObjectOrObjects) ->
-  set_new(Tab, ObjectOrObjects, PoolSize, fun ets:insert_new/2).
+insert_new(Tab, ObjectOrObjects) when is_tuple(ObjectOrObjects) ->
+  set_new(Tab, ObjectOrObjects, fun ets:insert_new/2).
 
 %% @doc
 %% Equivalent to `ets:is_compiled_ms/1'.
@@ -551,10 +501,10 @@ is_compiled_ms(Term) ->
 %% @see ets:last/1.
 %% @end
 last(Tab) ->
-  Options = options(Tab),
-  case lists:member(ordered_set, Options) of
-    true ->
-      last(Tab, ets:last(shard_name(Tab, 0)), 0, pool_size(Tab) - 1);
+  {Type, PoolSize} = control_info(Tab),
+  case Type of
+    ordered_set ->
+      last(Tab, ets:last(shard_name(Tab, 0)), 0, PoolSize - 1);
     _ ->
       first(Tab)
   end.
@@ -571,43 +521,21 @@ last(_, Key, _, _) ->
 %% @doc
 %% This operation behaves like `ets:lookup/2'.
 %%
-%% <b>IMPORTANT: This function makes an additional call to an ETS
-%% table to fetch the pool size (used by `shards' internally).
-%% If you want to skip this step you should use `shards:lookup/3'
-%% instead.</b>
-%%
 %% @see ets:lookup/2.
 %% @end
 lookup(Tab, Key) ->
-  lookup(Tab, Key, pool_size(Tab)).
-
-%% @doc
-%% Same as `shards:lookup/2' but receives the `PoolSize' explicitly.
-%% @end
-lookup(Tab, Key, PoolSize) ->
-  mapred(Tab, Key, PoolSize, {fun ets:lookup/2, [Key]}, fun lists:append/1).
+  mapred(Tab, Key, {fun ets:lookup/2, [Key]}, fun lists:append/1).
 
 %% @doc
 %% This operation behaves like `ets:lookup_element/3'.
 %%
-%% <b>IMPORTANT: This function makes an additional call to an ETS
-%% table to fetch the pool size (used by `shards' internally).
-%% If you want to skip this step you should use
-%% `shards:lookup_element/4' instead.</b>
-%%
 %% @see ets:lookup_element/3.
 %% @end
 lookup_element(Tab, Key, Pos) ->
-  lookup_element(Tab, Key, Pos, pool_size(Tab)).
-
-%% @doc
-%% Same as `shards:lookup_element/3' but receives the `PoolSize'
-%% explicitly.
-%% @end
-lookup_element(Tab, Key, Pos, PoolSize) ->
+  {Type, PoolSize} = control_info(Tab),
   ShardName = shard_name(Tab, shard(Key, PoolSize)),
-  case ets:info(ShardName, type) of
-    T when T =:= bag; T=:= duplicate_bag ->
+  case Type =:= sharded_duplicate_bag orelse Type =:= sharded_bag of
+    true ->
       Fun = fun(Tx, Kx, Px) -> catch(ets:lookup_element(Tx, Kx, Px)) end,
       L = lists:filter(fun
         ({'EXIT', _}) -> false;
@@ -632,7 +560,7 @@ lookup_element(Tab, Key, Pos, PoolSize) ->
 match(Tab, Pattern) ->
   Map = {fun ets:match/2, [Pattern]},
   Reduce = fun lists:append/1,
-  mapred(Tab, pool_size(Tab), Map, Reduce).
+  mapred(Tab, Map, Reduce).
 
 %% @doc
 %% This operation behaves similar to `ets:match/3'.
@@ -684,7 +612,7 @@ match_delete(Tab, Pattern) ->
   Reduce = fun(R) ->
     lists:foldl(fun(Res, Acc) -> Acc and Res end, true, R)
   end,
-  mapred(Tab, pool_size(Tab), Map, Reduce).
+  mapred(Tab, Map, Reduce).
 
 
 %% @doc
@@ -698,7 +626,7 @@ match_delete(Tab, Pattern) ->
 match_object(Tab, Pattern) ->
   Map = {fun ets:match_object/2, [Pattern]},
   Reduce = fun lists:append/1,
-  mapred(Tab, pool_size(Tab), Map, Reduce).
+  mapred(Tab, Map, Reduce).
 
 %% @doc
 %% This operation behaves similar to `ets:match_object/3'.
@@ -759,25 +687,11 @@ match_spec_run(List, CompiledMatchSpec) ->
 %% @doc
 %% This operation behaves like `ets:member/2'.
 %%
-%% <b>IMPORTANT: This function makes an additional call to an ETS
-%% table to fetch the pool size (used by `shards' internally).
-%% If you want to skip this step you should use `shards:member/3'
-%% instead.</b>
-%%
 %% @see ets:member/2.
 %% @end
 member(Tab, Key) ->
-  member(Tab, Key, pool_size(Tab)).
-
-%% @doc
-%% Same as `shards:member/2' but receives the `PoolSize' explicitly.
-%% @end
-member(Tab, Key, PoolSize) ->
-  ReduceFun = fun
-    (R) when is_list(R) -> lists:member(true, R);
-    (R)                 -> R
-  end,
-  mapred(Tab, Key, PoolSize, {fun ets:member/2, [Key]}, ReduceFun).
+  ReduceFun = fun(R) -> lists:member(true, R) end,
+  mapred(Tab, Key, {fun ets:member/2, [Key]}, ReduceFun).
 
 %% @doc
 %% This operation is the mirror of `ets:new/2', BUT it behaves totally
@@ -845,10 +759,9 @@ next(_, Key2, _) ->
 %% @see ets:prev/2.
 %% @end
 prev(Tab, Key1) ->
-  Options = options(Tab),
-  case lists:member(ordered_set, Options) of
-    true ->
-      PoolSize = pool_size(Tab),
+  {Type, PoolSize} = control_info(Tab),
+  case Type of
+    ordered_set ->
       Shard = shard(Key1, PoolSize),
       ShardName = shard_name(Tab, Shard),
       prev(Tab, ets:prev(ShardName, Key1), Shard, PoolSize - 1);
@@ -890,7 +803,7 @@ safe_fixtable(_Tab, _Fix) ->
 select(Tab, MatchSpec) ->
   Map = {fun ets:select/2, [MatchSpec]},
   Reduce = fun lists:append/1,
-  mapred(Tab, pool_size(Tab), Map, Reduce).
+  mapred(Tab, Map, Reduce).
 
 %% @doc
 %% This operation behaves similar to `ets:select/3'.
@@ -940,7 +853,7 @@ select({Tab, _, Limit, _, _} = Continuation) ->
 select_count(Tab, MatchSpec) ->
   Map = {fun ets:select_count/2, [MatchSpec]},
   Reduce = fun(R) -> lists:foldl(fun(Res, Acc) -> Acc + Res end, 0, R) end,
-  mapred(Tab, pool_size(Tab), Map, Reduce).
+  mapred(Tab, Map, Reduce).
 
 %% @doc
 %% This operation behaves like `ets:select_delete/2'.
@@ -950,7 +863,7 @@ select_count(Tab, MatchSpec) ->
 select_delete(Tab, MatchSpec) ->
   Map = {fun ets:select_delete/2, [MatchSpec]},
   Reduce = fun(R) -> lists:foldl(fun(Res, Acc) -> Acc + Res end, 0, R) end,
-  mapred(Tab, pool_size(Tab), Map, Reduce).
+  mapred(Tab, Map, Reduce).
 
 %% @doc
 %% This operation behaves similar to `ets:select_reverse/2'.
@@ -963,7 +876,7 @@ select_delete(Tab, MatchSpec) ->
 select_reverse(Tab, MatchSpec) ->
   Map = {fun ets:select_reverse/2, [MatchSpec]},
   Reduce = fun lists:append/1,
-  mapred(Tab, pool_size(Tab), Map, Reduce).
+  mapred(Tab, Map, Reduce).
 
 %% @doc
 %% This operation behaves similar to `ets:select_reverse/3'.
@@ -1020,7 +933,7 @@ select_reverse({Tab, _, Limit, _, _} = Continuation) ->
 setopts(Tab, Opts) ->
   Map = {fun shards_owner:setopts/2, [Opts]},
   Reduce = fun(R) -> lists:foldl(fun(E, Acc) -> Acc and E end, true, R) end,
-  mapred(Tab, pool_size(Tab), Map, Reduce).
+  mapred(Tab, Map, Reduce).
 
 %% @doc
 %% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
@@ -1059,7 +972,7 @@ tab2file(Tab, Filenames, Options) ->
 %% @see ets:tab2list/1.
 %% @end
 tab2list(Tab) ->
-  mapred(Tab, pool_size(Tab), fun ets:tab2list/1, fun lists:append/1).
+  mapred(Tab, fun ets:tab2list/1, fun lists:append/1).
 
 %% @doc
 %% Equivalent to `ets:tabfile_info/1'.
@@ -1101,21 +1014,10 @@ test_ms(Tuple, MatchSpec) ->
 %% @doc
 %% This operation behaves like `ets:take/2'.
 %%
-%% <b>IMPORTANT: This function makes an additional call to an ETS
-%% table to fetch the pool size (used by `shards' internally).
-%% If you want to skip this step you should use
-%% `shards:take/3' instead.</b>
-%%
 %% @see ets:take/2.
 %% @end
 take(Tab, Key) ->
-  take(Tab, Key, pool_size(Tab)).
-
-%% @doc
-%% Same as `shards:take/2' but receives the `PoolSize' explicitly.
-%% @end
-take(Tab, Key, PoolSize) ->
-  mapred(Tab, Key, PoolSize, {fun ets:take/2, [Key]}, fun lists:append/1).
+  mapred(Tab, Key, {fun ets:take/2, [Key]}, fun lists:append/1).
 
 %% @doc
 %% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
@@ -1126,98 +1028,87 @@ to_dets(_Tab, _DetsTab) ->
 %% @doc
 %% This operation behaves like `ets:update_counter/3'.
 %%
-%% <b>IMPORTANT: This function makes an additional call to an ETS
-%% table to fetch the pool size (used by `shards' internally).
-%% If you want to skip this step you should use
-%% `shards:update_counter/4' instead.</b>
-%%
 %% @see ets:update_counter/3.
 %% @end
 update_counter(Tab, Key, UpdateOp) ->
-  update_counter(Tab, Key, UpdateOp, pool_size(Tab)).
+  mapred(Tab, Key, {fun ets:update_counter/3, [Key, UpdateOp]}, nil).
 
 %% @doc
-%% This function can behaves in two ways:
-%% <ul>
-%% <li>If the 4th parameter is an integer, it's taken as the pool
-%% size, and in this case it behaves like `shards:update_counter/3'
-%% but receiving the `PoolSize' explicitly.</li>
-%% <li>If the 4th parameter is a tuple, it behaves like
-%% `ets:update_counter/4.'</li>
-%% </ul>
+%% This operation behaves like `ets:update_counter/4'.
 %%
 %% @see ets:update_counter/4.
 %% @end
-update_counter(Tab, Key, UpdateOp, PoolSize) when is_integer(PoolSize) ->
-  mapred(Tab, Key, PoolSize, {fun ets:update_counter/3, [Key, UpdateOp]}, nil);
-update_counter(Tab, Key, UpdateOp, Default) when is_tuple(Default) ->
-  update_counter(Tab, Key, UpdateOp, Default, pool_size(Tab)).
-
-%% @doc
-%% Same as `shards:update_counter/4' but receives the `PoolSize'
-%% explicitly.
-%% @end
-update_counter(Tab, Key, UpdateOp, Default, PoolSize) ->
+update_counter(Tab, Key, UpdateOp, Default) ->
   Map = {fun ets:update_counter/4, [Key, UpdateOp, Default]},
-  mapred(Tab, Key, PoolSize, Map, nil).
+  mapred(Tab, Key, Map, nil).
 
 %% @doc
 %% This operation behaves like `ets:update_element/3'.
 %%
-%% <b>IMPORTANT: This function makes an additional call to an ETS
-%% table to fetch the pool size (used by `shards' internally).
-%% If you want to skip this step you should use
-%% `shards:update_element/4' instead.</b>
-%%
 %% @see ets:update_element/3.
 %% @end
 update_element(Tab, Key, ElementSpec) ->
-  update_element(Tab, Key, ElementSpec, pool_size(Tab)).
-
-%% @doc
-%% Same as `shards:update_element/3' but receives the `PoolSize'
-%% explicitly.
-%% @end
-update_element(Tab, Key, ElementSpec, PoolSize) ->
   Map = {fun ets:update_element/3, [Key, ElementSpec]},
-  mapred(Tab, Key, PoolSize, Map, nil).
+  mapred(Tab, Key, Map, nil).
 
 %%%===================================================================
 %%% Extended API
 %%%===================================================================
 
--spec shard_name(atom(), non_neg_integer()) -> atom().
-shard_name(Tab, Shard) ->
-  shards_owner:shard_name(Tab, Shard).
+-spec shard_name(TabName, ShardNum) -> ShardName when
+  TabName   :: atom(),
+  ShardNum  :: non_neg_integer(),
+  ShardName :: atom().
+shard_name(TabName, Shard) ->
+  shards_owner:shard_name(TabName, Shard).
 
--spec shard(term(), pos_integer()) -> non_neg_integer().
+-spec shard(Key, PoolSize) -> ShardNum when
+  Key      :: term(),
+  PoolSize :: pos_integer(),
+  ShardNum :: non_neg_integer().
 shard(Key, PoolSize) ->
   erlang:phash2(Key) rem PoolSize.
 
--spec pool_size(atom()) -> pos_integer().
-pool_size(Tab) ->
-  [{_, PoolSize}] = ets:lookup(Tab, pool_size),
+-spec control_info(TabName) -> Response when
+  TabName  :: atom(),
+  Type     :: atom(),
+  PoolSize :: pos_integer(),
+  Response :: {Type, PoolSize}.
+control_info(TabName) ->
+  [{_, CtrlInfo}] = ets:lookup(TabName, '$control'),
+  CtrlInfo.
+
+-spec type(TabName) -> Type when
+  TabName  :: atom(),
+  Type     :: atom().
+type(TabName) ->
+  {Type, _} = control_info(TabName),
+  Type.
+
+-spec pool_size(TabName) -> PoolSize when
+  TabName  :: atom(),
+  PoolSize :: pos_integer().
+pool_size(TabName) ->
+  {_, PoolSize} = control_info(TabName),
   PoolSize.
 
--spec options(atom()) -> [term()].
-options(Tab) ->
-  [{_, Options}] = ets:lookup(Tab, options),
-  Options.
-
--spec list(atom()) -> [atom()].
-list(Tab) ->
-  [shard_name(Tab, Shard) || Shard <- lists:seq(0, pool_size(Tab) - 1)].
+-spec list(TabName) -> ShardTabNames when
+  TabName       :: atom(),
+  ShardTabNames :: [atom()].
+list(TabName) ->
+  [shard_name(TabName, Shard) || Shard <- lists:seq(0, pool_size(TabName) - 1)].
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
 %% @private
-set(Tab, ObjectOrObjects, PoolSize, SetFun) ->
+set(Tab, ObjectOrObjects, SetFun) ->
+  {Type, PoolSize} = control_info(Tab),
   [Key | _] = tuple_to_list(ObjectOrObjects),
   ShardName = shard_name(Tab, shard(Key, PoolSize)),
-  case ets:info(ShardName, type) of
-    T when T =:= bag; T =:= duplicate_bag ->
+  case Type =:= sharded_duplicate_bag orelse Type =:= sharded_bag of
+    true ->
       OtherShardName = shard_name(Tab, shard({Key, os:timestamp()}, PoolSize)),
       SetFun(OtherShardName, ObjectOrObjects);
     _ ->
@@ -1225,11 +1116,12 @@ set(Tab, ObjectOrObjects, PoolSize, SetFun) ->
   end.
 
 %% @private
-set_new(Tab, ObjectOrObjects, PoolSize, SetFun) ->
+set_new(Tab, ObjectOrObjects, SetFun) ->
+  {Type, PoolSize} = control_info(Tab),
   [Key | _] = tuple_to_list(ObjectOrObjects),
   ShardName = shard_name(Tab, shard(Key, PoolSize)),
-  case ets:info(ShardName, type) of
-    T when T =:= bag; T =:= duplicate_bag ->
+  case Type =:= sharded_duplicate_bag orelse Type =:= sharded_bag of
+    true ->
       case lists:append(pmap(Tab, PoolSize, fun ets:lookup/2, [Key])) of
         [] ->
           NewKey = {Key, os:timestamp()},
@@ -1243,24 +1135,34 @@ set_new(Tab, ObjectOrObjects, PoolSize, SetFun) ->
   end.
 
 %% @private
-mapred(Tab, PoolSize, Map, Reduce) ->
-  mapred(Tab, nil, PoolSize, Map, Reduce).
+mapred(Tab, Map, Reduce) ->
+  mapred(Tab, nil, control_info(Tab), Map, Reduce).
 
 %% @private
-mapred(Tab, Key, PoolSize, Map, nil) ->
-  mapred(Tab, Key, PoolSize, Map, fun(R) -> R end);
-mapred(Tab, nil, PoolSize, {MapFun, Args}, ReduceFun) ->
+mapred(Tab, Key, Map, Reduce) ->
+  mapred(Tab, Key, control_info(Tab), Map, Reduce).
+
+%% @private
+mapred(Tab, Key, Ctrl, Map, nil) ->
+  mapred(Tab, Key, Ctrl, Map, fun(R) -> R end);
+mapred(Tab, nil, {_, PoolSize}, {MapFun, Args}, ReduceFun) ->
   ReduceFun(pmap(Tab, PoolSize, MapFun, Args));
-mapred(Tab, nil, PoolSize, MapFun, ReduceFun) ->
+mapred(Tab, nil, {_, PoolSize}, MapFun, ReduceFun) ->
   ReduceFun(pmap(Tab, PoolSize, MapFun));
-mapred(Tab, Key, PoolSize, {MapFun, Args}, ReduceFun) ->
+mapred(Tab, Key, {Type, PoolSize}, {MapFun, Args}, ReduceFun) ->
   ShardName = shard_name(Tab, shard(Key, PoolSize)),
-  case ets:info(ShardName, type) of
-    T when T =:= bag; T =:= duplicate_bag ->
-      ReduceFun(pmap(Tab, PoolSize, MapFun, Args));
+  case Type =:= sharded_duplicate_bag orelse Type =:= sharded_bag of
+    true ->
+      ReduceFun(map(Tab, PoolSize, MapFun, Args));
     _ ->
       apply(erlang, apply, [MapFun, [ShardName | Args]])
   end.
+
+%% @private
+map(Tab, PoolSize, Fun, Args) ->
+  lists:foldl(fun(Shard, Acc) ->
+    [apply(erlang, apply, [Fun, [shard_name(Tab, Shard) | Args]]) | Acc]
+  end, [], lists:seq(0, PoolSize - 1)).
 
 %% @private
 pmap(Tab, PoolSize, Fun) ->
@@ -1331,7 +1233,7 @@ q(F, {Tab, MatchSpec, Limit, Shard, Continuation}, QFun, I, Acc) ->
 
 %% @private
 q_fun(Tab) ->
-  case info_shard(Tab, 0, type) of
+  case type(Tab) of
     ordered_set ->
       fun(L1, L0) -> lists:foldl(fun(E, Acc) -> [E | Acc] end, L0, L1) end;
     _ ->

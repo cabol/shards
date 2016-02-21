@@ -32,7 +32,8 @@ start_link(Name, Options, PoolSize) ->
 init([Name, Options, PoolSize]) ->
   % ETS table to hold control info.
   Name = ets:new(Name, [set, named_table, {read_concurrency, true}]),
-  true = ets:insert(Name, [{pool_size, PoolSize}, {options, Options}]),
+  {Opts, Type} = parse_opts(Options),
+  true = ets:insert(Name, {'$control', {Type, PoolSize}}),
 
   % create children
   Children = [begin
@@ -41,7 +42,7 @@ init([Name, Options, PoolSize]) ->
     % save relationship between shard and shard name
     true = ets:insert(Name, {Shard, LocalShardName}),
     % shard worker spec
-    ?worker(shards_owner, [LocalShardName, Options], #{id => Shard})
+    ?worker(shards_owner, [LocalShardName, Opts], #{id => Shard})
   end || Shard <- lists:seq(0, PoolSize - 1)],
 
   % launch shards supervisor
@@ -74,3 +75,27 @@ assert_unique_ids([Id | Rest]) ->
     true -> throw({badarg, duplicated_id});
     _    -> assert_unique_ids(Rest)
   end.
+
+%% @private
+parse_opts(Opts) ->
+  parse_opts(Opts, [], nil).
+
+%% @private
+parse_opts([], NOpts, nil) ->
+  {NOpts, set};
+parse_opts([], NOpts, Type) ->
+  {NOpts, Type};
+parse_opts([sharded_duplicate_bag | Opts], NOpts, _) ->
+  parse_opts(Opts, [duplicate_bag | NOpts], sharded_duplicate_bag);
+parse_opts([sharded_bag | Opts], NOpts, _) ->
+  parse_opts(Opts, [bag | NOpts], sharded_bag);
+parse_opts([duplicate_bag | Opts], NOpts, _) ->
+  parse_opts(Opts, [duplicate_bag | NOpts], duplicate_bag);
+parse_opts([bag | Opts], NOpts, _) ->
+  parse_opts(Opts, [bag | NOpts], bag);
+parse_opts([ordered_set | Opts], NOpts, _) ->
+  parse_opts(Opts, [ordered_set | NOpts], ordered_set);
+parse_opts([set | Opts], NOpts, _) ->
+  parse_opts(Opts, [set | NOpts], set);
+parse_opts([Opt | Opts], NOpts, IOpts) ->
+  parse_opts(Opts, [Opt | NOpts], IOpts).
