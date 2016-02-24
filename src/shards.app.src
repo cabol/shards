@@ -6,7 +6,7 @@
   {applications, [kernel, stdlib]},
   {env,[]},
   {modules, []},
-  {maintainers, ["Carlos Andres Bolanos"]},
+  {maintainers, ["Carlos Andres Bolanos R.A."]},
   {licenses, ["MIT"]},
   {links, [
     {"GitHub", "https://github.com/cabol/shards"},

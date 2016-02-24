@@ -261,7 +261,6 @@ t_paginated_ops_({Tab, {Op, Q}} = Args) ->
   {R1, C1} = shards:Op(Tab, Q, 1),
   1 = length(R1),
   {R2, _} = shards:Op(Tab, Q, 20),
-  ct:pal(">>> [~p] ~p -- ~p", [Tab, Len, length(R2)]),
   Len = length(R2),
 
   % select/1 - by 1
