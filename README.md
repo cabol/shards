@@ -5,7 +5,9 @@
 
 ETS tables on steroids!
 
-**Shards** is a very good, and probably the **simplest** option to scale-out ETS tables. 
+**Shards** is a very good, and probably the **simplest** option to scale-out ETS tables.
+
+**Shards** also has an [Elixir wrapper](https://github.com/cabol/exshards)!!.
 
 
 ## Introduction
@@ -137,6 +139,11 @@ Coming soon!
     $ make edoc
 
 > **Note:** Once you run previous command, a new folder `edoc` is created, and you'll have a pretty nice HTML documentation.
+
+
+## Elixir Wrapper
+
+**Shards** also has an Elixir wrapper, check [HERE](https://github.com/cabol/exshards).
 
 
 ## Copyright and License
