@@ -1019,6 +1019,13 @@ update_element(Tab, Key, ElementSpec) ->
 %%% Extended API
 %%%===================================================================
 
+%% @doc
+%% Builds a shard name `ShardName'.
+%% <ul>
+%% <li>`TabName': Table name from which the shard name is generated.</li>
+%% <li>`ShardNum': Shard number – from `0' to `(PoolSize - 1)'</li>
+%% </ul>
+%% @end
 -spec shard_name(TabName, ShardNum) -> ShardName when
   TabName   :: atom(),
   ShardNum  :: non_neg_integer(),
@@ -1026,6 +1033,13 @@ update_element(Tab, Key, ElementSpec) ->
 shard_name(TabName, Shard) ->
   shards_owner:shard_name(TabName, Shard).
 
+%% @doc
+%% Calculates the shard where the `Key' is handled.
+%% <ul>
+%% <li>`Key': The key to be hashed to calculate the shard.</li>
+%% <li>`PoolSize': Number of shards.</li>
+%% </ul>
+%% @end
 -spec shard(Key, PoolSize) -> ShardNum when
   Key      :: term(),
   PoolSize :: pos_integer(),
@@ -1033,6 +1047,12 @@ shard_name(TabName, Shard) ->
 shard(Key, PoolSize) ->
   erlang:phash2(Key) rem PoolSize.
 
+%% @doc
+%% Returns the stored control information..
+%% <ul>
+%% <li>`TabName': Table name.</li>
+%% </ul>
+%% @end
 -spec control_info(TabName) -> Response when
   TabName  :: atom(),
   Type     :: atom(),
@@ -1042,13 +1062,25 @@ control_info(TabName) ->
   [{_, CtrlInfo}] = ets:lookup(TabName, '$control'),
   CtrlInfo.
 
+%% @doc
+%% Returns the table type.
+%% <ul>
+%% <li>`TabName': Table name.</li>
+%% </ul>
+%% @end
 -spec type(TabName) -> Type when
-  TabName  :: atom(),
-  Type     :: atom().
+  TabName :: atom(),
+  Type    :: atom().
 type(TabName) ->
   {Type, _} = control_info(TabName),
   Type.
 
+%% @doc
+%% Returns the pool size or number of shards.
+%% <ul>
+%% <li>`TabName': Table name.</li>
+%% </ul>
+%% @end
 -spec pool_size(TabName) -> PoolSize when
   TabName  :: atom(),
   PoolSize :: pos_integer().
@@ -1056,6 +1088,13 @@ pool_size(TabName) ->
   {_, PoolSize} = control_info(TabName),
   PoolSize.
 
+%% @doc
+%% Returns the list of shard names associated to the given `TabName'.
+%% The shard names that were created in the `shards:new/2,3' fun.
+%% <ul>
+%% <li>`TabName': Table name.</li>
+%% </ul>
+%% @end
 -spec list(TabName) -> ShardTabNames when
   TabName       :: atom(),
   ShardTabNames :: [atom()].
@@ -1074,7 +1113,8 @@ set(Tab, ObjectOrObjects, SetFun) ->
   ShardName = shard_name(Tab, shard(Key, PoolSize)),
   case Type =:= sharded_duplicate_bag orelse Type =:= sharded_bag of
     true ->
-      OtherShardName = shard_name(Tab, shard({Key, os:timestamp()}, PoolSize)),
+      NewKey = {Key, os:timestamp()},
+      OtherShardName = shard_name(Tab, shard(NewKey, PoolSize)),
       SetFun(OtherShardName, ObjectOrObjects);
     _ ->
       SetFun(ShardName, ObjectOrObjects)

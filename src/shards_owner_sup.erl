@@ -20,7 +20,11 @@
 %%% API functions
 %%%===================================================================
 
--spec start_link(atom(), [term()], pos_integer()) -> supervisor:startlink_ret().
+-spec start_link(Name, Options, PoolSize) -> Response when
+  Name     :: atom(),
+  Options  :: [term()],
+  PoolSize :: pos_integer(),
+  Response :: supervisor:startlink_ret().
 start_link(Name, Options, PoolSize) ->
   supervisor:start_link({local, Name}, ?MODULE, [Name, Options, PoolSize]).
 
@@ -31,7 +35,7 @@ start_link(Name, Options, PoolSize) ->
 %% @hidden
 init([Name, Options, PoolSize]) ->
   % ETS table to hold control info.
-  Name = ets:new(Name, [set, named_table, {read_concurrency, true}]),
+  Name = ets:new(Name, [set, named_table, public, {read_concurrency, true}]),
   {Opts, Type} = parse_opts(Options),
   true = ets:insert(Name, {'$control', {Type, PoolSize}}),
 

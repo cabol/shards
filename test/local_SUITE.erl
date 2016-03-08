@@ -11,7 +11,7 @@
   end_per_testcase/2
 ]).
 
-%% Tests
+%% Tests Cases
 -export([
   t_basic_ops/1,
   t_match_ops/1,
@@ -86,7 +86,7 @@ end_per_testcase(_, Config) ->
   Config.
 
 %%%===================================================================
-%%% Exported Tests Functions
+%%% Tests Cases
 %%%===================================================================
 
 t_basic_ops(_Config) ->

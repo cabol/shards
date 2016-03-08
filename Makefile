@@ -12,7 +12,12 @@ BUILD_PATH = $(BUILD_ROOT)/*/ebin
 CONFIG ?= test/test.config
 
 CT_OPTS = -cover test/cover.spec -erl_args -config ${CONFIG}
+
+ifeq ($(PROFILE), dist)
+CT_SUITES = task_SUITE local_SUITE dist_SUITE
+else
 CT_SUITES = task_SUITE local_SUITE
+endif
 
 .PHONY: all compile clean distclean dialyze tests shell doc
 
@@ -37,7 +42,7 @@ dialyze:
 
 tests: compile
 	mkdir -p logs
-	ct_run -dir test -suite $(CT_SUITES) -pa $(BUILD_PATH) -logdir logs $(CT_OPTS)
+	REBAR_PROFILE=$(PROFILE) ct_run -dir test -suite $(CT_SUITES) -pa $(BUILD_PATH) -logdir logs $(CT_OPTS)
 	rm -rf test/*.beam
 
 shell: compile
