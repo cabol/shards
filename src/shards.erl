@@ -121,6 +121,7 @@
   shard_name/2,
   shard/2,
   control_info/1,
+  module/1,
   type/1,
   pool_size/1,
   list/1
@@ -168,7 +169,7 @@ start() -> application:ensure_all_started(shards).
 
 %% @doc Stops `shards' application.
 -spec stop() -> ok | {error, term()}.
-stop() -> application:stop(ebus).
+stop() -> application:stop(shards).
 
 %% @hidden
 start(_StartType, _StartArgs) -> shards_sup:start_link().
@@ -225,8 +226,7 @@ delete_object(Tab, Object) when is_tuple(Object) ->
   true.
 
 %% @equiv file2tab(Filenames, [])
-file2tab(Filenames) ->
-  file2tab(Filenames, []).
+file2tab(Filenames) -> file2tab(Filenames, []).
 
 %% @doc
 %% Similar to `shards:file2tab/2'. Moreover, it restores the
@@ -300,8 +300,7 @@ foldr(Function, Acc0, Tab) ->
 %% @doc
 %% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
 %% @end
-from_dets(_Tab, _DetsTab) ->
-  throw(unsupported_operation).
+from_dets(_Tab, _DetsTab) -> throw(unsupported_operation).
 
 %% @doc
 %% <p><font color="red"><b>WARNING:</b> Please use `ets:fun2ms/1'
@@ -314,8 +313,7 @@ from_dets(_Tab, _DetsTab) ->
 %%
 %% @see ets:fun2ms/1.
 %% @end
-fun2ms(_LiteralFun) ->
-  throw(unsupported_operation).
+fun2ms(_LiteralFun) -> throw(unsupported_operation).
 
 %% @doc
 %% Equivalent to `ets:give_away/3' for each shard table. It returns
@@ -344,14 +342,12 @@ give_away(Tab, Pid, GiftData) ->
 %%
 %% @see ets:i/0.
 %% @end
-i() ->
-  ets:i().
+i() -> ets:i().
 
 %% @doc
 %% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
 %% @end
-i(_Tab) ->
-  throw(unsupported_operation).
+i(_Tab) -> throw(unsupported_operation).
 
 %% @doc
 %% This operation behaves like `ets:info/1', but instead of return
@@ -364,8 +360,7 @@ i(_Tab) ->
   Tab      :: atom(),
   Result   :: [InfoList],
   InfoList :: [term() | undefined].
-info(Tab) ->
-  mapred(Tab, fun ets:info/1).
+info(Tab) -> mapred(Tab, fun ets:info/1).
 
 %% @doc
 %% This operation behaves like `ets:info/2', but instead of return
@@ -379,8 +374,7 @@ info(Tab) ->
   Item     :: atom(),
   Result   :: [Value],
   Value    :: [term() | undefined].
-info(Tab, Item) ->
-  mapred(Tab, {fun ets:info/2, [Item]}).
+info(Tab, Item) -> mapred(Tab, {fun ets:info/2, [Item]}).
 
 %% @doc
 %% This operation behaves like `ets:info/1'
@@ -412,8 +406,7 @@ info_shard(Tab, Shard, Item) ->
 %% @doc
 %% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
 %% @end
-init_table(_Tab, _InitFun) ->
-  throw(unsupported_operation).
+init_table(_Tab, _InitFun) -> throw(unsupported_operation).
 
 %% @doc
 %% This operation behaves similar to `ets:insert/2', with a big
@@ -428,7 +421,13 @@ insert(Tab, ObjectOrObjects) when is_list(ObjectOrObjects) ->
     true = insert(Tab, Object)
   end, ObjectOrObjects), true;
 insert(Tab, ObjectOrObjects) when is_tuple(ObjectOrObjects) ->
-  set(Tab, ObjectOrObjects, fun ets:insert/2).
+  {_, Type, PoolSize} = control_info(Tab),
+  [Key | _] = tuple_to_list(ObjectOrObjects),
+  Shard = case Type =:= sharded_duplicate_bag orelse Type =:= sharded_bag of
+    true -> shard_name(Tab, shard({Key, os:timestamp()}, PoolSize));
+    _    -> shard_name(Tab, shard(Key, PoolSize))
+  end,
+  ets:insert(Shard, ObjectOrObjects).
 
 %% @doc
 %% This operation behaves like `ets:insert_new/2' BUT it is not atomic,
@@ -448,15 +447,31 @@ insert_new(Tab, ObjectOrObjects) when is_list(ObjectOrObjects) ->
     [insert_new(Tab, Object) | Acc]
   end, [], ObjectOrObjects);
 insert_new(Tab, ObjectOrObjects) when is_tuple(ObjectOrObjects) ->
-  set_new(Tab, ObjectOrObjects, fun ets:insert_new/2).
+  {_, Type, PoolSize} = control_info(Tab),
+  [Key | _] = tuple_to_list(ObjectOrObjects),
+  case Type =:= sharded_duplicate_bag orelse Type =:= sharded_bag of
+    true ->
+      Map = {fun ets:lookup/2, [Key]},
+      Reduce = fun lists:append/2,
+      case mapred(Tab, PoolSize, Map, Reduce) of
+        [] ->
+          NewKey = {Key, os:timestamp()},
+          ShardName = shard_name(Tab, shard(NewKey, PoolSize)),
+          ets:insert_new(ShardName, ObjectOrObjects);
+        _ ->
+          false
+      end;
+    _ ->
+      ShardName = shard_name(Tab, shard(Key, PoolSize)),
+      ets:insert_new(ShardName, ObjectOrObjects)
+  end.
 
 %% @doc
 %% Equivalent to `ets:is_compiled_ms/1'.
 %%
 %% @see ets:is_compiled_ms/1.
 %% @end
-is_compiled_ms(Term) ->
-  ets:is_compiled_ms(Term).
+is_compiled_ms(Term) -> ets:is_compiled_ms(Term).
 
 %% @doc
 %% This operation behaves similar to `ets:last/1'.
@@ -467,7 +482,7 @@ is_compiled_ms(Term) ->
 %% @see ets:last/1.
 %% @end
 last(Tab) ->
-  {Type, PoolSize} = control_info(Tab),
+  {_, Type, PoolSize} = control_info(Tab),
   case Type of
     ordered_set ->
       last(Tab, ets:last(shard_name(Tab, 0)), 0, PoolSize - 1);
@@ -498,20 +513,22 @@ lookup(Tab, Key) ->
 %% @see ets:lookup_element/3.
 %% @end
 lookup_element(Tab, Key, Pos) ->
-  {Type, PoolSize} = control_info(Tab),
-  ShardName = shard_name(Tab, shard(Key, PoolSize)),
+  {_, Type, PoolSize} = control_info(Tab),
   case Type =:= sharded_duplicate_bag orelse Type =:= sharded_bag of
     true ->
-      Fun = fun(Tx, Kx, Px) -> catch(ets:lookup_element(Tx, Kx, Px)) end,
-      L = lists:filter(fun
+      LookupElem = fun(Tx, Kx, Px) ->
+        catch(ets:lookup_element(Tx, Kx, Px))
+      end,
+      Filter = lists:filter(fun
         ({'EXIT', _}) -> false;
         (_)           -> true
-      end, mapred(Tab, {Fun, [Key, Pos]})),
-      case L of
+      end, mapred(Tab, {LookupElem, [Key, Pos]})),
+      case Filter of
         [] -> exit({badarg, erlang:get_stacktrace()});
-        _  -> lists:append(L)
+        _  -> lists:append(Filter)
       end;
     _ ->
+      ShardName = shard_name(Tab, shard(Key, PoolSize)),
       ets:lookup_element(ShardName, Key, Pos)
   end.
 
@@ -723,7 +740,7 @@ next(_, Key2, _) ->
 %% @see ets:prev/2.
 %% @end
 prev(Tab, Key1) ->
-  {Type, PoolSize} = control_info(Tab),
+  {_, Type, PoolSize} = control_info(Tab),
   case Type of
     ordered_set ->
       Shard = shard(Key1, PoolSize),
@@ -745,16 +762,11 @@ prev(_, Key2, _, _) ->
 %% @doc
 %% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
 %% @end
-rename(_Tab, _Name) ->
-  throw(unsupported_operation).
+rename(_Tab, _Name) -> throw(unsupported_operation).
 
-repair_continuation(_Continuation, _MatchSpec) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+repair_continuation(_Continuation, _MatchSpec) -> throw(unsupported_operation).
 
-safe_fixtable(_Tab, _Fix) ->
-  %% @TODO: Implement this function.
-  throw(unsupported_operation).
+safe_fixtable(_Tab, _Fix) -> throw(unsupported_operation).
 
 %% @doc
 %% This operation behaves similar to `ets:select/2'.
@@ -902,12 +914,10 @@ setopts(Tab, Opts) ->
 %% @doc
 %% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
 %% @end
-slot(_Tab, _I) ->
-  throw(unsupported_operation).
+slot(_Tab, _I) -> throw(unsupported_operation).
 
 %% @equiv tab2file(Tab, Filename, [])
-tab2file(Tab, Filename) ->
-  tab2file(Tab, Filename, []).
+tab2file(Tab, Filename) -> tab2file(Tab, Filename, []).
 
 %% @doc
 %% Similar to `ets:tab2file/3', but it returns a list of
@@ -943,12 +953,10 @@ tab2list(Tab) ->
 %%
 %% @see ets:tabfile_info/1.
 %% @end
-tabfile_info(Filename) ->
-  ets:tabfile_info(Filename).
+tabfile_info(Filename) -> ets:tabfile_info(Filename).
 
 %% @equiv table(Tab, [])
-table(Tab) ->
-  table(Tab, []).
+table(Tab) -> table(Tab, []).
 
 %% @doc
 %% Similar to `ets:table/2', but it returns a list of `ets:table/2'
@@ -972,8 +980,7 @@ table(Tab, Options) ->
 %%
 %% @see ets:test_ms/2.
 %% @end
-test_ms(Tuple, MatchSpec) ->
-  ets:test_ms(Tuple, MatchSpec).
+test_ms(Tuple, MatchSpec) -> ets:test_ms(Tuple, MatchSpec).
 
 %% @doc
 %% This operation behaves like `ets:take/2'.
@@ -986,8 +993,7 @@ take(Tab, Key) ->
 %% @doc
 %% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
 %% @end
-to_dets(_Tab, _DetsTab) ->
-  throw(unsupported_operation).
+to_dets(_Tab, _DetsTab) -> throw(unsupported_operation).
 
 %% @doc
 %% This operation behaves like `ets:update_counter/3'.
@@ -1030,8 +1036,7 @@ update_element(Tab, Key, ElementSpec) ->
   TabName   :: atom(),
   ShardNum  :: non_neg_integer(),
   ShardName :: atom().
-shard_name(TabName, Shard) ->
-  shards_owner:shard_name(TabName, Shard).
+shard_name(TabName, Shard) -> shards_owner:shard_name(TabName, Shard).
 
 %% @doc
 %% Calculates the shard where the `Key' is handled.
@@ -1044,8 +1049,7 @@ shard_name(TabName, Shard) ->
   Key      :: term(),
   PoolSize :: pos_integer(),
   ShardNum :: non_neg_integer().
-shard(Key, PoolSize) ->
-  erlang:phash2(Key) rem PoolSize.
+shard(Key, PoolSize) -> erlang:phash2(Key, PoolSize).
 
 %% @doc
 %% Returns the stored control information..
@@ -1063,6 +1067,19 @@ control_info(TabName) ->
   CtrlInfo.
 
 %% @doc
+%% Returns the module to be used (`shards' | `ets').
+%% <ul>
+%% <li>`TabName': Table name.</li>
+%% </ul>
+%% @end
+-spec module(TabName) -> Module when
+  TabName :: atom(),
+  Module  :: module().
+module(TabName) ->
+  {Module, _, _} = control_info(TabName),
+  Module.
+
+%% @doc
 %% Returns the table type.
 %% <ul>
 %% <li>`TabName': Table name.</li>
@@ -1072,7 +1089,7 @@ control_info(TabName) ->
   TabName :: atom(),
   Type    :: atom().
 type(TabName) ->
-  {Type, _} = control_info(TabName),
+  {_, Type, _} = control_info(TabName),
   Type.
 
 %% @doc
@@ -1085,7 +1102,7 @@ type(TabName) ->
   TabName  :: atom(),
   PoolSize :: pos_integer().
 pool_size(TabName) ->
-  {_, PoolSize} = control_info(TabName),
+  {_, _, PoolSize} = control_info(TabName),
   PoolSize.
 
 %% @doc
@@ -1107,41 +1124,6 @@ list(TabName) ->
 %%%===================================================================
 
 %% @private
-set(Tab, ObjectOrObjects, SetFun) ->
-  {Type, PoolSize} = control_info(Tab),
-  [Key | _] = tuple_to_list(ObjectOrObjects),
-  ShardName = shard_name(Tab, shard(Key, PoolSize)),
-  case Type =:= sharded_duplicate_bag orelse Type =:= sharded_bag of
-    true ->
-      NewKey = {Key, os:timestamp()},
-      OtherShardName = shard_name(Tab, shard(NewKey, PoolSize)),
-      SetFun(OtherShardName, ObjectOrObjects);
-    _ ->
-      SetFun(ShardName, ObjectOrObjects)
-  end.
-
-%% @private
-set_new(Tab, ObjectOrObjects, SetFun) ->
-  {Type, PoolSize} = control_info(Tab),
-  [Key | _] = tuple_to_list(ObjectOrObjects),
-  ShardName = shard_name(Tab, shard(Key, PoolSize)),
-  case Type =:= sharded_duplicate_bag orelse Type =:= sharded_bag of
-    true ->
-      Map = {fun ets:lookup/2, [Key]},
-      Reduce = fun lists:append/2,
-      case mapred(Tab, PoolSize, Map, Reduce) of
-        [] ->
-          NewKey = {Key, os:timestamp()},
-          OtherShardName = shard_name(Tab, shard(NewKey, PoolSize)),
-          SetFun(OtherShardName, ObjectOrObjects);
-        _ ->
-          false
-      end;
-    _ ->
-      SetFun(ShardName, ObjectOrObjects)
-  end.
-
-%% @private
 mapred(Tab, Map) ->
   mapred(Tab, Map, nil).
 
@@ -1156,29 +1138,27 @@ mapred(Tab, Key, Map, Reduce) ->
 %% @private
 mapred(Tab, Key, Ctrl, Map, nil) ->
   mapred(Tab, Key, Ctrl, Map, fun(E, Acc) -> [E | Acc] end);
-mapred(Tab, nil, {_, PoolSize}, Map, Reduce) ->
-  mapred2(Tab, PoolSize, Map, Reduce);
-mapred(Tab, Key, {Type, PoolSize}, {MapFun, Args}, Reduce) ->
+mapred(Tab, nil, {_, _, PoolSize}, Map, Reduce) ->
+  p_mapred(Tab, PoolSize, Map, Reduce);
+mapred(Tab, _, {_, Type, PoolSize}, Map, Reduce)
+    when Type =:= sharded_duplicate_bag; Type =:= sharded_bag ->
+  s_mapred(Tab, PoolSize, Map, Reduce);
+mapred(Tab, Key, {_, _, PoolSize}, {MapFun, Args}, _) ->
   ShardName = shard_name(Tab, shard(Key, PoolSize)),
-  case Type =:= sharded_duplicate_bag orelse Type =:= sharded_bag of
-    true ->
-      mapred1(Tab, PoolSize, {MapFun, Args}, Reduce);
-    _ ->
-      apply(erlang, apply, [MapFun, [ShardName | Args]])
-  end.
+  apply(erlang, apply, [MapFun, [ShardName | Args]]).
 
 %% @private
-mapred1(Tab, PoolSize, {MapFun, Args}, {ReduceFun, AccIn}) ->
+s_mapred(Tab, PoolSize, {MapFun, Args}, {ReduceFun, AccIn}) ->
   lists:foldl(fun(Shard, Acc) ->
     MapRes = apply(erlang, apply, [MapFun, [shard_name(Tab, Shard) | Args]]),
     ReduceFun(MapRes, Acc)
   end, AccIn, lists:seq(0, PoolSize - 1));
-mapred1(Tab, PoolSize, MapFun, ReduceFun) ->
+s_mapred(Tab, PoolSize, MapFun, ReduceFun) ->
   {Map, Reduce} = mapred_funs(MapFun, ReduceFun),
-  mapred1(Tab, PoolSize, Map, Reduce).
+  s_mapred(Tab, PoolSize, Map, Reduce).
 
 %% @private
-mapred2(Tab, PoolSize, {MapFun, Args}, {ReduceFun, AccIn}) ->
+p_mapred(Tab, PoolSize, {MapFun, Args}, {ReduceFun, AccIn}) ->
   Tasks = lists:foldl(fun(Shard, Acc) ->
     AsyncTask = shards_task:async(fun() ->
       apply(erlang, apply, [MapFun, [shard_name(Tab, Shard) | Args]])
@@ -1188,9 +1168,9 @@ mapred2(Tab, PoolSize, {MapFun, Args}, {ReduceFun, AccIn}) ->
     MapRes = shards_task:await(Task),
     ReduceFun(MapRes, Acc)
   end, AccIn, Tasks);
-mapred2(Tab, PoolSize, MapFun, ReduceFun) ->
+p_mapred(Tab, PoolSize, MapFun, ReduceFun) ->
   {Map, Reduce} = mapred_funs(MapFun, ReduceFun),
-  mapred2(Tab, PoolSize, Map, Reduce).
+  p_mapred(Tab, PoolSize, Map, Reduce).
 
 %% @private
 mapred_funs(MapFun, ReduceFun) ->

@@ -27,6 +27,7 @@
 ]).
 
 -include_lib("stdlib/include/ms_transform.hrl").
+-include("test_helpers.hrl").
 
 -define(EXCLUDED_FUNS, [
   module_info,
@@ -35,30 +36,6 @@
   end_per_suite,
   init_per_testcase,
   end_per_testcase
-]).
-
--define(SET, test_set).
--define(DUPLICATE_BAG, test_duplicate_bag).
--define(ORDERED_SET, test_ordered_set).
--define(SHARDED_DUPLICATE_BAG, test_sharded_duplicate_bag).
-
--define(ETS_SET, ets_test_set).
--define(ETS_DUPLICATE_BAG, ets_test_duplicate_bag).
--define(ETS_ORDERED_SET, ets_test_ordered_set).
--define(ETS_SHARDED_DUPLICATE_BAG, ets_test_sharded_duplicate_bag).
-
--define(SHARDS_TABS, [
-  ?SET,
-  ?DUPLICATE_BAG,
-  ?ORDERED_SET,
-  ?SHARDED_DUPLICATE_BAG
-]).
-
--define(ETS_TABS, [
-  ?ETS_SET,
-  ?ETS_DUPLICATE_BAG,
-  ?ETS_ORDERED_SET,
-  ?ETS_SHARDED_DUPLICATE_BAG
 ]).
 
 %%%===================================================================
@@ -91,7 +68,7 @@ end_per_testcase(_, Config) ->
 
 t_basic_ops(_Config) ->
   Tables = lists:zip(?SHARDS_TABS, ?ETS_TABS),
-  run_foreach(fun t_basic_ops_/1, Tables).
+  lists:foreach(fun t_basic_ops_/1, Tables).
 
 t_basic_ops_({Tab, EtsTab} = Args) ->
   true = cleanup_shards(),
@@ -234,7 +211,7 @@ t_paginated_ops(_Config) ->
     {match_object, '$1'}
   ],
   Args = [{Tab, Op} || Tab <- ?SHARDS_TABS, Op <- Ops],
-  run_foreach(fun t_paginated_ops_/1, Args).
+  lists:foreach(fun t_paginated_ops_/1, Args).
 
 t_paginated_ops_({Tab, {Op, Q}} = Args) ->
   true = cleanup_shards(),
@@ -511,10 +488,11 @@ init_shards() ->
   shards:new(?SHARDED_DUPLICATE_BAG, [sharded_duplicate_bag], 5),
 
   shards_created(?SHARDS_TABS),
-  {set, 2} = shards:control_info(?SET),
-  {duplicate_bag, 5} = shards:control_info(?DUPLICATE_BAG),
-  {ordered_set, 2} = shards:control_info(?ORDERED_SET),
-  {sharded_duplicate_bag, 5} = shards:control_info(?SHARDED_DUPLICATE_BAG),
+  {shards, set, 2} = shards:control_info(?SET),
+  {shards, duplicate_bag, 5} = shards:control_info(?DUPLICATE_BAG),
+  {shards, ordered_set, 2} = shards:control_info(?ORDERED_SET),
+  {shards, sharded_duplicate_bag, 5} =
+    shards:control_info(?SHARDED_DUPLICATE_BAG),
   duplicate_bag = ets:info(shards:shard_name(?SHARDED_DUPLICATE_BAG, 0), type),
 
   ets:new(?ETS_SET, [set, public, named_table]),
@@ -527,8 +505,8 @@ cleanup_shards() ->
   L = lists:duplicate(4, true),
   L = [shards:delete_all_objects(Tab) || Tab <- ?SHARDS_TABS],
   L = [ets:delete_all_objects(Tab) || Tab <- ?ETS_TABS],
-  All = [ets:match(Tab, '$1') || Tab <- ?ETS_TABS],
-  All = [shards:match(Tab, '$1') || Tab <- ?SHARDS_TABS],
+  All = [[] = ets:match(Tab, '$1') || Tab <- ?ETS_TABS],
+  All = [[] = shards:match(Tab, '$1') || Tab <- ?SHARDS_TABS],
   true.
 
 delete_shards_pool() ->
@@ -540,8 +518,6 @@ delete_shards_pool() ->
   {_, 0} = lists:keyfind(supervisors, 1, Count),
   {_, 0} = lists:keyfind(active, 1, Count),
   ok.
-
-run_foreach(Fun, List) -> lists:foreach(Fun, List).
 
 lookup_keys(Mod, Tab, Keys) ->
   lists:foldr(fun(Key, Acc) ->
