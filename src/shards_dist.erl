@@ -78,36 +78,33 @@ pick_one(Key, Nodes) ->
 %%%===================================================================
 
 delete(Tab) ->
-  {Module, Type, _} = shards:control_info(Tab),
-  mapred(Tab, nil, Type, {Module, delete, [Tab]}, nil),
+  Module = get_module(Tab),
+  mapred(Tab, nil, {Module, delete, [Tab]}, nil),
   true.
 
 delete(Tab, Key) ->
-  {Module, Type, _} = shards:control_info(Tab),
-  mapred(Tab, Key, Type, {Module, delete, [Tab, Key]}, nil),
+  Module = get_module(Tab),
+  mapred(Tab, Key, {Module, delete, [Tab, Key]}, nil),
   true.
 
 delete_all_objects(Tab) ->
-  {Module, Type, _} = shards:control_info(Tab),
-  mapred(Tab, nil, Type, {Module, delete_all_objects, [Tab]}, nil),
+  Module = get_module(Tab),
+  mapred(Tab, nil, {Module, delete_all_objects, [Tab]}, nil),
   true.
-
-new(Name, Options) ->
-  ets:new(Name, [{module, ets} | Options]).
-
-new(Name, Options, PoolSize) ->
-  shards:new(Name, [{module, shards} | Options], PoolSize).
 
 insert(Tab, ObjectOrObjects) when is_list(ObjectOrObjects) ->
   lists:foreach(fun(Object) ->
     true = insert(Tab, Object)
   end, ObjectOrObjects), true;
 insert(Tab, ObjectOrObjects) when is_tuple(ObjectOrObjects) ->
-  {Module, Type, _} = shards:control_info(Tab),
+  Module = get_module(Tab),
+  Type = shards_local:type(Tab),
   [Key | _] = tuple_to_list(ObjectOrObjects),
-  Node = case Type =:= sharded_duplicate_bag orelse Type =:= sharded_bag of
-    true -> pick_one({Key, os:timestamp()}, get_nodes(Tab));
-    _    -> pick_one(Key, get_nodes(Tab))
+  Node = case Type of
+    _ when Type =:= sharded_duplicate_bag; Type =:= sharded_bag ->
+      pick_one({Key, os:timestamp()}, get_nodes(Tab));
+    _ ->
+      pick_one(Key, get_nodes(Tab))
   end,
   rpc_call(Node, Module, insert, [Tab, ObjectOrObjects]).
 
@@ -116,10 +113,11 @@ insert_new(Tab, ObjectOrObjects) when is_list(ObjectOrObjects) ->
     [insert_new(Tab, Object) | Acc]
   end, [], ObjectOrObjects);
 insert_new(Tab, ObjectOrObjects) when is_tuple(ObjectOrObjects) ->
-  {Module, Type, _} = shards:control_info(Tab),
+  Module = get_module(Tab),
+  Type = shards_local:type(Tab),
   [Key | _] = tuple_to_list(ObjectOrObjects),
-  case Type =:= sharded_duplicate_bag orelse Type =:= sharded_bag of
-    true ->
+  case Type of
+    _ when Type =:= sharded_duplicate_bag; Type =:= sharded_bag ->
       Map = {Module, lookup, [Tab, Key]},
       Reduce = fun lists:append/2,
       case mapred(Tab, nil, Type, Map, Reduce) of
@@ -135,13 +133,14 @@ insert_new(Tab, ObjectOrObjects) when is_tuple(ObjectOrObjects) ->
   end.
 
 lookup(Tab, Key) ->
-  {Module, Type, _} = shards:control_info(Tab),
-  mapred(Tab, Key, Type, {Module, lookup, [Tab, Key]}, nil).
+  Module = get_module(Tab),
+  mapred(Tab, Key, {Module, lookup, [Tab, Key]}, nil).
 
 lookup_element(Tab, Key, Pos) ->
-  {Module, Type, _} = shards:control_info(Tab),
-  case Type =:= sharded_duplicate_bag orelse Type =:= sharded_bag of
-    true ->
+  Module = get_module(Tab),
+  Type = shards_local:type(Tab),
+  case Type of
+    _ when Type =:= sharded_duplicate_bag; Type =:= sharded_bag ->
       LookupElem = fun(Tx, Kx, Px) ->
         catch(Module:lookup_element(Tx, Kx, Px))
       end,
@@ -160,15 +159,29 @@ lookup_element(Tab, Key, Pos) ->
   end.
 
 member(Tab, Key) ->
-  {Module, Type, _} = shards:control_info(Tab),
-  case mapred(Tab, Key, Type, {Module, member, [Tab, Key]}, nil) of
+  Module = get_module(Tab),
+  case mapred(Tab, Key, {Module, member, [Tab, Key]}, nil) of
     R when is_list(R) -> lists:member(true, R);
     R                 -> R
   end.
 
+new(Name, Options) ->
+  Name = shards_local:new(Name, Options),
+  true = ets:insert(Name, {'$shards_dist_mod', ets}),
+  Name.
+
+new(Name, Options, PoolSize) ->
+  Name = shards_local:new(Name, Options, PoolSize),
+  true = ets:insert(Name, {'$shards_dist_mod', shards_local}),
+  Name.
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%% @private
+get_module(Tab) ->
+  ets:lookup_element(Tab, '$shards_dist_mod', 2).
 
 %% @private
 rpc_call(Node, Module, Function, Args) ->
@@ -177,17 +190,14 @@ rpc_call(Node, Module, Function, Args) ->
     Response    -> Response
   end.
 
-%%%% @private
 %%mapred(Tab, Map) ->
 %%  mapred(Tab, Map, nil).
 
-%%%% @private
 %%mapred(Tab, Map, Reduce) ->
 %%  mapred(Tab, nil, shards:type(Tab), Map, Reduce).
 
-%%%% @private
-%%mapred(Tab, Key, Map, Reduce) ->
-%%  mapred(Tab, Key, shards:type(Tab), Map, Reduce).
+mapred(Tab, Key, Map, Reduce) ->
+  mapred(Tab, Key, shards_local:type(Tab), Map, Reduce).
 
 %% @private
 mapred(Tab, Key, Type, Map, nil) ->
@@ -213,17 +223,4 @@ p_mapred(Tab, {MapMod, MapFun, MapArgs}, {RedFun, AccIn}) ->
     RedFun(MapRes, Acc)
   end, AccIn, Tasks);
 p_mapred(Tab, MapFun, ReduceFun) ->
-  {Map, Reduce} = mapred_funs(MapFun, ReduceFun),
-  p_mapred(Tab, Map, Reduce).
-
-%% @private
-mapred_funs(MapFun, ReduceFun) ->
-  Map = case is_function(MapFun) of
-    true -> {MapFun, []};
-    _    -> MapFun
-  end,
-  Reduce = case is_function(ReduceFun) of
-    true -> {ReduceFun, []};
-    _    -> ReduceFun
-  end,
-  {Map, Reduce}.
+  p_mapred(Tab, MapFun, {ReduceFun, []}).

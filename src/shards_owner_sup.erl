@@ -36,8 +36,8 @@ start_link(Name, Options, PoolSize) ->
 init([Name, Options, PoolSize]) ->
   % ETS table to hold control info.
   Name = ets:new(Name, [set, named_table, public, {read_concurrency, true}]),
-  {Opts, #{module := Module, type := Type}} = parse_opts(Options),
-  true = ets:insert(Name, {'$control', {Module, Type, PoolSize}}),
+  #{opts := Opts, type := Type} = parse_opts(Options),
+  true = ets:insert(Name, {'$shards_state', {Type, PoolSize}}),
 
   % create children
   Children = [begin
@@ -83,27 +83,27 @@ assert_unique_ids([Id | Rest]) ->
 
 %% @private
 parse_opts(Opts) ->
-  parse_opts(Opts, [], #{module => shards, type => set}).
+  parse_opts(Opts, #{type => set, opts => []}).
 
 %% @private
-parse_opts([], NOpts, C) ->
-  {NOpts, C};
-parse_opts([{module, Module} | Opts], NOpts, C) ->
-  parse_opts(Opts, NOpts, C#{module := Module});
-parse_opts([sharded_duplicate_bag | Opts], NOpts, C) ->
-  parse_opts(Opts, [duplicate_bag | NOpts], C#{type := sharded_duplicate_bag});
-parse_opts([sharded_bag | Opts], NOpts, C) ->
-  parse_opts(Opts, [bag | NOpts], C#{type := sharded_bag});
-parse_opts([duplicate_bag | Opts], NOpts, C) ->
-  parse_opts(Opts, [duplicate_bag | NOpts], C#{type := duplicate_bag});
-parse_opts([bag | Opts], NOpts, C) ->
-  parse_opts(Opts, [bag | NOpts], C#{type := bag});
-parse_opts([ordered_set | Opts], NOpts, C) ->
-  parse_opts(Opts, [ordered_set | NOpts], C#{type := ordered_set});
-parse_opts([set | Opts], NOpts, C) ->
-  parse_opts(Opts, [set | NOpts], C#{type := set});
-parse_opts([Opt | Opts], NOpts, C) ->
-  parse_opts(Opts, [Opt | NOpts], C).
+parse_opts([], Acc) ->
+  Acc;
+parse_opts([sharded_duplicate_bag | Opts], #{opts := NOpts} = Acc) ->
+  NAcc = Acc#{type := sharded_duplicate_bag, opts := [duplicate_bag | NOpts]},
+  parse_opts(Opts, NAcc);
+parse_opts([sharded_bag | Opts], #{opts := NOpts} = Acc) ->
+  parse_opts(Opts, Acc#{type := sharded_bag, opts := [bag | NOpts]});
+parse_opts([duplicate_bag | Opts], #{opts := NOpts} = Acc) ->
+  NAcc = Acc#{type := duplicate_bag, opts := [duplicate_bag | NOpts]},
+  parse_opts(Opts, NAcc);
+parse_opts([bag | Opts], #{opts := NOpts} = Acc) ->
+  parse_opts(Opts, Acc#{type := bag, opts := [bag | NOpts]});
+parse_opts([ordered_set | Opts], #{opts := NOpts} = Acc) ->
+  parse_opts(Opts, Acc#{type := ordered_set, opts := [ordered_set | NOpts]});
+parse_opts([set | Opts], #{opts := NOpts} = Acc) ->
+  parse_opts(Opts, Acc#{type := set, opts := [set | NOpts]});
+parse_opts([Opt | Opts], #{opts := NOpts} = Acc) ->
+  parse_opts(Opts, Acc#{opts := [Opt | NOpts]}).
 
 %% @private
 init_shards_dist(Tab) ->

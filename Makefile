@@ -13,11 +13,7 @@ CONFIG ?= test/test.config
 
 CT_OPTS = -cover test/cover.spec -erl_args -config ${CONFIG}
 
-ifeq ($(PROFILE), dist)
 CT_SUITES = task_SUITE local_SUITE dist_SUITE
-else
-CT_SUITES = task_SUITE local_SUITE
-endif
 
 .PHONY: all compile clean distclean dialyze tests shell doc
 
@@ -25,9 +21,6 @@ all: compile
 
 compile:
 	$(REBAR) compile
-
-dist:
-	REBAR_PROFILE=dist $(REBAR) compile
 
 clean:
 	rm -rf ebin/* test/*.beam logs log

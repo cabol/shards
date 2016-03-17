@@ -488,12 +488,13 @@ init_shards() ->
   shards:new(?SHARDED_DUPLICATE_BAG, [sharded_duplicate_bag], 5),
 
   shards_created(?SHARDS_TABS),
-  {shards, set, 2} = shards:control_info(?SET),
-  {shards, duplicate_bag, 5} = shards:control_info(?DUPLICATE_BAG),
-  {shards, ordered_set, 2} = shards:control_info(?ORDERED_SET),
-  {shards, sharded_duplicate_bag, 5} =
-    shards:control_info(?SHARDED_DUPLICATE_BAG),
-  duplicate_bag = ets:info(shards:shard_name(?SHARDED_DUPLICATE_BAG, 0), type),
+  {set, 2} = shards:shards_state(?SET),
+  {duplicate_bag, 5} = shards:shards_state(?DUPLICATE_BAG),
+  {ordered_set, 2} = shards:shards_state(?ORDERED_SET),
+  {sharded_duplicate_bag, 5} =
+    shards:shards_state(?SHARDED_DUPLICATE_BAG),
+  duplicate_bag =
+    ets:info(shards_local:shard_name(?SHARDED_DUPLICATE_BAG, 0), type),
 
   ets:new(?ETS_SET, [set, public, named_table]),
   ets:new(?ETS_DUPLICATE_BAG, [duplicate_bag, public, named_table]),
