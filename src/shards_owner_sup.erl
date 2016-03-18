@@ -36,8 +36,8 @@ start_link(Name, Options, PoolSize) ->
 init([Name, Options, PoolSize]) ->
   % ETS table to hold control info.
   Name = ets:new(Name, [set, named_table, public, {read_concurrency, true}]),
-  {Opts, Type} = parse_opts(Options),
-  true = ets:insert(Name, {'$control', {Type, PoolSize}}),
+  #{opts := Opts, type := Type} = parse_opts(Options),
+  true = ets:insert(Name, {'$shards_state', {Type, PoolSize}}),
 
   % create children
   Children = [begin
@@ -49,6 +49,9 @@ init([Name, Options, PoolSize]) ->
     ?worker(shards_owner, [LocalShardName, Opts], #{id => Shard})
   end || Shard <- lists:seq(0, PoolSize - 1)],
 
+  % init shards_dist pg2 group
+  ok = init_shards_dist(Name),
+
   % launch shards supervisor
   supervise(Children, #{strategy => one_for_one}).
 
@@ -58,14 +61,12 @@ init([Name, Options, PoolSize]) ->
 
 %% @private
 child(Type, Module, Args, Spec) when is_map(Spec) ->
-  #{
-    id       => maps:get(id, Spec, Module),
+  #{id       => maps:get(id, Spec, Module),
     start    => maps:get(start, Spec, {Module, start_link, Args}),
     restart  => maps:get(restart, Spec, permanent),
     shutdown => maps:get(shutdown, Spec, 5000),
     type     => Type,
-    modules  => maps:get(modules, Spec, [Module])
-  }.
+    modules  => maps:get(modules, Spec, [Module])}.
 
 %% @private
 supervise(Children, SupFlags) ->
@@ -82,24 +83,29 @@ assert_unique_ids([Id | Rest]) ->
 
 %% @private
 parse_opts(Opts) ->
-  parse_opts(Opts, [], nil).
+  parse_opts(Opts, #{type => set, opts => []}).
 
 %% @private
-parse_opts([], NOpts, nil) ->
-  {NOpts, set};
-parse_opts([], NOpts, Type) ->
-  {NOpts, Type};
-parse_opts([sharded_duplicate_bag | Opts], NOpts, _) ->
-  parse_opts(Opts, [duplicate_bag | NOpts], sharded_duplicate_bag);
-parse_opts([sharded_bag | Opts], NOpts, _) ->
-  parse_opts(Opts, [bag | NOpts], sharded_bag);
-parse_opts([duplicate_bag | Opts], NOpts, _) ->
-  parse_opts(Opts, [duplicate_bag | NOpts], duplicate_bag);
-parse_opts([bag | Opts], NOpts, _) ->
-  parse_opts(Opts, [bag | NOpts], bag);
-parse_opts([ordered_set | Opts], NOpts, _) ->
-  parse_opts(Opts, [ordered_set | NOpts], ordered_set);
-parse_opts([set | Opts], NOpts, _) ->
-  parse_opts(Opts, [set | NOpts], set);
-parse_opts([Opt | Opts], NOpts, IOpts) ->
-  parse_opts(Opts, [Opt | NOpts], IOpts).
+parse_opts([], Acc) ->
+  Acc;
+parse_opts([sharded_duplicate_bag | Opts], #{opts := NOpts} = Acc) ->
+  NAcc = Acc#{type := sharded_duplicate_bag, opts := [duplicate_bag | NOpts]},
+  parse_opts(Opts, NAcc);
+parse_opts([sharded_bag | Opts], #{opts := NOpts} = Acc) ->
+  parse_opts(Opts, Acc#{type := sharded_bag, opts := [bag | NOpts]});
+parse_opts([duplicate_bag | Opts], #{opts := NOpts} = Acc) ->
+  NAcc = Acc#{type := duplicate_bag, opts := [duplicate_bag | NOpts]},
+  parse_opts(Opts, NAcc);
+parse_opts([bag | Opts], #{opts := NOpts} = Acc) ->
+  parse_opts(Opts, Acc#{type := bag, opts := [bag | NOpts]});
+parse_opts([ordered_set | Opts], #{opts := NOpts} = Acc) ->
+  parse_opts(Opts, Acc#{type := ordered_set, opts := [ordered_set | NOpts]});
+parse_opts([set | Opts], #{opts := NOpts} = Acc) ->
+  parse_opts(Opts, Acc#{type := set, opts := [set | NOpts]});
+parse_opts([Opt | Opts], #{opts := NOpts} = Acc) ->
+  parse_opts(Opts, Acc#{opts := [Opt | NOpts]}).
+
+%% @private
+init_shards_dist(Tab) ->
+  ok = pg2:create(Tab),
+  ok = pg2:join(Tab, self()).

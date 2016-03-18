@@ -1,15 +1,14 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
 #include "erl_nif.h"
 
 /*
  * Jumping Consistent Hash Algorithm. John Lamping, Eric Veach -- Google.
  * <a href="http://arxiv.org/ftp/arxiv/papers/1406/1406.2294.pdf"></a>
  */
-static int32_t
-jumping_hash (uint64_t key, int32_t num_buckets) {
-  int64_t b = -1, j = 0;
+static unsigned int
+jumping_hash (unsigned long long key, unsigned int num_buckets) {
+  long long b = -1, j = 0;
   while (j < num_buckets) {
     b = j;
     key = key * 2862933555777941757ULL + 1;
@@ -20,8 +19,8 @@ jumping_hash (uint64_t key, int32_t num_buckets) {
 
 static ERL_NIF_TERM
 calculate (ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
-  int64_t key;
-  int32_t num_buckets;
+  unsigned long key;
+  unsigned int num_buckets;
 
   if (!enif_get_uint64 (env, argv[0], &key) || !enif_get_uint (env, argv[1], &num_buckets)) {
     return enif_make_badarg (env);
