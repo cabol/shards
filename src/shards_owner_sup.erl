@@ -34,10 +34,10 @@ start_link(Name, Options, PoolSize) ->
 
 %% @hidden
 init([Name, Options, PoolSize]) ->
-  % ETS table to hold control info.
+  % ETS table to hold state info.
   Name = ets:new(Name, [set, named_table, public, {read_concurrency, true}]),
-  #{opts := Opts, type := Type} = parse_opts(Options),
-  true = ets:insert(Name, {'$shards_state', {Type, PoolSize}}),
+  #{module := Module, type := Type, opts := Opts} = parse_opts(Options),
+  true = ets:insert(Name, {'$shards_state', {Module, Type, PoolSize}}),
 
   % create children
   Children = [begin
@@ -83,11 +83,16 @@ assert_unique_ids([Id | Rest]) ->
 
 %% @private
 parse_opts(Opts) ->
-  parse_opts(Opts, #{type => set, opts => []}).
+  AccIn = #{module => shards_local, type  => set, opts  => []},
+  parse_opts(Opts, AccIn).
 
 %% @private
 parse_opts([], Acc) ->
   Acc;
+parse_opts([{scope, l} | Opts], Acc) ->
+  parse_opts(Opts, Acc#{module := shards_local});
+parse_opts([{scope, g} | Opts], Acc) ->
+  parse_opts(Opts, Acc#{module := shards_dist});
 parse_opts([sharded_duplicate_bag | Opts], #{opts := NOpts} = Acc) ->
   NAcc = Acc#{type := sharded_duplicate_bag, opts := [duplicate_bag | NOpts]},
   parse_opts(Opts, NAcc);

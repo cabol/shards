@@ -418,7 +418,7 @@ t_tab2list_tab2file_file2tab(_Config) ->
 
   % restore table from files
   {error, _} = shards:file2tab(["myfile0", "wrong_file"]),
-  {ok, ?SET} = shards:file2tab(["myfile0", "myfile1"]),
+  {?SET, _} = shards:file2tab(["myfile0", "myfile1"]),
 
   % check
   [_, _] = shards:info(?SET),
@@ -460,11 +460,11 @@ t_unsupported_ops(_Config) ->
 
   UnsupportedOps = [
     {fun2ms, [any]},
-    {i, [any]},
-    {init_table, [any, any]},
-    {slot, [any, any]},
-    {to_dets, [any, any]},
-    {from_dets, [any, any]}
+    {i, [?SET]},
+    {init_table, [?SET, any]},
+    {slot, [?SET, any]},
+    {to_dets, [?SET, any]},
+    {from_dets, [?SET, any]}
   ],
 
   lists:foreach(fun({Op, Args}) ->
@@ -483,16 +483,16 @@ t_unsupported_ops(_Config) ->
 
 init_shards() ->
   shards:new(?SET, [set]),
-  shards:new(?DUPLICATE_BAG, [duplicate_bag], 5),
+  shards:new(?DUPLICATE_BAG, [duplicate_bag, {scope, l}], 5),
   shards:new(?ORDERED_SET, [ordered_set]),
   shards:new(?SHARDED_DUPLICATE_BAG, [sharded_duplicate_bag], 5),
 
   shards_created(?SHARDS_TABS),
-  {set, 2} = shards:shards_state(?SET),
-  {duplicate_bag, 5} = shards:shards_state(?DUPLICATE_BAG),
-  {ordered_set, 2} = shards:shards_state(?ORDERED_SET),
-  {sharded_duplicate_bag, 5} =
-    shards:shards_state(?SHARDED_DUPLICATE_BAG),
+  {_, set, 2} = shards:state(?SET),
+  {_, duplicate_bag, 5} = shards:state(?DUPLICATE_BAG),
+  {_, ordered_set, 2} = shards:state(?ORDERED_SET),
+  {_, sharded_duplicate_bag, 5} =
+    shards:state(?SHARDED_DUPLICATE_BAG),
   duplicate_bag =
     ets:info(shards_local:shard_name(?SHARDED_DUPLICATE_BAG, 0), type),
 

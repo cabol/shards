@@ -43,16 +43,25 @@ Start an Erlang console with `shards` running:
 
     $ make shell
 
-Once into the erlang console:
+Once into the Erlang console:
 
 ```erlang
 % let's create a table, such as you would create it with ETS
 > shards:new(mytab1, [], 5).
-mytab1
+{mytab1,{shards_local,set,5}}
+```
 
+As you can see, the `shards:new/2,3` function returns a tuple of two elements: `{mytab1,{shards_local,set,5}}`.
+The first element is the name of the created table (`mytab1`), and the second one is the
+[State](./src/shards_local.erl#L152) (`{shards_local,set,5}`).
+We'll talk about the **State** later, and see how it can be used.
+
+Let's continue:
+
+```erlang
 % create another one with default pool size (which is 2)
 > shards:new(mytab2, []).   
-mytab2
+{mytab2,{shards_local,set,2}}
 
 % now open the observer so you can see what happened
 > observer:start().
@@ -115,7 +124,7 @@ true
 ok
 ```
 
-You will see how `shards` gets shrinks:
+See how `shards` gets shrinks:
 
 <p align="center"><a href="#">
 <img src="./doc/assets/shards_process_tree_2.png" height="70" width="300">
@@ -124,9 +133,33 @@ You will see how `shards` gets shrinks:
 Extremely simple isn't?
 
 
+## Using shards_local directly
+
+The module `shards` is a wrapper on top of two main modules:
+
+ * `shards_local`: Implements Sharding on top of ETS tables, but locally (on a single Erlang node).
+ * `shards_dist`: Implements Sharding but across multiple distributed Erlang nodes, which must
+   run `shards` locally, since `shards_dist` uses shards_local` internally. We'll cover
+   the distributed part later.
+
+When you use `shards` on top of `shards_local`, a call to the control ETS table holded by `shards_owner_sup`
+must be done, in order to recover the [State](./src/shards_local.erl#L152), mentioned previously.
+Most of the `shards_local` functions receives the **State** as parameter, so it must be fetched before
+to call it. You can check how `shards` module is implemented [HERE](./src/shards.erl).
+
+If any microsecond matters to you, you can skip the call to the control ETS table by calling
+`shards_local` directly. Now the question is: how to get the **State**? Well, it's extremely
+easy, you can get the `state` when you call `shards:new/2,3` by first time, or you can call
+`shards:state/1` at any time you want, and then it might be store it within the calling process,
+or wherever you want.
+
+Most of the cases this is not necessary, `shards` wrapper is more than enough, it adds only a
+few microseconds of latency. **Shards** gives you the flexibility to do it,  but it's your call!
+
+
 ## Distributed Shards
 
-Coming soon!
+Under continuous development. Coming soon!
 
 
 ## Running Tests

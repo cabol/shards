@@ -65,50 +65,50 @@ t_join_leave_ops(Config) ->
   setup_tabs(Config),
 
   % join
-  AllNodes = shards_dist:join(?DUPLICATE_BAG, AllNodes),
-  AllNodes = shards_dist:join(?SET, AllNodes),
+  AllNodes = shards:join(?DUPLICATE_BAG, AllNodes),
+  AllNodes = shards:join(?SET, AllNodes),
 
   % check nodes
-  7 = length(shards_dist:get_nodes(?SET)),
-  7 = length(shards_dist:get_nodes(?DUPLICATE_BAG)),
+  7 = length(shards:get_nodes(?SET)),
+  7 = length(shards:get_nodes(?DUPLICATE_BAG)),
 
   % check no duplicate members
   Members = pg2:get_members(?SET),
-  AllNodes = shards_dist:join(?SET, AllNodes),
+  AllNodes = shards:join(?SET, AllNodes),
   Members = pg2:get_members(?SET),
 
   % stop F node
   stop_slaves([f]),
 
   % check nodes
-  6 = length(shards_dist:get_nodes(?SET)),
-  6 = length(shards_dist:get_nodes(?DUPLICATE_BAG)),
+  6 = length(shards:get_nodes(?SET)),
+  6 = length(shards:get_nodes(?DUPLICATE_BAG)),
 
   % check nodes
-  OkNodes1 = shards_dist:get_nodes(?SET),
+  OkNodes1 = shards:get_nodes(?SET),
   R1 = [A, B, C, CT, D, E] = get_remote_nodes(AllNodes, ?SET),
   R1 = get_remote_nodes(AllNodes, ?DUPLICATE_BAG),
   OkNodes1 = A = B = C = CT = D = E,
 
   % leave node E from SET
   OkNodes2 = lists:usort([node() | lists:droplast(OkNodes1)]),
-  OkNodes2 = shards_dist:leave(?SET, [ENode]),
-  OkNodes2 = shards_dist:get_nodes(?SET),
+  OkNodes2 = shards:leave(?SET, [ENode]),
+  OkNodes2 = shards:get_nodes(?SET),
   [A2, B2, C2, CT2, D2] = get_remote_nodes(OkNodes2, ?SET),
   OkNodes2 = A2 = B2 = C2 = CT2 = D2,
 
   % check nodes
-  5 = length(shards_dist:get_nodes(?SET)),
-  6 = length(shards_dist:get_nodes(?DUPLICATE_BAG)),
+  5 = length(shards:get_nodes(?SET)),
+  6 = length(shards:get_nodes(?DUPLICATE_BAG)),
 
   % join E node
-  OkNodes1 = shards_dist:join(?SET, [ENode]),
+  OkNodes1 = shards:join(?SET, [ENode]),
   R1 = get_remote_nodes(OkNodes1, ?SET),
   R1 = get_remote_nodes(AllNodes, ?DUPLICATE_BAG),
 
   % check nodes
-  6 = length(shards_dist:get_nodes(?SET)),
-  6 = length(shards_dist:get_nodes(?DUPLICATE_BAG)),
+  6 = length(shards:get_nodes(?SET)),
+  6 = length(shards:get_nodes(?DUPLICATE_BAG)),
 
   ct:print("\e[1;1m t_join_leave_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
@@ -128,44 +128,44 @@ t_basic_ops_(Tab) ->
     {k22, 22},
     Obj1
   ],
-  true = shards_dist:insert(Tab, KVPairs),
-  true = shards_dist:insert(Tab, Obj1),
+  true = shards:insert(Tab, KVPairs),
+  true = shards:insert(Tab, Obj1),
 
   % insert new
-  [false, true] = shards_dist:insert_new(Tab, [Obj1, {k3, <<"V3">>}]),
-  false = shards_dist:insert_new(Tab, {k3, <<"V3">>}),
+  [false, true] = shards:insert_new(Tab, [Obj1, {k3, <<"V3">>}]),
+  false = shards:insert_new(Tab, {k3, <<"V3">>}),
 
   % select and match
-  %R1 = lists:usort(shards_dist:select(Tab, [{{'$1', '$2'}, [], ['$$']}])),
-  %R2 = lists:usort(shards_dist:match(Tab, '$1')),
+  %R1 = lists:usort(shards:select(Tab, [{{'$1', '$2'}, [], ['$$']}])),
+  %R2 = lists:usort(shards:match(Tab, '$1')),
 
   % lookup element
   case Tab == ?DUPLICATE_BAG orelse Tab == ?SHARDED_DUPLICATE_BAG of
     true ->
-      [1, 2, 3] = lists:usort(shards_dist:lookup_element(Tab, k1, 2)),
+      [1, 2, 3] = lists:usort(shards:lookup_element(Tab, k1, 2)),
 
-      try shards_dist:lookup_element(Tab, wrong, 2)
+      try shards:lookup_element(Tab, wrong, 2)
       catch _:{badarg, _} -> ok
       end;
     _ ->
-      3 = shards_dist:lookup_element(Tab, k1, 2)
+      3 = shards:lookup_element(Tab, k1, 2)
   end,
 
   % lookup
   %R4 = lists:sort(lookup_keys(shards, Tab, [k1, k2, k3, kx])),
 
   % delete
-  %true = shards_dist:delete_object(Tab, Obj1),
-  true = shards_dist:delete(Tab, k2),
+  %true = shards:delete_object(Tab, Obj1),
+  true = shards:delete(Tab, k2),
   %R5 = lists:sort(lookup_keys(shards, Tab, [k1, k2, kx])),
 
   % member
-  %true = shards_dist:member(Tab, k1),
-  %false = shards_dist:member(Tab, kx),
+  %true = shards:member(Tab, k1),
+  %false = shards:member(Tab, kx),
 
 %%  % take
-%%  R6 = lists:sort(shards_dist:take(Tab, k1)),
-%%  [] = shards_dist:lookup(Tab, k1),
+%%  R6 = lists:sort(shards:take(Tab, k1)),
+%%  [] = shards:lookup(Tab, k1),
 
   ct:print("\e[1;1m t_basic_ops(~p): \e[0m\e[32m[OK] \e[0m", [Tab]),
   ok.
@@ -173,11 +173,11 @@ t_basic_ops_(Tab) ->
 t_delete_tabs(_Config) ->
   ok = cleanup_tabs(),
 
-  UpNodes = shards_dist:get_nodes(?SET),
+  UpNodes = shards:get_nodes(?SET),
   6 = length(UpNodes),
 
-  true = shards_dist:delete(?SET),
-  [] = shards_dist:get_nodes(?SET),
+  true = shards:delete(?SET),
+  [] = shards:get_nodes(?SET),
   [A, B, C, CT, D, E] = get_remote_nodes(UpNodes, ?SET),
   [] = A = B = C = CT = D = E,
 
@@ -220,11 +220,11 @@ stop_slaves([Node | T], Acc) ->
   stop_slaves(T, [Node | Acc]).
 
 get_remote_nodes(Nodes, Tab) ->
-  {ResL, _} = rpc:multicall(Nodes, shards_dist, get_nodes, [Tab]),
+  {ResL, _} = rpc:multicall(Nodes, shards, get_nodes, [Tab]),
   ResL.
 
 remote_new(Nodes, Tab, Opts, PoolSize) ->
-  {_, []} = rpc:multicall(Nodes, shards_dist, new, [Tab, Opts, PoolSize]),
+  {_, []} = rpc:multicall(Nodes, shards, new, [Tab, [{scope, g} | Opts], PoolSize]),
   ok.
 
 setup_tabs(Config) ->
@@ -238,7 +238,7 @@ setup_tabs(Config) ->
 
 cleanup_tabs() ->
   lists:foreach(fun(Tab) ->
-    true = shards_dist:delete_all_objects(Tab)
+    true = shards:delete_all_objects(Tab)
   end, ?SHARDS_TABS).
 
 lookup_keys(Mod, Tab, Keys) ->
