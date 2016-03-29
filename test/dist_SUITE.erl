@@ -12,14 +12,21 @@
   end_per_testcase/2
 ]).
 
+%% Test Cases
+-include_lib("mixer/include/mixer.hrl").
+-mixin([
+  {test_helper, [
+    t_basic_ops/1
+  ]}
+]).
+
 %% Tests Cases
 -export([
   t_join_leave_ops/1,
-  t_basic_ops/1,
   t_delete_tabs/1
 ]).
 
--include("test_helpers.hrl").
+-include("test_common.hrl").
 
 -define(SLAVES, [a, b, c, d, e, f]).
 
@@ -113,63 +120,6 @@ t_join_leave_ops(Config) ->
   ct:print("\e[1;1m t_join_leave_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
-t_basic_ops(_Config) ->
-  lists:foreach(fun t_basic_ops_/1, ?SHARDS_TABS).
-
-t_basic_ops_(Tab) ->
-  ok = cleanup_tabs(),
-
-  % insert some K/V pairs
-  Obj1 = {kx, 1, a, "hi"},
-  KVPairs = [
-    {k1, 1}, {k1, 2}, {k1, 3},
-    {k2, 2},
-    {k11, 11},
-    {k22, 22},
-    Obj1
-  ],
-  true = shards:insert(Tab, KVPairs),
-  true = shards:insert(Tab, Obj1),
-
-  % insert new
-  [false, true] = shards:insert_new(Tab, [Obj1, {k3, <<"V3">>}]),
-  false = shards:insert_new(Tab, {k3, <<"V3">>}),
-
-  % select and match
-  %R1 = lists:usort(shards:select(Tab, [{{'$1', '$2'}, [], ['$$']}])),
-  %R2 = lists:usort(shards:match(Tab, '$1')),
-
-  % lookup element
-  case Tab == ?DUPLICATE_BAG orelse Tab == ?SHARDED_DUPLICATE_BAG of
-    true ->
-      [1, 2, 3] = lists:usort(shards:lookup_element(Tab, k1, 2)),
-
-      try shards:lookup_element(Tab, wrong, 2)
-      catch _:{badarg, _} -> ok
-      end;
-    _ ->
-      3 = shards:lookup_element(Tab, k1, 2)
-  end,
-
-  % lookup
-  %R4 = lists:sort(lookup_keys(shards, Tab, [k1, k2, k3, kx])),
-
-  % delete
-  %true = shards:delete_object(Tab, Obj1),
-  true = shards:delete(Tab, k2),
-  %R5 = lists:sort(lookup_keys(shards, Tab, [k1, k2, kx])),
-
-  % member
-  %true = shards:member(Tab, k1),
-  %false = shards:member(Tab, kx),
-
-%%  % take
-%%  R6 = lists:sort(shards:take(Tab, k1)),
-%%  [] = shards:lookup(Tab, k1),
-
-  ct:print("\e[1;1m t_basic_ops(~p): \e[0m\e[32m[OK] \e[0m", [Tab]),
-  ok.
-
 t_delete_tabs(_Config) ->
   ok = cleanup_tabs(),
 
@@ -177,6 +127,7 @@ t_delete_tabs(_Config) ->
   6 = length(UpNodes),
 
   true = shards:delete(?SET),
+  timer:sleep(500),
   [] = shards:get_nodes(?SET),
   [A, B, C, CT, D, E] = get_remote_nodes(UpNodes, ?SET),
   [] = A = B = C = CT = D = E,
@@ -194,8 +145,7 @@ start_slaves(Slaves) ->
 start_slaves([], Acc) ->
   lists:usort(Acc);
 start_slaves([Node | T], Acc) ->
-  Profile = os:getenv("REBAR_PROFILE"),
-  ErlFlags = "-pa ../../_build/" ++ Profile ++ "/lib/*/ebin ",
+  ErlFlags = "-pa ../../lib/*/ebin",
   {ok, HostNode} = ct_slave:start(Node, [
     {kill_if_fail, true},
     {monitor_master, true},
@@ -223,28 +173,15 @@ get_remote_nodes(Nodes, Tab) ->
   {ResL, _} = rpc:multicall(Nodes, shards, get_nodes, [Tab]),
   ResL.
 
-remote_new(Nodes, Tab, Opts, PoolSize) ->
-  {_, []} = rpc:multicall(Nodes, shards, new, [Tab, [{scope, g} | Opts], PoolSize]),
-  ok.
-
 setup_tabs(Config) ->
   {_, Nodes} = lists:keyfind(nodes, 1, Config),
   AllNodes = lists:usort([node() | Nodes]),
 
-  Types = [set, duplicate_bag, ordered_set, sharded_duplicate_bag],
-  lists:foreach(fun({Tab, Type}) ->
-    ok = remote_new(AllNodes, Tab, [Type], 5)
-  end, lists:zip(?SHARDS_TABS, Types)).
+  {_, []} = rpc:multicall(
+    AllNodes, erlang, apply, [fun test_helper:init_shards/1, [g]]),
+  ok.
 
 cleanup_tabs() ->
   lists:foreach(fun(Tab) ->
     true = shards:delete_all_objects(Tab)
   end, ?SHARDS_TABS).
-
-lookup_keys(Mod, Tab, Keys) ->
-  lists:foldr(fun(Key, Acc) ->
-    case Mod:lookup(Tab, Key) of
-      []     -> Acc;
-      Values -> Values ++ Acc
-    end
-  end, [], Keys).

@@ -1,19 +1,15 @@
 REBAR = $(shell which rebar3 || echo ./rebar3)
 
-ifdef REBAR_PROFILE
-PROFILE = $(REBAR_PROFILE)
-else
-PROFILE = default
-endif
-
-BUILD_ROOT = ./_build/$(PROFILE)/lib
-BUILD_PATH = $(BUILD_ROOT)/*/ebin
-
+## Common variables
 CONFIG ?= test/test.config
+DEFAULT_PATH = ./_build/default
+DEFAULT_BUILD_PATH = $(DEFAULT_PATH)/lib/*/ebin
 
-CT_OPTS = -cover test/cover.spec -erl_args -config ${CONFIG}
-
+## CT
+CT_PATH = ./_build/test
+CT_BUILD_PATH = $(CT_PATH)/lib/*/ebin
 CT_SUITES = task_SUITE local_SUITE dist_SUITE
+CT_OPTS = -cover test/cover.spec -erl_args -config ${CONFIG}
 
 .PHONY: all compile clean distclean dialyze tests shell doc
 
@@ -33,13 +29,14 @@ distclean: clean
 dialyze:
 	$(REBAR) dialyzer
 
-tests: compile
-	mkdir -p logs
-	REBAR_PROFILE=$(PROFILE) ct_run -dir test -suite $(CT_SUITES) -pa $(BUILD_PATH) -logdir logs $(CT_OPTS)
+tests:
+	$(REBAR) as test compile
+	mkdir -p $(CT_PATH)/logs
+	ct_run -dir test -suite $(CT_SUITES) -pa $(CT_BUILD_PATH) -logdir $(CT_PATH)/logs $(CT_OPTS)
 	rm -rf test/*.beam
 
 shell: compile
-	erl -pa $(BUILD_PATH) -s shards -config ${CONFIG}
+	erl -pa $(DEFAULT_BUILD_PATH) -s shards -config ${CONFIG}
 
 edoc:
 	$(REBAR) edoc

@@ -4,8 +4,8 @@
 %%% functions, BUT works locally.
 %%%
 %%% <b>Shards</b> is compatible with ETS API, most of the functions
-%%% preserves the same ETS semantics, with som exception which you
-%%% will find on the function doc.
+%%% preserves the same ETS semantics, with some exception which you
+%%% will find on each function doc.
 %%%
 %%% Shards gives a top level view of a single logical ETS table,
 %%% but inside, that logical table is split in multiple physical
@@ -18,7 +18,7 @@
 %%% the original ones ETS.
 %%%
 %%% A good example of that are the query-based functions, which
-%%% returns multiple results, and in case of `ordered_set', in
+%%% returns multiple results, and in case of `ordered_set', with
 %%% a particular order. E.g.:
 %%% <ul>
 %%% <li>`select/2', `select/3', `select/1'</li>
@@ -30,25 +30,28 @@
 %%% For those cases, the order what results are returned is not
 %%% guaranteed to be the same as the original ETS functions.
 %%%
-%%% Additionally to the ETS functions, Shards provides, in some cases,
-%%% an additional function to receive the pool size (or number of
-%%% shards). In the compatible ETS functions, this parameter
-%%% `PoolSize' doesn't exist, so in those cases, Shards have to
-%%% figure out the value of the pool size, which is stored in a
-%%% control ETS table. For that reason, some additional functions
-%%% have been created, receiving the `PoolSize' and skipping the
-%%% call to the control ETS table (these functions promotes better
-%%% performance. E.g.:
+%%% Additionally to the ETS functions, `shards_local' module allows
+%%% to pass an extra argument, the `State'. This argument contains
+%%% the tuple: `{Module, TableType, PoolSize}'. When `shards' is
+%%% called without the `State', it must figure out the state first,
+%%% and the `state' is recovered doing an extra call to an ETS
+%%% control table owned by `shards_owner_sup'. If any microsecond
+%%% matters, you can skip it call by calling `shards_local' directly
+%%% and passing the `State'. E.g.:
 %%%
 %%% ```
-%%% % normal compatible ETS function
-%%% shards:lookup(table, key1).
-%%% % additional function (pool_size = 5)
-%%% shards:lookup(table, key1, 5).
-%%% '''
+%%% % when you create the table by first time, the state is returned
+%%% {tab_name, State} = shards:new(tab_name, [], 5).
 %%%
-%%% Most of the cases, where the `PoolSize' is not specified, Shards
-%%% has to do an additional call to the ETS control table.
+%%% % also you can get the state at any time by calling:
+%%% State = shards:state(tab_name).
+%%%
+%%% % now, normal way
+%%% shards:lookup(table, key1).
+%%%
+%%% % calling shards_local directly
+%%% shards_local:lookup(table, key1, State).
+%%% '''
 %%%
 %%% Pools of shards can be added/removed dynamically. For example,
 %%% using `shards:new/2' or `shards:new/3' you can add more pools.

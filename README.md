@@ -25,14 +25,6 @@ It provides an API compatible with [ETS](http://erlang.org/doc/man/ets.html) –
 You can find the list of compatible ETS functions that **Shards** provides [HERE](https://github.com/cabol/shards/issues/1).
 
 
-## Examples and/or Projects using Shards
-
-* [ErlBus](https://github.com/cabol/erlbus) uses `shards` to scale-out **Topics/Pids** table(s),
-  which can be too large and with high concurrency level.
-
-* [Cacherl](https://github.com/ferigis/cacherl) uses `shards` to implement a Distributed Cache.
-
-
 ## Build
 
     $ git clone https://github.com/cabol/shards.git
@@ -182,7 +174,7 @@ but it's your call!
 So far, we've seen how **Shards** works but locally, now let's see how **Shards** works but
 distributed.
 
-1. Let's start 3 Erlang consoles running shards:
+**1.** Let's start 3 Erlang consoles running shards:
 
 Node `a`:
 
@@ -202,7 +194,7 @@ Node `c`:
 $ erl -sname c@localhost -pa _build/default/lib/*/ebin -s shards
 ```
 
-2. Create a table with `scope` global on each node:
+**2.** Create a table with `scope` global on each node:
 
 ```erlang
 % when a tables is created with {scope, g}, the module shards_dist is used
@@ -211,7 +203,9 @@ $ erl -sname c@localhost -pa _build/default/lib/*/ebin -s shards
 {mytab,{shards_dist,set,5}}
 ```
 
-3. Setup the `shards` cluster:
+**3.** Setup the `shards` cluster.
+
+From node `a`, join `b` and `c` nodes:
 
 ```erlang
 > shards:join(mytab, ['b@localhost', 'c@localhost']).
@@ -225,30 +219,30 @@ Let's check that all nodes have the same nodes running next function on each nod
 [a@localhost,b@localhost,c@localhost]
 ```
 
-4. Now **Shards** cluster is ready, let's do some basic operations:
+**4.** Now **Shards** cluster is ready, let's do some basic operations:
 
-In node `a`:
+From node `a`:
 
 ```erlang
 > shards:insert(mytab, [{k1, 1}, {k2, 2}]).
 true
 ```
 
-In node `b`:
+From node `b`:
 
 ```erlang
 > shards:insert(mytab, [{k3, 3}, {k4, 4}]).
 true
 ```
 
-In node `c`:
+From node `c`:
 
 ```erlang
 > shards:insert(mytab, [{k5, 5}, {k6, 6}]).
 true
 ```
 
-Now, from any or all nodes:
+Now, from any of previous nodes:
 
 ```erlang
 > [shards:lookup_element(mytab, Key, 2) || Key <- [k1, k2, k3, k4, k5, k6]].
@@ -257,14 +251,14 @@ Now, from any or all nodes:
 
 All nodes should return the same result.
 
-From node `a`:
+Let's do some deletions, from any node:
 
 ```erlang
 > shards:delete(mytab, k6).
 true
 ```
 
-And again, let's check it out from all nodes:
+And again, let's check it out from any node:
 
 ```erlang
 % as you can see 'k6' was deleted
@@ -278,6 +272,14 @@ And again, let's check it out from all nodes:
 
 > **NOTE**: This module is still under continuous development. So far, only few
   basic functions have been implemented.
+
+
+## Examples and/or Projects using Shards
+
+* [ErlBus](https://github.com/cabol/erlbus) uses `shards` to scale-out **Topics/Pids** table(s),
+  which can be too large and with high concurrency level.
+
+* [Cacherl](https://github.com/ferigis/cacherl) uses `shards` to implement a Distributed Cache.
 
 
 ## Running Tests

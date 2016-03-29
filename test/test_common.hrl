@@ -1,6 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% @doc
-%%% Test Helpers.
+%%% Common definitions.
 %%% @end
 %%%-------------------------------------------------------------------
 
@@ -27,3 +27,5 @@
   ?ETS_ORDERED_SET,
   ?ETS_SHARDED_DUPLICATE_BAG
 ]).
+
+-define(is_sharded(T_), T_ =:= ?DUPLICATE_BAG; T_ =:= ?SHARDED_DUPLICATE_BAG).

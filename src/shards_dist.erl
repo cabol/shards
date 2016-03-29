@@ -17,12 +17,14 @@
 -export([
   delete/1, delete/3,
   delete_all_objects/2,
+  delete_object/3,
   new/2, new/3,
   insert/3,
   insert_new/3,
   lookup/3,
   lookup_element/4,
-  member/3
+  member/3,
+  take/3
 ]).
 
 %% Local shards backend
@@ -103,6 +105,15 @@ delete_all_objects(Tab, {_, Type, _} = State) ->
   mapred(Tab, Type, {?BACKEND, delete_all_objects, [Tab, State]}, nil),
   true.
 
+-spec delete_object(Tab, Object, State) -> true when
+  Tab    :: atom(),
+  Object :: tuple(),
+  State  :: shards_local:state().
+delete_object(Tab, Object, {_, Type, _} = State) when is_tuple(Object) ->
+  [Key | _] = tuple_to_list(Object),
+  mapred(Tab, Key, Type, {?BACKEND, delete_object, [Tab, Object, State]}, nil),
+  true.
+
 -spec insert(Tab, ObjOrObjL, State) -> true when
   Tab       :: atom(),
   ObjOrObjL :: tuple() | [tuple()],
@@ -154,7 +165,9 @@ insert_new(Tab, ObjOrObjL, {_, Type, _} = State) when is_tuple(ObjOrObjL) ->
   State  :: shards_local:state(),
   Result :: [tuple()].
 lookup(Tab, Key, {_, Type, _} = State) ->
-  mapred(Tab, Key, Type, {?BACKEND, lookup, [Tab, Key, State]}, nil).
+  Map = {?BACKEND, lookup, [Tab, Key, State]},
+  Reduce = fun lists:append/2,
+  mapred(Tab, Key, Type, Map, Reduce).
 
 -spec lookup_element(Tab, Key, Pos, State) -> Elem when
   Tab   :: atom(),
@@ -194,6 +207,16 @@ new(Name, Options) ->
 new(Name, Options, PoolSize) ->
   shards_local:new(Name, Options, PoolSize).
 
+-spec take(Tab, Key, State) -> [Object] when
+  Tab    :: atom(),
+  Key    :: term(),
+  State  :: shards_local:state(),
+  Object :: tuple().
+take(Tab, Key, {_, Type, _} = State) ->
+  Map = {?BACKEND, take, [Tab, Key, State]},
+  Reduce = fun lists:append/2,
+  mapred(Tab, Key, Type, Map, Reduce).
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -220,12 +243,11 @@ mapred(Tab, Key, Type, Map, nil) ->
   mapred(Tab, Key, Type, Map, fun(E, Acc) -> [E | Acc] end);
 mapred(Tab, nil, _, Map, Reduce) ->
   p_mapred(Tab, Map, Reduce);
-mapred(Tab, _, Type, Map, Reduce)
-    when Type =:= sharded_duplicate_bag; Type =:= sharded_bag ->
+mapred(Tab, _, Type, Map, Reduce) when ?is_sharded(Type) ->
   p_mapred(Tab, Map, Reduce);
 mapred(Tab, Key, _, {MapMod, MapFun, MapArgs}, _) ->
   Node = pick_one(Key, get_nodes(Tab)),
-  rpc:call(Node, MapMod, MapFun, MapArgs).
+  rpc_call(Node, MapMod, MapFun, MapArgs).
 
 %% @private
 p_mapred(Tab, {MapMod, MapFun, MapArgs}, {RedFun, AccIn}) ->
