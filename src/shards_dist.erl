@@ -27,8 +27,12 @@
   take/3
 ]).
 
-%% Local shards backend
--define(BACKEND, shards_local).
+%%%===================================================================
+%%% Types & Macros
+%%%===================================================================
+
+%% Macro to get the default module to use: `shards_local'.
+-define(SHARDS, shards_local).
 
 %% Macro to validate if table type is sharded or not
 -define(is_sharded(T_), T_ =:= sharded_duplicate_bag; T_ =:= sharded_bag).
@@ -87,7 +91,7 @@ pick_one(Key, Nodes) ->
 
 -spec delete(Tab :: atom()) -> true.
 delete(Tab) ->
-  mapred(Tab, {?BACKEND, delete, [Tab]}, nil),
+  mapred(Tab, {?SHARDS, delete, [Tab]}, nil),
   true.
 
 -spec delete(Tab, Key, State) -> true when
@@ -95,14 +99,14 @@ delete(Tab) ->
   Key   :: term(),
   State :: shards_local:state().
 delete(Tab, Key, {_, Type, _} = State) ->
-  mapred(Tab, Key, Type, {?BACKEND, delete, [Tab, Key, State]}, nil),
+  mapred(Tab, Key, Type, {?SHARDS, delete, [Tab, Key, State]}, nil),
   true.
 
 -spec delete_all_objects(Tab, State) -> true when
   Tab   :: atom(),
   State :: shards_local:state().
 delete_all_objects(Tab, {_, Type, _} = State) ->
-  mapred(Tab, Type, {?BACKEND, delete_all_objects, [Tab, State]}, nil),
+  mapred(Tab, Type, {?SHARDS, delete_all_objects, [Tab, State]}, nil),
   true.
 
 -spec delete_object(Tab, Object, State) -> true when
@@ -111,7 +115,7 @@ delete_all_objects(Tab, {_, Type, _} = State) ->
   State  :: shards_local:state().
 delete_object(Tab, Object, {_, Type, _} = State) when is_tuple(Object) ->
   [Key | _] = tuple_to_list(Object),
-  mapred(Tab, Key, Type, {?BACKEND, delete_object, [Tab, Object, State]}, nil),
+  mapred(Tab, Key, Type, {?SHARDS, delete_object, [Tab, Object, State]}, nil),
   true.
 
 -spec insert(Tab, ObjOrObjL, State) -> true when
@@ -130,7 +134,7 @@ insert(Tab, ObjOrObjL, {_, Type, _} = State) when is_tuple(ObjOrObjL) ->
     _ ->
       pick_one(Key, get_nodes(Tab))
   end,
-  rpc_call(Node, ?BACKEND, insert, [Tab, ObjOrObjL, State]).
+  rpc_call(Node, ?SHARDS, insert, [Tab, ObjOrObjL, State]).
 
 -spec insert_new(Tab, ObjOrObjL, State) -> Result when
   Tab       :: atom(),
@@ -145,18 +149,18 @@ insert_new(Tab, ObjOrObjL, {_, Type, _} = State) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
   case Type of
     _ when ?is_sharded(Type) ->
-      Map = {?BACKEND, lookup, [Tab, Key, State]},
+      Map = {?SHARDS, lookup, [Tab, Key, State]},
       Reduce = fun lists:append/2,
       case mapred(Tab, Type, Map, Reduce) of
         [] ->
           Node = pick_one({Key, os:timestamp()}, get_nodes(Tab)),
-          rpc_call(Node, ?BACKEND, insert_new, [Tab, ObjOrObjL, State]);
+          rpc_call(Node, ?SHARDS, insert_new, [Tab, ObjOrObjL, State]);
         _ ->
           false
       end;
     _ ->
       Node = pick_one(Key, get_nodes(Tab)),
-      rpc_call(Node, ?BACKEND, insert_new, [Tab, ObjOrObjL, State])
+      rpc_call(Node, ?SHARDS, insert_new, [Tab, ObjOrObjL, State])
   end.
 
 -spec lookup(Tab, Key, State) -> Result when
@@ -165,7 +169,7 @@ insert_new(Tab, ObjOrObjL, {_, Type, _} = State) when is_tuple(ObjOrObjL) ->
   State  :: shards_local:state(),
   Result :: [tuple()].
 lookup(Tab, Key, {_, Type, _} = State) ->
-  Map = {?BACKEND, lookup, [Tab, Key, State]},
+  Map = {?SHARDS, lookup, [Tab, Key, State]},
   Reduce = fun lists:append/2,
   mapred(Tab, Key, Type, Map, Reduce).
 
@@ -176,7 +180,7 @@ lookup(Tab, Key, {_, Type, _} = State) ->
   State :: shards_local:state(),
   Elem  :: term() | [term()].
 lookup_element(Tab, Key, Pos, {_, Type, _} = State) when ?is_sharded(Type) ->
-  Map = {?BACKEND, lookup_element, [Tab, Key, Pos, State]},
+  Map = {?SHARDS, lookup_element, [Tab, Key, Pos, State]},
   Filter = lists:filter(fun
     ({badrpc, {'EXIT', _}}) -> false;
     (_)                     -> true
@@ -187,14 +191,14 @@ lookup_element(Tab, Key, Pos, {_, Type, _} = State) when ?is_sharded(Type) ->
   end;
 lookup_element(Tab, Key, Pos, State) ->
   Node = pick_one(Key, get_nodes(Tab)),
-  rpc:call(Node, ?BACKEND, lookup_element, [Tab, Key, Pos, State]).
+  rpc:call(Node, ?SHARDS, lookup_element, [Tab, Key, Pos, State]).
 
 -spec member(Tab, Key, State) -> boolean() when
   Tab   :: atom(),
   Key   :: term(),
   State :: shards_local:state().
 member(Tab, Key, {_, Type, _} = State) ->
-  case mapred(Tab, Key, Type, {?BACKEND, member, [Tab, Key, State]}, nil) of
+  case mapred(Tab, Key, Type, {?SHARDS, member, [Tab, Key, State]}, nil) of
     R when is_list(R) -> lists:member(true, R);
     R                 -> R
   end.
@@ -213,7 +217,7 @@ new(Name, Options, PoolSize) ->
   State  :: shards_local:state(),
   Object :: tuple().
 take(Tab, Key, {_, Type, _} = State) ->
-  Map = {?BACKEND, take, [Tab, Key, State]},
+  Map = {?SHARDS, take, [Tab, Key, State]},
   Reduce = fun lists:append/2,
   mapred(Tab, Key, Type, Map, Reduce).
 

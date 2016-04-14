@@ -84,11 +84,8 @@
   list/1
 ]).
 
-%% Macro to get the module to use: 'shards_local' (default) | 'shards_dist'.
--define(SHARDS, shards_local).
-
 %%%===================================================================
-%%% Types
+%%% Types & Macros
 %%%===================================================================
 
 %% @type state() = shards_local:state().
@@ -96,6 +93,9 @@
 
 %% @type continuation() = shards_local:continuation().
 -type continuation() :: shards_local:continuation().
+
+%% Macro to get the default module to use: `shards_local'.
+-define(SHARDS, shards_local).
 
 %%%===================================================================
 %%% Application callbacks and functions

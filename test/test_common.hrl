@@ -28,4 +28,8 @@
   ?ETS_SHARDED_DUPLICATE_BAG
 ]).
 
--define(is_sharded(T_), T_ =:= ?DUPLICATE_BAG; T_ =:= ?SHARDED_DUPLICATE_BAG).
+-define(is_tab_sharded(T_),
+  T_ =:= ?DUPLICATE_BAG; T_ =:= ?SHARDED_DUPLICATE_BAG
+).
+
+-define(DEFAULT_POOL_SIZE, erlang:system_info(schedulers_online)).

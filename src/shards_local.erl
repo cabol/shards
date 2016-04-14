@@ -120,14 +120,8 @@
   state/1
 ]).
 
-%% Default pool size
--define(DEFAULT_POOL_SIZE, 2).
-
-%% Macro to validate if table type is sharded or not
--define(is_sharded(T_), T_ =:= sharded_duplicate_bag; T_ =:= sharded_bag).
-
 %%%===================================================================
-%%% Types
+%%% Types & Macros
 %%%===================================================================
 
 %% @type type() =
@@ -188,6 +182,12 @@
   state/0,
   continuation/0
 ]).
+
+%% Default pool size
+-define(DEFAULT_POOL_SIZE, erlang:system_info(schedulers_online)).
+
+%% Macro to validate if table type is sharded or not
+-define(is_sharded(T_), T_ =:= sharded_duplicate_bag; T_ =:= sharded_bag).
 
 %%%===================================================================
 %%% ETS API

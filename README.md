@@ -5,19 +5,17 @@
 
 ETS tables on steroids!
 
-**Shards** is a very good, and probably the **simplest** option to scale-out ETS tables.
+[Shards](https://github.com/cabol/shards) is an **Erlang/Elixir** library/tool compatible with the ETS API, that implements [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database)) support on top of ETS totally transparent and out-of-box. **Shards** might be probably the **simplest** option to scale-out ETS tables.
 
-**Shards** also has an [Elixir wrapper](https://github.com/cabol/exshards)!!.
+[Additional documentation on cabol.github.io](http://cabol.github.io/posts/2016/04/14/sharding-support-for-ets.html).
 
 
 ## Introduction
 
-**Shards** is a layer on top of ETS tables in order to enable Sharding support **out-of-the-box**.
-
-Why we might need Sharding on ETS tables? Well, the main reason is to scale-out ETS tables (linear scalability),
-and support high levels of concurrency without write-locks issues, which most of the cases might cause significant
-performance degradation. Therefore, one of the most common and proven strategies to deal with these problems is
-[Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database)) – the principle is pretty similar
+Why we might need **Sharding** on ETS tables? Well, the main reason is to scale-out ETS tables
+(linear scalability), and support high levels of concurrency without write-locks issues, which
+most of the cases might cause significant performance degradation. Therefore, one of the most
+common and proven strategies to deal with these problems is [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database)) – the principle is pretty similar
 to [DHTs](https://en.wikipedia.org/wiki/Distributed_hash_table).
 
 Here is where **Shards** comes in. **Shards** makes extremely easy achieve all this, with **zero** effort.
@@ -42,21 +40,23 @@ Once into the Erlang console:
 
 ```erlang
 % let's create a table, such as you would create it with ETS
-> shards:new(mytab1, [], 5).
-{mytab1,{shards_local,set,5}}
+> shards:new(mytab1, [], 4).
+{mytab1,{shards_local,set,4}}
 ```
 
-As you can see, the `shards:new/2,3` function returns a tuple of two elements: `{mytab1,{shards_local,set,5}}`.
+As you can see, the `shards:new/2,3` function returns a tuple of two elements: `{mytab1,{shards_local,set,4}}`.
 The first element is the name of the created table (`mytab1`), and the second one is the
-[State](./src/shards_local.erl#L152) (`{shards_local,set,5}`).
+[State](./src/shards_local.erl#L149) (`{shards_local,set,4}`).
 We'll talk about the **State** later, and see how it can be used.
 
 Let's continue:
 
 ```erlang
-% create another one with default pool size (which is 2)
+% create another one with default pool size which is the number of online
+% schedulers; in my case is 8 (4 cores, 2 threads each).
+% This value is calculated calling: erlang:system_info(schedulers_online)
 > shards:new(mytab2, []).   
-{mytab2,{shards_local,set,2}}
+{mytab2,{shards_local,set,8}}
 
 % now open the observer so you can see what happened
 > observer:start().
@@ -66,7 +66,7 @@ ok
 You will see something like this:
 
 <p align="center"><a href="#">
-<img src="./doc/assets/shards_process_tree_1.png" height="200" width="350">
+<img src="./doc/assets/shards_process_tree_1.png" height="250" width="350">
 </a></p>
 
 This is the process tree of `shards` application. When you create a new "table", what happens behind
@@ -122,7 +122,7 @@ ok
 See how `shards` gets shrinks:
 
 <p align="center"><a href="#">
-<img src="./doc/assets/shards_process_tree_2.png" height="70" width="300">
+<img src="./doc/assets/shards_process_tree_2.png" height="200" width="300">
 </a></p>
 
 Extremely simple isn't?
@@ -134,11 +134,11 @@ The module `shards` is a wrapper on top of two main modules:
 
  * `shards_local`: Implements Sharding on top of ETS tables, but locally (on a single Erlang node).
  * `shards_dist`: Implements Sharding but across multiple distributed Erlang nodes, which must
-   run `shards` locally, since `shards_dist` uses shards_local` internally. We'll cover
+   run `shards` locally, since `shards_dist` uses `shards_local` internally. We'll cover
    the distributed part later.
 
-When you use `shards` on top of `shards_local`, a call to a control ETS table owned by `shards_owner_sup`
-must be done, in order to recover the [State](./src/shards_local.erl#L152), mentioned previously.
+When you use `shards` on top of `shards_local`, a call to the control ETS table owned by `shards_owner_sup`
+must be done, in order to recover the [State](./src/shards_local.erl#L149), mentioned previously.
 Most of the `shards_local` functions receives the **State** as parameter, so it must be fetched before
 to call it. You can check how `shards` module is implemented [HERE](./src/shards.erl).
 
@@ -150,18 +150,18 @@ or wherever you want. E.g.:
 
 ```erlang
 % take a look at the 2nd element of the returned tuple, that is the state
-> shards:new(mytab, [], 5).
-{mytab, {shards_local, set, 5}}
-        ^^^^^^^^^^^^^^^^^^^^^^ 
+> shards:new(mytab, [], 4).
+{mytab, {shards_local, set, 4}}
+        ^^^^^^^^^^^^^^^^^^^^^^
 
-% State: {shards_local, set, 5}
+% State: {shards_local, set, 4}
 % 1st element is the module called by shards
 % 2nd element is the type of ETS table
 % 3rd element is the pool size or number of shards.
 
 % you can also get the state at any time you want
 > shards:state(mytab).
-{shards_local, set, 5}
+{shards_local, set, 4}
 ```
 
 Most of the cases this is not necessary, `shards` wrapper is more than enough, it adds only a
@@ -199,8 +199,8 @@ $ erl -sname c@localhost -pa _build/default/lib/*/ebin -s shards
 ```erlang
 % when a tables is created with {scope, g}, the module shards_dist is used
 % internally by shards
-> shards:new(mytab, [{scope, g}], 5).
-{mytab,{shards_dist,set,5}}
+> shards:new(mytab, [{scope, g}], 4).
+{mytab,{shards_dist,set,4}}
 ```
 
 **3.** Setup the `shards` cluster.
@@ -276,6 +276,8 @@ And again, let's check it out from any node:
 
 ## Examples and/or Projects using Shards
 
+* [ExShards](https://github.com/cabol/exshards) is an **Elixir** wrapper for `shards`.
+
 * [ErlBus](https://github.com/cabol/erlbus) uses `shards` to scale-out **Topics/Pids** table(s),
   which can be too large and with high concurrency level.
 
@@ -292,11 +294,6 @@ And again, let's check it out from any node:
     $ make edoc
 
 > **Note:** Once you run previous command, a new folder `edoc` is created, and you'll have a pretty nice HTML documentation.
-
-
-## Elixir Wrapper
-
-**Shards** also has an Elixir wrapper, check [HERE](https://github.com/cabol/exshards).
 
 
 ## Copyright and License

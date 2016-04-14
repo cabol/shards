@@ -183,8 +183,8 @@ t_paginated_ops_({Tab, {Op, Q}} = Args) ->
 
   %% length
   Len = case Tab of
-    _ when ?is_sharded(Tab) -> 12;
-    _                       -> 10
+    _ when ?is_tab_sharded(Tab) -> 12;
+    _                           -> 10
   end,
 
   % select/3
@@ -421,15 +421,16 @@ t_unsupported_ops(_Config) ->
 %%%===================================================================
 
 init_shards(Scope) ->
-  shards:new(?SET, [{scope, Scope}, set]),
+  shards:new(?SET, [{scope, Scope}, set], 2),
   shards:new(?DUPLICATE_BAG, [{scope, Scope}, duplicate_bag], 5),
   shards:new(?ORDERED_SET, [{scope, Scope}, ordered_set]),
   shards:new(?SHARDED_DUPLICATE_BAG, [{scope, Scope}, sharded_duplicate_bag], 5),
 
+  DefaultShards = ?DEFAULT_POOL_SIZE,
   shards_created(?SHARDS_TABS),
   {_, set, 2} = shards:state(?SET),
   {_, duplicate_bag, 5} = shards:state(?DUPLICATE_BAG),
-  {_, ordered_set, 2} = shards:state(?ORDERED_SET),
+  {_, ordered_set, DefaultShards} = shards:state(?ORDERED_SET),
   {_, sharded_duplicate_bag, 5} =
     shards:state(?SHARDED_DUPLICATE_BAG),
   duplicate_bag =
