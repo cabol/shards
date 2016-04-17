@@ -339,6 +339,10 @@ t_info_ops(_Config) ->
     R1 = ets:info(ShardName, protection)
   end, lists:zip(lists:seq(0, length(DupBagShards) - 1), DupBagShards)),
 
+  % test invalid values
+  R2 = ets:info(undefined_tab, name),
+  R2 = shards:info(undefined_tab, name),
+
   ct:print("\e[1;1m t_info_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 

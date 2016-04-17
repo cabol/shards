@@ -311,8 +311,13 @@ info(Tab) ->
   Result :: [Value],
   Value  :: [term() | undefined].
 info(Tab, Item) ->
-  State = {Module, _, _} = state(Tab),
-  Module:info(Tab, Item, State).
+  case whereis(Tab) of
+    undefined ->
+      undefined;
+    _ ->
+      State = {Module, _, _} = state(Tab),
+      Module:info(Tab, Item, State)
+  end.
 
 %% @doc
 %% Wrapper to `shards_local:info_shard/2' and `shards_dist:info_shard/2'.
