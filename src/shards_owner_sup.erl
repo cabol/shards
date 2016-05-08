@@ -20,24 +20,24 @@
 %%% API functions
 %%%===================================================================
 
--spec start_link(Name, Options, PoolSize) -> Response when
-  Name     :: atom(),
-  Options  :: [term()],
-  PoolSize :: pos_integer(),
-  Response :: supervisor:startlink_ret().
-start_link(Name, Options, PoolSize) ->
-  supervisor:start_link({local, Name}, ?MODULE, [Name, Options, PoolSize]).
+-spec start_link(Name, Options, NumShards) -> Response when
+  Name      :: atom(),
+  Options   :: [term()],
+  NumShards :: pos_integer(),
+  Response  :: supervisor:startlink_ret().
+start_link(Name, Options, NumShards) ->
+  supervisor:start_link({local, Name}, ?MODULE, [Name, Options, NumShards]).
 
 %%%===================================================================
 %%% Supervisor callbacks
 %%%===================================================================
 
 %% @hidden
-init([Name, Options, PoolSize]) ->
+init([Name, Options, NumShards]) ->
   % ETS table to hold state info.
   Name = ets:new(Name, [set, named_table, public, {read_concurrency, true}]),
   #{module := Module, type := Type, opts := Opts} = parse_opts(Options),
-  true = ets:insert(Name, {'$shards_state', {Module, Type, PoolSize}}),
+  true = ets:insert(Name, {'$shards_state', {Module, Type, NumShards}}),
 
   % create children
   Children = [begin
@@ -47,7 +47,7 @@ init([Name, Options, PoolSize]) ->
     true = ets:insert(Name, {Shard, LocalShardName}),
     % shard worker spec
     ?worker(shards_owner, [LocalShardName, Opts], #{id => Shard})
-  end || Shard <- lists:seq(0, PoolSize - 1)],
+  end || Shard <- lists:seq(0, NumShards - 1)],
 
   % init shards_dist pg2 group
   ok = init_shards_dist(Name),

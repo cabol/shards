@@ -32,4 +32,4 @@
   T_ =:= ?DUPLICATE_BAG; T_ =:= ?SHARDED_DUPLICATE_BAG
 ).
 
--define(DEFAULT_POOL_SIZE, erlang:system_info(schedulers_online)).
+-define(N_SHARDS, erlang:system_info(schedulers_online)).

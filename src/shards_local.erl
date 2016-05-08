@@ -32,7 +32,7 @@
 %%%
 %%% Additionally to the ETS functions, `shards_local' module allows
 %%% to pass an extra argument, the `State'. This argument contains
-%%% the tuple: `{Module, TableType, PoolSize}'. When `shards' is
+%%% the tuple: `{Module, TableType, NumShards}'. When `shards' is
 %%% called without the `State', it must figure out the state first,
 %%% and the `state' is recovered doing an extra call to an ETS
 %%% control table owned by `shards_owner_sup'. If any microsecond
@@ -41,7 +41,7 @@
 %%%
 %%% ```
 %%% % when you create the table by first time, the state is returned
-%%% {tab_name, State} = shards:new(tab_name, [], 5).
+%%% {tab_name, State} = shards:new(tab_name, [{n_shards, 4}]).
 %%%
 %%% % also you can get the state at any time by calling:
 %%% State = shards:state(tab_name).
@@ -54,8 +54,8 @@
 %%% '''
 %%%
 %%% Pools of shards can be added/removed dynamically. For example,
-%%% using `shards:new/2' or `shards:new/3' you can add more pools.
-%%% And `shards:delete/1' to remove the pool you wish.
+%%% using `shards:new/2' you can add more pools, and `shards:delete/1'
+%%% to remove the pool you wish.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(shards_local).
@@ -89,7 +89,7 @@
   match_spec_compile/1,
   match_spec_run/2,
   member/3,
-  new/2, new/3,
+  new/2,
   next/3,
   prev/3,
   rename/3,
@@ -124,32 +124,30 @@
 %%% Types & Macros
 %%%===================================================================
 
-%% @type type() =
-%% set | ordered_set | bag | duplicate_bag |
-%% sharded_bad | sharded_duplicate_bag.
+%% @type type() = set | ordered_set | bag | duplicate_bag
+%%              | sharded_bad | sharded_duplicate_bag.
 %%
 %% Defines the table types, which are the same as ETS with two more
 %% types: `sharded_bad' and `sharded_duplicate_bag'.
--type type() ::
-  set | ordered_set | bag | duplicate_bag |
-  sharded_bad | sharded_duplicate_bag.
+-type type() :: set | ordered_set | bag | duplicate_bag
+              | sharded_bad | sharded_duplicate_bag.
 
 %% @type state() = {
-%%  Module   :: shards_local | shards_dist,
-%%  Type     :: type(),
-%%  PoolSize :: pos_integer()
+%%  Module    :: shards_local | shards_dist,
+%%  Type      :: type(),
+%%  NumShards :: pos_integer()
 %% }.
 %%
 %% Defines the `shards' local state:
 %% <ul>
 %% <li>`Module': Module to use: `shards_local' | `shards_dist'.</li>
 %% <li>`Type': Table type.</li>
-%% <li>`PoolSize': Number of ETS shards/fragments.</li>
+%% <li>`NumShards': Number of ETS shards/fragments.</li>
 %% </ul>
 -type state() :: {
-  Module   :: shards_local | shards_dist,
-  Type     :: type(),
-  PoolSize :: pos_integer()
+  Module    :: shards_local | shards_dist,
+  Type      :: type(),
+  NumShards :: pos_integer()
 }.
 
 %% @type continuation() = {
@@ -183,8 +181,8 @@
   continuation/0
 ]).
 
-%% Default pool size
--define(DEFAULT_POOL_SIZE, erlang:system_info(schedulers_online)).
+%% Default number of shards
+-define(N_SHARDS, erlang:system_info(schedulers_online)).
 
 %% Macro to validate if table type is sharded or not
 -define(is_sharded(T_), T_ =:= sharded_duplicate_bag; T_ =:= sharded_bag).
@@ -276,7 +274,7 @@ file2tab(Filenames, Options) ->
       end
     end || FN <- Filenames],
     Tab = name_from_shard(First),
-    new(Tab, [{restore, ShardTabs, Options}], length(Filenames))
+    new(Tab, [{restore, ShardTabs, Options}, {n_shards, length(Filenames)}])
   catch
     _:Error -> Error
   end.
@@ -293,8 +291,8 @@ file2tab(Filenames, Options) ->
   Tab   :: atom(),
   Key   :: term(),
   State :: state().
-first(Tab, {_, _, PoolSize}) ->
-  Shard = PoolSize - 1,
+first(Tab, {_, _, N}) ->
+  Shard = N - 1,
   first(Tab, ets:first(shard_name(Tab, Shard)), Shard).
 
 %% @private
@@ -319,8 +317,8 @@ first(_, Key, _) ->
   Acc1     :: term(),
   AccIn    :: term(),
   AccOut   :: term().
-foldl(Function, Acc0, Tab, {_, _, PoolSize}) ->
-  fold(Tab, PoolSize, foldl, [Function, Acc0]).
+foldl(Function, Acc0, Tab, {_, _, N}) ->
+  fold(Tab, N, foldl, [Function, Acc0]).
 
 %% @doc
 %% This operation behaves like `ets:foldr/3'.
@@ -335,8 +333,8 @@ foldl(Function, Acc0, Tab, {_, _, PoolSize}) ->
   Acc1     :: term(),
   AccIn    :: term(),
   AccOut   :: term().
-foldr(Function, Acc0, Tab, {_, _, PoolSize}) ->
-  fold(Tab, PoolSize, foldr, [Function, Acc0]).
+foldr(Function, Acc0, Tab, {_, _, N}) ->
+  fold(Tab, N, foldr, [Function, Acc0]).
 
 %% @doc
 %% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
@@ -474,16 +472,16 @@ insert(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
   lists:foreach(fun(Object) ->
     true = insert(Tab, Object, State)
   end, ObjOrObjL), true;
-insert(Tab, ObjOrObjL, {_, Type, PoolSize}) when is_tuple(ObjOrObjL) ->
+insert(Tab, ObjOrObjL, {_, Type, N}) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
-  insert_(Tab, Key, ObjOrObjL, PoolSize, Type).
+  insert_(Tab, Key, ObjOrObjL, N, Type).
 
 %% @private
-insert_(Tab, Key, Obj, PoolSize, Type) when ?is_sharded(Type) ->
-  ShardName = shard_name(Tab, shard({Key, os:timestamp()}, PoolSize)),
+insert_(Tab, Key, Obj, N, Type) when ?is_sharded(Type) ->
+  ShardName = shard_name(Tab, shard({Key, os:timestamp()}, N)),
   ets:insert(ShardName, Obj);
-insert_(Tab, Key, Obj, PoolSize, _) ->
-  ShardName = shard_name(Tab, shard(Key, PoolSize)),
+insert_(Tab, Key, Obj, N, _) ->
+  ShardName = shard_name(Tab, shard(Key, N)),
   ets:insert(ShardName, Obj).
 
 %% @doc
@@ -504,7 +502,7 @@ insert_new(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
   lists:foldr(fun(Object, Acc) ->
     [insert_new(Tab, Object, State) | Acc]
   end, [], ObjOrObjL);
-insert_new(Tab, ObjOrObjL, {_, Type, PS} = State) when is_tuple(ObjOrObjL) ->
+insert_new(Tab, ObjOrObjL, {_, Type, N} = State) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
   case Type of
     _ when ?is_sharded(Type) ->
@@ -513,13 +511,13 @@ insert_new(Tab, ObjOrObjL, {_, Type, PS} = State) when is_tuple(ObjOrObjL) ->
       case mapred(Tab, Map, Reduce, State) of
         [] ->
           NewKey = {Key, os:timestamp()},
-          ShardName = shard_name(Tab, shard(NewKey, PS)),
+          ShardName = shard_name(Tab, shard(NewKey, N)),
           ets:insert_new(ShardName, ObjOrObjL);
         _ ->
           false
       end;
     _ ->
-      ShardName = shard_name(Tab, shard(Key, PS)),
+      ShardName = shard_name(Tab, shard(Key, N)),
       ets:insert_new(ShardName, ObjOrObjL)
   end.
 
@@ -539,15 +537,15 @@ is_compiled_ms(Term) ->
   Tab   :: atom(),
   State :: state(),
   Key   :: term().
-last(Tab, {_, ordered_set, PoolSize}) ->
-  last(Tab, ets:last(shard_name(Tab, 0)), 0, PoolSize - 1);
+last(Tab, {_, ordered_set, N}) ->
+  last(Tab, ets:last(shard_name(Tab, 0)), 0, N - 1);
 last(Tab, State) ->
   first(Tab, State).
 
 %% @private
-last(Tab, '$end_of_table', Shard, PoolSize) when Shard < PoolSize ->
+last(Tab, '$end_of_table', Shard, N) when Shard < N ->
   NextShard = Shard + 1,
-  last(Tab, ets:last(shard_name(Tab, NextShard)), NextShard, PoolSize);
+  last(Tab, ets:last(shard_name(Tab, NextShard)), NextShard, N);
 last(_, '$end_of_table', _, _) ->
   '$end_of_table';
 last(_, Key, _, _) ->
@@ -589,8 +587,8 @@ lookup_element(Tab, Key, Pos, {_, Type, _} = State) when ?is_sharded(Type) ->
     [] -> exit({badarg, erlang:get_stacktrace()});
     _  -> lists:append(Filter)
   end;
-lookup_element(Tab, Key, Pos, {_, _, PoolSize}) ->
-  ShardName = shard_name(Tab, shard(Key, PoolSize)),
+lookup_element(Tab, Key, Pos, {_, _, N}) ->
+  ShardName = shard_name(Tab, shard(Key, N)),
   ets:lookup_element(ShardName, Key, Pos).
 
 %% @doc
@@ -627,14 +625,14 @@ match(Tab, Pattern, State) ->
   Match        :: term(),
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-match(Tab, Pattern, Limit, {_, Type, PoolSize}) ->
+match(Tab, Pattern, Limit, {_, Type, N}) ->
   q(match,
     Tab,
     Pattern,
     Limit,
     q_fun(Type),
     Limit,
-    PoolSize - 1,
+    N - 1,
     {[], nil}).
 
 %% @doc
@@ -701,14 +699,14 @@ match_object(Tab, Pattern, State) ->
   Match        :: term(),
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-match_object(Tab, Pattern, Limit, {_, Type, PoolSize}) ->
+match_object(Tab, Pattern, Limit, {_, Type, N}) ->
   q(match_object,
     Tab,
     Pattern,
     Limit,
     q_fun(Type),
     Limit,
-    PoolSize - 1,
+    N - 1,
     {[], nil}).
 
 %% @doc
@@ -750,10 +748,6 @@ member(Tab, Key, State) ->
     R                 -> R
   end.
 
-%% @equiv new(Name, Options, 2)
-new(Name, Options) ->
-  new(Name, Options, ?DEFAULT_POOL_SIZE).
-
 %% @doc
 %% This operation is analogous to `ets:new/2', BUT it behaves totally
 %% different. When this function is called, instead of create a single
@@ -761,7 +755,7 @@ new(Name, Options) ->
 %%
 %% This supervision tree has a main supervisor `shards_sup' which
 %% creates a control ETS table and also creates `N' number of
-%% `shards_owner' (being `N' the pool size). Each `shards_owner'
+%% `shards_owner' (being `N' the number of shards). Each `shards_owner'
 %% creates an ETS table to represent each shard, so this `gen_server'
 %% acts as the table owner.
 %%
@@ -770,24 +764,32 @@ new(Name, Options) ->
 %% and you see only one logical table (similar to how a distributed
 %% storage works).
 %%
-%% <b>IMPORTANT: By default, `PoolSize = 2'.</b>
+%% <b>IMPORTANT: By default, `NumShards = number of schedulers'.</b>
 %%
 %% @see ets:new/2.
 %% @end
--spec new(Name, Options, PoolSize) -> Result when
-  Name     :: atom(),
-  Options  :: [Option],
-  PoolSize :: pos_integer(),
-  State    :: state(),
-  Result   :: {Name, State},
-  Option   :: type() | ets:access() | named_table | {keypos, pos_integer()} |
-              {heir, pid(), HeirData :: term()} | {heir, none} | Tweaks |
-              {scope, l | g},
-  Tweaks   :: {write_concurrency, boolean()} |
-              {read_concurrency, boolean()} |
-              compressed.
-new(Name, Options, PoolSize) ->
-  case shards_sup:start_child([Name, Options, PoolSize]) of
+-spec new(Name, Options) -> Result when
+  Name    :: atom(),
+  Options :: [Option],
+  State   :: state(),
+  Result  :: {Name, State},
+  Option  :: type() | ets:access() | named_table | {keypos, pos_integer()}
+           | {heir, pid(), HeirData :: term()} | {heir, none} | Tweaks
+           | {n_shards, pos_integer()} | {scope, l | g},
+  Tweaks  :: {write_concurrency, boolean()}
+           | {read_concurrency, boolean()}
+           | compressed.
+new(Name, Options) ->
+  case lists:keytake(n_shards, 1, Options) of
+    {value, {n_shards, NumShards}, NewOpts} ->
+      new(Name, NewOpts, NumShards);
+    false ->
+      new(Name, Options, ?N_SHARDS)
+  end.
+
+%% @private
+new(Name, Options, NumShards) ->
+  case shards_sup:start_child([Name, Options, NumShards]) of
     {ok, _} -> {Name, state(Name)};
     _       -> throw(badarg)
   end.
@@ -805,8 +807,8 @@ new(Name, Options, PoolSize) ->
   Key1  :: term(),
   State :: state(),
   Key2  :: term().
-next(Tab, Key1, {_, _, PoolSize}) ->
-  Shard = shard(Key1, PoolSize),
+next(Tab, Key1, {_, _, N}) ->
+  Shard = shard(Key1, N),
   ShardName = shard_name(Tab, Shard),
   next_(Tab, ets:next(ShardName, Key1), Shard).
 
@@ -832,17 +834,17 @@ next_(_, Key2, _) ->
   Key1  :: term(),
   State :: state(),
   Key2  :: term().
-prev(Tab, Key1, {_, ordered_set, PoolSize}) ->
-  Shard = shard(Key1, PoolSize),
+prev(Tab, Key1, {_, ordered_set, N}) ->
+  Shard = shard(Key1, N),
   ShardName = shard_name(Tab, Shard),
-  prev(Tab, ets:prev(ShardName, Key1), Shard, PoolSize - 1);
+  prev(Tab, ets:prev(ShardName, Key1), Shard, N - 1);
 prev(Tab, Key1, State) ->
   next(Tab, Key1, State).
 
 %% @private
-prev(Tab, '$end_of_table', Shard, PoolSize) when Shard < PoolSize ->
+prev(Tab, '$end_of_table', Shard, N) when Shard < N ->
   NextShard = Shard + 1,
-  prev(Tab, ets:last(shard_name(Tab, NextShard)), NextShard, PoolSize);
+  prev(Tab, ets:last(shard_name(Tab, NextShard)), NextShard, N);
 prev(_, '$end_of_table', _, _) ->
   '$end_of_table';
 prev(_, Key2, _, _) ->
@@ -900,14 +902,14 @@ select(Tab, MatchSpec, State) ->
   Match        :: term(),
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-select(Tab, MatchSpec, Limit, {_, Type, PoolSize}) ->
+select(Tab, MatchSpec, Limit, {_, Type, N}) ->
   q(select,
     Tab,
     MatchSpec,
     Limit,
     q_fun(Type),
     Limit,
-    PoolSize - 1,
+    N - 1,
     {[], nil}).
 
 %% @doc
@@ -990,13 +992,13 @@ select_reverse(Tab, MatchSpec, State) ->
   Match        :: term(),
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-select_reverse(Tab, MatchSpec, Limit, {_, Type, PoolSize}) ->
+select_reverse(Tab, MatchSpec, Limit, {_, Type, N}) ->
   q(select_reverse,
     Tab, MatchSpec,
     Limit,
     q_fun(Type),
     Limit,
-    PoolSize - 1,
+    N - 1,
     {[], nil}).
 
 %% @doc
@@ -1060,10 +1062,10 @@ tab2file(Tab, Filenames, State) ->
   ShardTab  :: atom(),
   ShardRes  :: ok | {error, Reason :: term()},
   Response  :: [{ShardTab, ShardRes}].
-tab2file(Tab, Filenames, Options, {_, _, PoolSize}) ->
+tab2file(Tab, Filenames, Options, {_, _, N}) ->
   [begin
      ets:tab2file(Shard, Filename, Options)
-   end || {Shard, Filename} <- lists:zip(list(Tab, PoolSize), Filenames)].
+   end || {Shard, Filename} <- lists:zip(list(Tab, N), Filenames)].
 
 %% @doc
 %% This operation behaves like `ets:tab2list/1'.
@@ -1180,7 +1182,7 @@ update_element(Tab, Key, ElementSpec, State) ->
 %% Builds a shard name `ShardName'.
 %% <ul>
 %% <li>`TabName': Table name from which the shard name is generated.</li>
-%% <li>`ShardNum': Shard number – from `0' to `(PoolSize - 1)'</li>
+%% <li>`ShardNum': Shard number – from `0' to `(NumShards - 1)'</li>
 %% </ul>
 %% @end
 -spec shard_name(TabName, ShardNum) -> ShardName when
@@ -1194,30 +1196,30 @@ shard_name(TabName, Shard) ->
 %% Calculates the shard where the `Key' is handled.
 %% <ul>
 %% <li>`Key': The key to be hashed to calculate the shard.</li>
-%% <li>`PoolSize': Number of shards.</li>
+%% <li>`NumShards': Number of shards.</li>
 %% </ul>
 %% @end
--spec shard(Key, PoolSize) -> ShardNum when
-  Key      :: term(),
-  PoolSize :: pos_integer(),
-  ShardNum :: non_neg_integer().
-shard(Key, PoolSize) ->
-  erlang:phash2(Key, PoolSize).
+-spec shard(Key, NumShards) -> ShardNum when
+  Key       :: term(),
+  NumShards :: pos_integer(),
+  ShardNum  :: non_neg_integer().
+shard(Key, NumShards) ->
+  erlang:phash2(Key, NumShards).
 
 %% @doc
 %% Returns the list of shard names associated to the given `TabName'.
 %% The shard names that were created in the `shards:new/2,3' fun.
 %% <ul>
 %% <li>`TabName': Table name.</li>
-%% <li>`PoolSize': Number of shards.</li>
+%% <li>`NumShards': Number of shards.</li>
 %% </ul>
 %% @end
--spec list(TabName, PoolSize) -> ShardTabNames when
+-spec list(TabName, NumShards) -> ShardTabNames when
   TabName       :: atom(),
-  PoolSize      :: pos_integer(),
+  NumShards     :: pos_integer(),
   ShardTabNames :: [atom()].
-list(TabName, PoolSize) ->
-  Shards = lists:seq(0, PoolSize - 1),
+list(TabName, NumShards) ->
+  Shards = lists:seq(0, NumShards - 1),
   [shard_name(TabName, Shard) || Shard <- Shards].
 
 %% @doc
@@ -1245,38 +1247,38 @@ mapred(Tab, Map, Reduce, State) ->
 %% @private
 mapred(Tab, Key, Map, nil, State) ->
   mapred(Tab, Key, Map, fun(E, Acc) -> [E | Acc] end, State);
-mapred(Tab, nil, Map, Reduce, {_, _, PoolSize}) ->
-  p_mapred(Tab, PoolSize, Map, Reduce);
-mapred(Tab, _, Map, Reduce, {_, Type, PoolSize}) when ?is_sharded(Type) ->
-  s_mapred(Tab, PoolSize, Map, Reduce);
-mapred(Tab, Key, {MapFun, Args}, _, {_, _, PoolSize}) ->
-  ShardName = shard_name(Tab, shard(Key, PoolSize)),
+mapred(Tab, nil, Map, Reduce, {_, _, N}) ->
+  p_mapred(Tab, N, Map, Reduce);
+mapred(Tab, _, Map, Reduce, {_, Type, N}) when ?is_sharded(Type) ->
+  s_mapred(Tab, N, Map, Reduce);
+mapred(Tab, Key, {MapFun, Args}, _, {_, _, N}) ->
+  ShardName = shard_name(Tab, shard(Key, N)),
   apply(MapFun, [ShardName | Args]).
 
 %% @private
-s_mapred(Tab, PoolSize, {MapFun, Args}, {ReduceFun, AccIn}) ->
+s_mapred(Tab, NumShards, {MapFun, Args}, {ReduceFun, AccIn}) ->
   lists:foldl(fun(Shard, Acc) ->
     MapRes = apply(MapFun, [shard_name(Tab, Shard) | Args]),
     ReduceFun(MapRes, Acc)
-  end, AccIn, lists:seq(0, PoolSize - 1));
-s_mapred(Tab, PoolSize, MapFun, ReduceFun) ->
+  end, AccIn, lists:seq(0, NumShards - 1));
+s_mapred(Tab, NumShards, MapFun, ReduceFun) ->
   {Map, Reduce} = mapred_funs(MapFun, ReduceFun),
-  s_mapred(Tab, PoolSize, Map, Reduce).
+  s_mapred(Tab, NumShards, Map, Reduce).
 
 %% @private
-p_mapred(Tab, PoolSize, {MapFun, Args}, {ReduceFun, AccIn}) ->
+p_mapred(Tab, NumShards, {MapFun, Args}, {ReduceFun, AccIn}) ->
   Tasks = lists:foldl(fun(Shard, Acc) ->
     AsyncTask = shards_task:async(fun() ->
       apply(MapFun, [shard_name(Tab, Shard) | Args])
     end), [AsyncTask | Acc]
-  end, [], lists:seq(0, PoolSize - 1)),
+  end, [], lists:seq(0, NumShards - 1)),
   lists:foldl(fun(Task, Acc) ->
     MapRes = shards_task:await(Task),
     ReduceFun(MapRes, Acc)
   end, AccIn, Tasks);
-p_mapred(Tab, PoolSize, MapFun, ReduceFun) ->
+p_mapred(Tab, NumShards, MapFun, ReduceFun) ->
   {Map, Reduce} = mapred_funs(MapFun, ReduceFun),
-  p_mapred(Tab, PoolSize, Map, Reduce).
+  p_mapred(Tab, NumShards, Map, Reduce).
 
 %% @private
 mapred_funs(MapFun, ReduceFun) ->
@@ -1291,11 +1293,11 @@ mapred_funs(MapFun, ReduceFun) ->
   {Map, Reduce}.
 
 %% @private
-fold(Tab, PoolSize, Fold, [Fun, Acc]) ->
+fold(Tab, NumShards, Fold, [Fun, Acc]) ->
   lists:foldl(fun(Shard, FoldAcc) ->
     ShardName = shard_name(Tab, Shard),
     apply(ets, Fold, [Fun, FoldAcc, ShardName])
-  end, Acc, lists:seq(0, PoolSize - 1)).
+  end, Acc, lists:seq(0, NumShards - 1)).
 
 %% @private
 name_from_shard(ShardTabName) ->

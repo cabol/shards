@@ -425,12 +425,14 @@ t_unsupported_ops(_Config) ->
 %%%===================================================================
 
 init_shards(Scope) ->
-  shards:new(?SET, [{scope, Scope}, set], 2),
-  shards:new(?DUPLICATE_BAG, [{scope, Scope}, duplicate_bag], 5),
+  shards:new(?SET, [{n_shards, 2}, {scope, Scope}, set]),
+  shards:new(?DUPLICATE_BAG, [{n_shards, 5}, {scope, Scope}, duplicate_bag]),
   shards:new(?ORDERED_SET, [{scope, Scope}, ordered_set]),
-  shards:new(?SHARDED_DUPLICATE_BAG, [{scope, Scope}, sharded_duplicate_bag], 5),
+  shards:new(?SHARDED_DUPLICATE_BAG, [
+    {n_shards, 5}, {scope, Scope}, sharded_duplicate_bag
+  ]),
 
-  DefaultShards = ?DEFAULT_POOL_SIZE,
+  DefaultShards = ?N_SHARDS,
   shards_created(?SHARDS_TABS),
   {_, set, 2} = shards:state(?SET),
   {_, duplicate_bag, 5} = shards:state(?DUPLICATE_BAG),

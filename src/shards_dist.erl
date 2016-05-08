@@ -18,7 +18,7 @@
   delete/1, delete/3,
   delete_all_objects/2,
   delete_object/3,
-  new/2, new/3,
+  new/2,
   insert/3,
   insert_new/3,
   lookup/3,
@@ -206,10 +206,6 @@ member(Tab, Key, {_, Type, _} = State) ->
 %% @equiv shards_local:new(Name, Options)
 new(Name, Options) ->
   shards_local:new(Name, Options).
-
-%% @equiv shards_local:new(Name, Options, PoolSize)
-new(Name, Options, PoolSize) ->
-  shards_local:new(Name, Options, PoolSize).
 
 -spec take(Tab, Key, State) -> [Object] when
   Tab    :: atom(),

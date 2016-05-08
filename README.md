@@ -5,7 +5,9 @@
 
 ETS tables on steroids!
 
-[Shards](https://github.com/cabol/shards) is an **Erlang/Elixir** library/tool compatible with the ETS API, that implements [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database)) support on top of ETS totally transparent and out-of-box. **Shards** might be probably the **simplest** option to scale-out ETS tables.
+[Shards](https://github.com/cabol/shards) is an **Erlang/Elixir** library/tool compatible with the ETS API,
+that implements [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database)) support on top of
+ETS totally transparent and out-of-box. **Shards** might be probably the **simplest** option to scale-out ETS tables.
 
 [Additional documentation on cabol.github.io](http://cabol.github.io/posts/2016/04/14/sharding-support-for-ets.html).
 
@@ -15,8 +17,8 @@ ETS tables on steroids!
 Why we might need **Sharding** on ETS tables? Well, the main reason is to scale-out ETS tables
 (linear scalability), and support high levels of concurrency without write-locks issues, which
 most of the cases might cause significant performance degradation. Therefore, one of the most
-common and proven strategies to deal with these problems is [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database)) – the principle is pretty similar
-to [DHTs](https://en.wikipedia.org/wiki/Distributed_hash_table).
+common and proven strategies to deal with these problems is [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database))
+– the principle is pretty similar to [DHTs](https://en.wikipedia.org/wiki/Distributed_hash_table).
 
 Here is where **Shards** comes in. **Shards** makes extremely easy achieve all this, with **zero** effort.
 It provides an API compatible with [ETS](http://erlang.org/doc/man/ets.html) – with few exceptions.
@@ -39,20 +41,35 @@ Start an Erlang console with `shards` running:
 Once into the Erlang console:
 
 ```erlang
-% let's create a table, such as you would create it with ETS
-> shards:new(mytab1, [], 4).
+% let's create a table, such as you would create it with ETS, with 4 shards
+> shards:new(mytab1, [{n_shards, 4}]).
 {mytab1,{shards_local,set,4}}
 ```
 
-As you can see, the `shards:new/2,3` function returns a tuple of two elements: `{mytab1,{shards_local,set,4}}`.
-The first element is the name of the created table (`mytab1`), and the second one is the
-[State](./src/shards_local.erl#L149) (`{shards_local,set,4}`).
-We'll talk about the **State** later, and see how it can be used.
+Exactly as ETS, `shards:new/2` function receives 2 arguments, the name of the table and
+the options. With `shards` there are additional options:
+
+ * `{n_shards, pos_integer()}`: defines the number of local shards in which the table will
+   be split.
+ * `{scope, l | g}`: defines `shards` scope, in other words, if sharding will be applied
+   locally (`l`) or global/distributed (`g`).
+
+Also the `shards:new/2` function returns a tuple of two elements:
+
+```erlang
+{mytab1, {shards_local, set, 4}}
+ ^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^
+  1st             2nd
+```
+
+The first element is the name of the created table; `mytab1`. And the second one is the
+[State](./src/shards_local.erl#L147): `{shards_local, set, 4}`. We'll talk about
+the **State** later, and see how it can be used.
 
 Let's continue:
 
 ```erlang
-% create another one with default pool size which is the number of online
+% create another one with default number of shards, which is the total of online
 % schedulers; in my case is 8 (4 cores, 2 threads each).
 % This value is calculated calling: erlang:system_info(schedulers_online)
 > shards:new(mytab2, []).   
@@ -138,26 +155,26 @@ The module `shards` is a wrapper on top of two main modules:
    the distributed part later.
 
 When you use `shards` on top of `shards_local`, a call to the control ETS table owned by `shards_owner_sup`
-must be done, in order to recover the [State](./src/shards_local.erl#L149), mentioned previously.
+must be done, in order to recover the [State](./src/shards_local.erl#L147), mentioned previously.
 Most of the `shards_local` functions receives the **State** as parameter, so it must be fetched before
 to call it. You can check how `shards` module is implemented [HERE](./src/shards.erl).
 
 If any microsecond matters to you, you can skip the call to the control ETS table by calling
 `shards_local` directly. Now the question is: how to get the **State**? Well, it's extremely
-easy, you can get the `state` when you call `shards:new/2,3` by first time, or you can call
+easy, you can get the `state` when you call `shards:new/2` by first time, or you can call
 `shards:state/1` at any time you want, and then it might be store it within the calling process,
 or wherever you want. E.g.:
 
 ```erlang
 % take a look at the 2nd element of the returned tuple, that is the state
-> shards:new(mytab, [], 4).
+> shards:new(mytab, [{n_shards, 4}]).
 {mytab, {shards_local, set, 4}}
         ^^^^^^^^^^^^^^^^^^^^^^
 
 % State: {shards_local, set, 4}
 % 1st element is the module called by shards
 % 2nd element is the type of ETS table
-% 3rd element is the pool size or number of shards.
+% 3rd element is the number of shards.
 
 % you can also get the state at any time you want
 > shards:state(mytab).
@@ -194,12 +211,12 @@ Node `c`:
 $ erl -sname c@localhost -pa _build/default/lib/*/ebin -s shards
 ```
 
-**2.** Create a table with `scope` global on each node:
+**2.** Create a table with global scope (`{scope, g}`) on each node:
 
 ```erlang
 % when a tables is created with {scope, g}, the module shards_dist is used
 % internally by shards
-> shards:new(mytab, [{scope, g}], 4).
+> shards:new(mytab, [{n_shards, 4}, {scope, g}]).
 {mytab,{shards_dist,set,4}}
 ```
 

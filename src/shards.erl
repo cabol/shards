@@ -46,7 +46,7 @@
   match_spec_compile/1,
   match_spec_run/2,
   member/2,
-  new/2, new/3,
+  new/2,
   next/2,
   prev/2,
   rename/2,
@@ -80,7 +80,7 @@
 -export([
   state/1,
   type/1,
-  pool_size/1,
+  n_shards/1,
   list/1
 ]).
 
@@ -563,10 +563,6 @@ member(Tab, Key) ->
 new(Name, Options) ->
   ?SHARDS:new(Name, Options).
 
-%% @equiv shards_local:new(Name, Options, PoolSize)
-new(Name, Options, PoolSize) ->
-  ?SHARDS:new(Name, Options, PoolSize).
-
 %% @doc
 %% Wrapper to `shards_local:next/3' and `shards_dist:next/3'.
 %%
@@ -1013,17 +1009,17 @@ type(TabName) ->
   Type.
 
 %% @doc
-%% Returns the pool size or number of shards.
+%% Returns the number of shards.
 %% <ul>
 %% <li>`TabName': Table name.</li>
 %% </ul>
 %% @end
--spec pool_size(TabName) -> PoolSize when
-  TabName  :: atom(),
-  PoolSize :: pos_integer().
-pool_size(TabName) ->
-  {_, _, PoolSize} = state(TabName),
-  PoolSize.
+-spec n_shards(TabName) -> NumShards when
+  TabName   :: atom(),
+  NumShards :: pos_integer().
+n_shards(TabName) ->
+  {_, _, NumShards} = state(TabName),
+  NumShards.
 
 %% @doc
 %% Returns the list of shard names associated to the given `TabName'.
@@ -1036,4 +1032,4 @@ pool_size(TabName) ->
   TabName       :: atom(),
   ShardTabNames :: [atom()].
 list(TabName) ->
-  shards_local:list(TabName, pool_size(TabName)).
+  shards_local:list(TabName, n_shards(TabName)).
