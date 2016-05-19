@@ -432,12 +432,17 @@ init_shards(Scope) ->
     {n_shards, 5}, {scope, Scope}, sharded_duplicate_bag
   ]),
 
+  Mod = case Scope of
+    g -> shards_dist;
+    _ -> shards_local
+  end,
+
   DefaultShards = ?N_SHARDS,
   shards_created(?SHARDS_TABS),
-  {_, set, 2} = shards:state(?SET),
-  {_, duplicate_bag, 5} = shards:state(?DUPLICATE_BAG),
-  {_, ordered_set, DefaultShards} = shards:state(?ORDERED_SET),
-  {_, sharded_duplicate_bag, 5} =
+  {Mod, set, 2} = shards:state(?SET),
+  {Mod, duplicate_bag, 5} = shards:state(?DUPLICATE_BAG),
+  {Mod, ordered_set, DefaultShards} = shards:state(?ORDERED_SET),
+  {Mod, sharded_duplicate_bag, 5} =
     shards:state(?SHARDED_DUPLICATE_BAG),
   duplicate_bag =
     ets:info(shards_local:shard_name(?SHARDED_DUPLICATE_BAG, 0), type),
@@ -453,7 +458,7 @@ init_shards(Scope) ->
   ok.
 
 cleanup_shards() ->
-  {Mod, _, _} = shards:state(?SET),
+  Mod = shards:module(?SET),
   cleanup_shards_(Mod).
 
 cleanup_shards_(shards_local) ->

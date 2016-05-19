@@ -141,12 +141,12 @@
 %% Defines the `shards' local state:
 %% <ul>
 %% <li>`Module': Module to use: `shards_local' | `shards_dist'.</li>
-%% <li>`Type': Table type.</li>
+%% <li>`TableType': Table type.</li>
 %% <li>`NumShards': Number of ETS shards/fragments.</li>
 %% </ul>
 -type state() :: {
   Module    :: shards_local | shards_dist,
-  Type      :: type(),
+  TableType :: type(),
   NumShards :: pos_integer()
 }.
 
@@ -1229,7 +1229,7 @@ list(TabName, NumShards) ->
 %% </ul>
 %% @end
 -spec state(TabName :: atom()) -> state().
-state(TabName) ->
+state(TabName) when is_atom(TabName) ->
   ets:lookup_element(TabName, '$shards_state', 2).
 
 %%%===================================================================

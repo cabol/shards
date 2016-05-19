@@ -10,6 +10,6 @@
   {licenses, ["MIT"]},
   {links, [
     {"GitHub", "https://github.com/cabol/shards"},
-    {"Docs", "http://cabol.github.io/shards"}
+    {"Docs", "http://cabol.github.io/posts/2016/04/14/sharding-support-for-ets.html"}
   ]}
 ]}.

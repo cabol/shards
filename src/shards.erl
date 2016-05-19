@@ -79,7 +79,8 @@
 
 -export([
   state/1,
-  type/1,
+  module/1,
+  tab_type/1,
   n_shards/1,
   list/1
 ]).
@@ -992,34 +993,43 @@ pick_one(Key, Nodes) ->
 -spec state(TabName) -> State when
   TabName :: atom(),
   State   :: state().
-state(TabName) ->
-  shards_local:state(TabName).
+state(TabName) -> shards_local:state(TabName).
+
+%% @doc
+%% Returns the module used by the given table.
+%% <ul>
+%% <li>`TabNameOrState': Table name or State.</li>
+%% </ul>
+%% @end
+-spec module(TabNameOrState) -> Type when
+  TabNameOrState :: state() | atom(),
+  Type           :: shards_local:type().
+module({Module, _, _}) -> Module;
+module(TabName)        -> module(state(TabName)).
 
 %% @doc
 %% Returns the table type.
 %% <ul>
-%% <li>`TabName': Table name.</li>
+%% <li>`TabNameOrState': Table name or State.</li>
 %% </ul>
 %% @end
--spec type(TabName) -> Type when
-  TabName :: atom(),
-  Type    :: atom().
-type(TabName) ->
-  {_, Type, _} = state(TabName),
-  Type.
+-spec tab_type(TabNameOrState) -> Type when
+  TabNameOrState :: state() | atom(),
+  Type           :: shards_local:type().
+tab_type({_, Type, _}) -> Type;
+tab_type(TabName)      -> tab_type(state(TabName)).
 
 %% @doc
 %% Returns the number of shards.
 %% <ul>
-%% <li>`TabName': Table name.</li>
+%% <li>`TabNameOrState': Table name or State.</li>
 %% </ul>
 %% @end
--spec n_shards(TabName) -> NumShards when
-  TabName   :: atom(),
-  NumShards :: pos_integer().
-n_shards(TabName) ->
-  {_, _, NumShards} = state(TabName),
-  NumShards.
+-spec n_shards(TabNameOrState) -> NumShards when
+  TabNameOrState :: state() | atom(),
+  NumShards      :: pos_integer().
+n_shards({_, _, NumShards}) -> NumShards;
+n_shards(TabName)           -> n_shards(state(TabName)).
 
 %% @doc
 %% Returns the list of shard names associated to the given `TabName'.
@@ -1031,5 +1041,4 @@ n_shards(TabName) ->
 -spec list(TabName) -> ShardTabNames when
   TabName       :: atom(),
   ShardTabNames :: [atom()].
-list(TabName) ->
-  shards_local:list(TabName, n_shards(TabName)).
+list(TabName) -> shards_local:list(TabName, n_shards(TabName)).
