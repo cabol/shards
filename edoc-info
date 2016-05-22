@@ -1,0 +1,4 @@
+%% encoding: UTF-8
+{application,shards}.
+{modules,[jumping_hash,shards,shards_dist,shards_local,shards_owner,
+          shards_owner_sup,shards_sup,shards_task]}.

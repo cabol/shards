@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Module shards_task</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module shards_task</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>   
+Task utility.
+
+
+<h2><a name="description">Description</a></h2><p>   
+Task utility.</p>
+  
+   <p>Conveniences for spawning and awaiting tasks.</p>
+  
+   This module is based on
+   <a href="http://elixir-lang.org/docs/stable/elixir/Task.html">Elixir Task</a>
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-callback">callback()</a></h3>
+<p><tt>callback() = {module(), atom(), [term()]}</tt></p>
+<p>MFA Callback.</p>
+
+<h3 class="typedecl"><a name="type-info">info()</a></h3>
+<p><tt>info() = {node(), pid() | atom()}</tt></p>
+<p>Process info.</p>
+
+<h3 class="typedecl"><a name="type-link">link()</a></h3>
+<p><tt>link() = link | monitor | nolink</tt></p>
+<p>Process link options.</p>
+
+<h3 class="typedecl"><a name="type-proc_info">proc_info()</a></h3>
+<p><tt>proc_info() = {node(), pid() | atom()}</tt></p>
+
+
+<h3 class="typedecl"><a name="type-task">task()</a></h3>
+<p><tt>task() = #{pid =&gt; pid() | nil, ref =&gt; <a href="#type-ref">ref()</a> | nil, owner =&gt; pid() | nil}</tt></p>
+<p><p>Task definition.</p>
+ 
+  It contains these fields:
+  <ul>
+  <li><code>pid</code>: the process reference of the task process; <code>nil</code> if the task does
+  not use a task process.</li>
+  <li><code>ref</code>: the task monitor reference.</li>
+  <li><code>owner</code>: the PID of the process that started the task.</li>
+  </ul></p>
+
+<h3 class="typedecl"><a name="type-task_fun">task_fun()</a></h3>
+<p><tt>task_fun() = fun(() -&gt; term()) | fun((term()) -&gt; term())</tt></p>
+<p>Task Function.</p>
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#async-1">async/1</a></td><td>Equivalent to <a href="#async-3"><tt>async(erlang, apply, [Fun, []])</tt></a>.
+</td></tr>
+<tr><td valign="top"><a href="#async-2">async/2</a></td><td>Equivalent to <a href="#async-3"><tt>async(erlang, apply, [Fun, Args])</tt></a>.
+</td></tr>
+<tr><td valign="top"><a href="#async-3">async/3</a></td><td>  
+Starts a task that must be awaited on.</td></tr>
+<tr><td valign="top"><a href="#await-1">await/1</a></td><td>Equivalent to <a href="#await-2"><tt>await(Task, 5000)</tt></a>.
+</td></tr>
+<tr><td valign="top"><a href="#await-2">await/2</a></td><td>  
+Awaits a task reply.</td></tr>
+<tr><td valign="top"><a href="#start-1">start/1</a></td><td>  
+Starts a task.</td></tr>
+<tr><td valign="top"><a href="#start-2">start/2</a></td><td>  
+Starts a task.</td></tr>
+<tr><td valign="top"><a href="#start-3">start/3</a></td><td>  
+Starts a task.</td></tr>
+<tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>
+  Starts a task as part of a supervision tree.</td></tr>
+<tr><td valign="top"><a href="#start_link-2">start_link/2</a></td><td>
+  Starts a task as part of a supervision tree.</td></tr>
+<tr><td valign="top"><a href="#start_link-3">start_link/3</a></td><td>
+  Starts a task as part of a supervision tree.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="async-1">async/1</a></h3>
+<div class="spec">
+<p><tt>async(Fun) -&gt; any()</tt></p>
+</div><p>Equivalent to <a href="#async-3"><tt>async(erlang, apply, [Fun, []])</tt></a>.</p>
+
+
+<h3 class="function"><a name="async-2">async/2</a></h3>
+<div class="spec">
+<p><tt>async(Fun, Args) -&gt; any()</tt></p>
+</div><p>Equivalent to <a href="#async-3"><tt>async(erlang, apply, [Fun, Args])</tt></a>.</p>
+
+
+<h3 class="function"><a name="async-3">async/3</a></h3>
+<div class="spec">
+<p><tt>async(Mod::module(), Fun::atom(), Args::[term()]) -&gt; <a href="#type-task">task()</a></tt><br></p>
+</div><p><p>  
+Starts a task that must be awaited on.</p>
+ 
+  A <code>task()</code> type is returned containing the relevant information.
+  Developers must eventually call <code>await/2</code> on the returned task.</p>
+
+<h3 class="function"><a name="await-1">await/1</a></h3>
+<div class="spec">
+<p><tt>await(Task) -&gt; any()</tt></p>
+</div><p>Equivalent to <a href="#await-2"><tt>await(Task, 5000)</tt></a>.</p>
+
+
+<h3 class="function"><a name="await-2">await/2</a></h3>
+<div class="spec">
+<p><tt>await(Task::<a href="#type-task">task()</a>, Timeout::timeout()) -&gt; term() | no_return()</tt><br></p>
+</div><p><p>  
+Awaits a task reply.</p>
+ 
+  <p>A timeout, in milliseconds, can be given with default value
+  of <code>5000</code>. In case the task process dies, this function will  
+exit with the same reason as the task.</p>
+ 
+  <p>If the timeout is exceeded, <code>await</code> will exit, however,  
+the task will continue to run. When the calling process exits, its  
+exit signal will terminate the task if it is not trapping exits.</p>
+ 
+  <p>This function assumes the task's monitor is still active or the monitor's
+  <code>DOWN</code> message is in the message queue. If it has been demonitored, or the  
+message already received, this function may wait for the duration of the  
+timeout awaiting the message.</p>
+ 
+  This function will always exit and demonitor if the task crashes or if
+  it times out, so the task can not be used again.</p>
+
+<h3 class="function"><a name="start-1">start/1</a></h3>
+<div class="spec">
+<p><tt>start(Fun::<a href="#type-task_fun">task_fun()</a>) -&gt; {ok, pid()}</tt><br></p>
+</div><p><p>  
+Starts a task.</p>
+ 
+  This is only used when the task is used for side-effects
+  (i.e. no interest in the returned result) and it should not
+  be linked to the current process.</p>
+
+<h3 class="function"><a name="start-2">start/2</a></h3>
+<div class="spec">
+<p><tt>start(Fun::<a href="#type-task_fun">task_fun()</a>, Args::[term()]) -&gt; {ok, pid()}</tt><br></p>
+</div><p><p>  
+Starts a task.</p>
+ 
+  This is only used when the task is used for side-effects
+  (i.e. no interest in the returned result) and it should not
+  be linked to the current process.</p>
+
+<h3 class="function"><a name="start-3">start/3</a></h3>
+<div class="spec">
+<p><tt>start(Mod::module(), Fun::atom(), Args::[term()]) -&gt; {ok, pid()}</tt><br></p>
+</div><p><p>  
+Starts a task.</p>
+ 
+  This is only used when the task is used for side-effects
+  (i.e. no interest in the returned result) and it should not
+  be linked to the current process.</p>
+
+<h3 class="function"><a name="start_link-1">start_link/1</a></h3>
+<div class="spec">
+<p><tt>start_link(Fun::<a href="#type-task_fun">task_fun()</a>) -&gt; {ok, pid()}</tt><br></p>
+</div><p>
+  Starts a task as part of a supervision tree.</p>
+
+<h3 class="function"><a name="start_link-2">start_link/2</a></h3>
+<div class="spec">
+<p><tt>start_link(Fun::<a href="#type-task_fun">task_fun()</a>, Args::[term()]) -&gt; {ok, pid()}</tt><br></p>
+</div><p>
+  Starts a task as part of a supervision tree.</p>
+
+<h3 class="function"><a name="start_link-3">start_link/3</a></h3>
+<div class="spec">
+<p><tt>start_link(Mod::module(), Fun::atom(), Args::[term()]) -&gt; {ok, pid()}</tt><br></p>
+</div><p>
+  Starts a task as part of a supervision tree.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, May 21 2016, 19:59:28.</i></p>
+</body>
+</html>

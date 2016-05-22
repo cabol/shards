@@ -1,0 +1,907 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Module shards_local</title>
+<link rel="stylesheet" type="text/css" href="stylesheet.css" title="EDoc">
+</head>
+<body bgcolor="white">
+<div class="navbar"><a name="#navbar_top"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<hr>
+
+<h1>Module shards_local</h1>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>   
+This is the main module, which contains all Shards/ETS API   
+functions, BUT works locally.
+
+
+<h2><a name="description">Description</a></h2><p>   
+This is the main module, which contains all Shards/ETS API   
+functions, BUT works locally.</p>
+  
+   <p><b>Shards</b> is compatible with ETS API, most of the functions   
+preserves the same ETS semantics, with some exception which you   
+will find on each function doc.</p>
+  
+   <p>Shards gives a top level view of a single logical ETS table,
+   but inside, that logical table is split in multiple physical
+   ETS tables called <b>shards</b>, where <code>Shards = [0 .. N-1]</code>,
+   and <code>N</code> is the number of shards into which you want to split   
+the table.</p>
+  
+   <p>The K/V pairs are distributed across these shards, therefore,   
+some of the functions does not follows the same semantics as   
+the original ones ETS.</p>
+  
+   A good example of that are the query-based functions, which
+   returns multiple results, and in case of <code>ordered_set</code>, with
+   a particular order. E.g.:
+   <ul>
+   <li><code>select/2</code>, <code>select/3</code>, <code>select/1</code></li>
+   <li><code>select_reverse/2</code>, <code>select_reverse/3</code>, <code>select_reverse/1</code></li>
+   <li><code>match/2</code>, <code>match/3</code>, <code>match/1</code></li>
+   <li><code>match_object/2</code>, <code>match_object/3</code>, <code>match_object/1</code></li>
+   <li>etc...</li>
+   </ul><p>   
+For those cases, the order what results are returned is not   
+guaranteed to be the same as the original ETS functions.</p>
+  
+   <p>Additionally to the ETS functions, <code>shards_local</code> module allows
+   to pass an extra argument, the <code>State</code>. This argument contains
+   the tuple: <code>{Module, TableType, NumShards}</code>. When <code>shards</code> is
+   called without the <code>State</code>, it must figure out the state first,
+   and the <code>state</code> is recovered doing an extra call to an ETS
+   control table owned by <code>shards_owner_sup</code>. If any microsecond
+   matters, you can skip it call by calling <code>shards_local</code> directly
+   and passing the <code>State</code>. E.g.:</p>
+  
+   <pre>   % when you create the table by first time, the state is returned
+   {tab_name, State} = shards:new(tab_name, [{n_shards, 4}]).
+  
+   % also you can get the state at any time by calling:
+   State = shards:state(tab_name).
+  
+   % now, normal way
+   shards:lookup(table, key1).
+  
+   % calling shards_local directly
+   shards_local:lookup(table, key1, State).</pre>
+  
+   Pools of shards can be added/removed dynamically. For example,
+   using <code>shards:new/2</code> you can add more pools, and <code>shards:delete/1</code>
+   to remove the pool you wish.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-continuation">continuation()</a></h3>
+<p><tt>continuation() = {Tab::atom(), MatchSpec::<a href="ets.html#type-match_spec">ets:match_spec()</a>, Limit::pos_integer(), Shard::non_neg_integer(), Continuation::<a href="ets.html#type-continuation">ets:continuation()</a>}</tt></p>
+<p>Defines the convention to <code>ets:select/1,3</code> continuation:
+  <ul>
+  <li><code>Tab</code>: Table name.</li>
+  <li><code>MatchSpec</code>: The <code>ets:match_spec()</code>.</li>
+  <li><code>Limit</code>: Results limit.</li>
+  <li><code>Shard</code>: Shards number.</li>
+  <li><code>Continuation</code>: The <code>ets:continuation()</code>.</li>
+  </ul></p>
+
+<h3 class="typedecl"><a name="type-state">state()</a></h3>
+<p><tt>state() = {Module::shards_local | shards_dist, Type::<a href="#type-type">type()</a>, NumShards::pos_integer()}</tt></p>
+<p>Defines the <code>shards</code> local state:
+  <ul>
+  <li><code>Module</code>: Module to use: <code>shards_local</code> | <code>shards_dist</code>.</li>
+  <li><code>TableType</code>: Table type.</li>
+  <li><code>NumShards</code>: Number of ETS shards/fragments.</li>
+  </ul></p>
+
+<h3 class="typedecl"><a name="type-type">type()</a></h3>
+<p><tt>type() = set | ordered_set | bag | duplicate_bag | sharded_bad | sharded_duplicate_bag</tt></p>
+<p>Defines the table types, which are the same as ETS with two more
+  types: <code>sharded_bad</code> and <code>sharded_duplicate_bag</code>.</p>
+
+<h2><a name="index">Function Index</a></h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#all-0">all/0</a></td><td>Equivalent to <a href="ets.html#all-0"><tt>ets:all()</tt></a>.
+</td></tr>
+<tr><td valign="top"><a href="#delete-1">delete/1</a></td><td>
+  This operation behaves like <code>ets:delete/1</code>.</td></tr>
+<tr><td valign="top"><a href="#delete-3">delete/3</a></td><td>
+  This operation behaves like <code>ets:delete/2</code>.</td></tr>
+<tr><td valign="top"><a href="#delete_all_objects-2">delete_all_objects/2</a></td><td>
+  This operation behaves like <code>ets:delete_all_objects/1</code>.</td></tr>
+<tr><td valign="top"><a href="#delete_object-3">delete_object/3</a></td><td>
+  This operation behaves like <code>ets:delete_object/2</code>.</td></tr>
+<tr><td valign="top"><a href="#file2tab-1">file2tab/1</a></td><td>Equivalent to <a href="#file2tab-2"><tt>file2tab(Filenames, [])</tt></a>.
+</td></tr>
+<tr><td valign="top"><a href="#file2tab-2">file2tab/2</a></td><td>
+  Similar to <code>shards:file2tab/2</code>.</td></tr>
+<tr><td valign="top"><a href="#first-2">first/2</a></td><td>
+  This operation behaves similar to <code>ets:first/1</code>.</td></tr>
+<tr><td valign="top"><a href="#foldl-4">foldl/4</a></td><td>
+  This operation behaves like <code>ets:foldl/3</code>.</td></tr>
+<tr><td valign="top"><a href="#foldr-4">foldr/4</a></td><td>
+  This operation behaves like <code>ets:foldr/3</code>.</td></tr>
+<tr><td valign="top"><a href="#from_dets-2">from_dets/2</a></td><td>.</td></tr>
+<tr><td valign="top"><a href="#fun2ms-1">fun2ms/1</a></td><td>.</td></tr>
+<tr><td valign="top"><a href="#give_away-4">give_away/4</a></td><td>
+  Equivalent to <code>ets:give_away/3</code> for each shard table.</td></tr>
+<tr><td valign="top"><a href="#i-0">i/0</a></td><td>Equivalent to <a href="ets.html#i-0"><tt>ets:i()</tt></a>.
+</td></tr>
+<tr><td valign="top"><a href="#i-1">i/1</a></td><td>.</td></tr>
+<tr><td valign="top"><a href="#info-2">info/2</a></td><td>
+  This operation behaves like <code>ets:info/1</code>, but instead of return
+  the information about one single table, it returns a list with
+  the information of each shard table.</td></tr>
+<tr><td valign="top"><a href="#info-3">info/3</a></td><td>
+  This operation behaves like <code>ets:info/2</code>, but instead of return
+  the information about one single table, it returns a list with
+  the information of each shard table.</td></tr>
+<tr><td valign="top"><a href="#info_shard-2">info_shard/2</a></td><td>
+  This operation behaves like <code>ets:info/1</code>.</td></tr>
+<tr><td valign="top"><a href="#info_shard-3">info_shard/3</a></td><td>
+  This operation behaves like <code>ets:info/2</code>.</td></tr>
+<tr><td valign="top"><a href="#init_table-3">init_table/3</a></td><td>.</td></tr>
+<tr><td valign="top"><a href="#insert-3">insert/3</a></td><td>
+  This operation behaves similar to <code>ets:insert/2</code>, with a big
+  difference, <b>it is not atomic</b>.</td></tr>
+<tr><td valign="top"><a href="#insert_new-3">insert_new/3</a></td><td>
+  This operation behaves like <code>ets:insert_new/2</code> BUT it is not atomic,  
+which means if it fails inserting some K/V pair, only that K/V  
+pair is affected, the rest may be successfully inserted.</td></tr>
+<tr><td valign="top"><a href="#is_compiled_ms-1">is_compiled_ms/1</a></td><td>Equivalent to <a href="ets.html#is_compiled_ms-1"><tt>ets:is_compiled_ms(Term)</tt></a>.
+</td></tr>
+<tr><td valign="top"><a href="#last-2">last/2</a></td><td>
+  This operation behaves similar to <code>ets:last/1</code>.</td></tr>
+<tr><td valign="top"><a href="#list-2">list/2</a></td><td>
+  Returns the list of shard names associated to the given <code>TabName</code>.</td></tr>
+<tr><td valign="top"><a href="#lookup-3">lookup/3</a></td><td>
+  This operation behaves like <code>ets:lookup/2</code>.</td></tr>
+<tr><td valign="top"><a href="#lookup_element-4">lookup_element/4</a></td><td>
+  This operation behaves like <code>ets:lookup_element/3</code>.</td></tr>
+<tr><td valign="top"><a href="#match-2">match/2</a></td><td>
+  This operation behaves similar to <code>ets:match/1</code>.</td></tr>
+<tr><td valign="top"><a href="#match-3">match/3</a></td><td>
+  This operation behaves similar to <code>ets:match/2</code>.</td></tr>
+<tr><td valign="top"><a href="#match-4">match/4</a></td><td>
+  This operation behaves similar to <code>ets:match/3</code>.</td></tr>
+<tr><td valign="top"><a href="#match_delete-3">match_delete/3</a></td><td>
+  This operation behaves like <code>ets:match_delete/2</code>.</td></tr>
+<tr><td valign="top"><a href="#match_object-2">match_object/2</a></td><td>
+  This operation behaves similar to <code>ets:match_object/1</code>.</td></tr>
+<tr><td valign="top"><a href="#match_object-3">match_object/3</a></td><td>
+  This operation behaves similar to <code>ets:match_object/2</code>.</td></tr>
+<tr><td valign="top"><a href="#match_object-4">match_object/4</a></td><td>
+  This operation behaves similar to <code>ets:match_object/3</code>.</td></tr>
+<tr><td valign="top"><a href="#match_spec_compile-1">match_spec_compile/1</a></td><td>Equivalent to <a href="ets.html#match_spec_compile-1"><tt>ets:match_spec_compile(MatchSpec)</tt></a>.
+</td></tr>
+<tr><td valign="top"><a href="#match_spec_run-2">match_spec_run/2</a></td><td>Equivalent to <a href="ets.html#match_spec_run-2"><tt>ets:match_spec_run(List, CompiledMatchSpec)</tt></a>.
+</td></tr>
+<tr><td valign="top"><a href="#member-3">member/3</a></td><td>
+  This operation behaves like <code>ets:member/2</code>.</td></tr>
+<tr><td valign="top"><a href="#new-2">new/2</a></td><td>
+  This operation is analogous to <code>ets:new/2</code>, BUT it behaves totally
+  different.</td></tr>
+<tr><td valign="top"><a href="#next-3">next/3</a></td><td>
+  This operation behaves similar to <code>ets:next/2</code>.</td></tr>
+<tr><td valign="top"><a href="#prev-3">prev/3</a></td><td>
+  This operation behaves similar to <code>ets:prev/2</code>.</td></tr>
+<tr><td valign="top"><a href="#rename-3">rename/3</a></td><td>.</td></tr>
+<tr><td valign="top"><a href="#repair_continuation-3">repair_continuation/3</a></td><td>.</td></tr>
+<tr><td valign="top"><a href="#safe_fixtable-3">safe_fixtable/3</a></td><td>.</td></tr>
+<tr><td valign="top"><a href="#select-2">select/2</a></td><td>
+  This operation behaves similar to <code>ets:select/1</code>.</td></tr>
+<tr><td valign="top"><a href="#select-3">select/3</a></td><td>
+  This operation behaves similar to <code>ets:select/2</code>.</td></tr>
+<tr><td valign="top"><a href="#select-4">select/4</a></td><td>
+  This operation behaves similar to <code>ets:select/3</code>.</td></tr>
+<tr><td valign="top"><a href="#select_count-3">select_count/3</a></td><td>
+  This operation behaves like <code>ets:select_count/2</code>.</td></tr>
+<tr><td valign="top"><a href="#select_delete-3">select_delete/3</a></td><td>
+  This operation behaves like <code>ets:select_delete/2</code>.</td></tr>
+<tr><td valign="top"><a href="#select_reverse-2">select_reverse/2</a></td><td>
+  This operation behaves similar to <code>ets:select_reverse/1</code>.</td></tr>
+<tr><td valign="top"><a href="#select_reverse-3">select_reverse/3</a></td><td>
+  This operation behaves similar to <code>ets:select_reverse/2</code>.</td></tr>
+<tr><td valign="top"><a href="#select_reverse-4">select_reverse/4</a></td><td>
+  This operation behaves similar to <code>ets:select_reverse/3</code>.</td></tr>
+<tr><td valign="top"><a href="#setopts-3">setopts/3</a></td><td>
+  Equivalent to <code>ets:setopts/2</code> for each shard table.</td></tr>
+<tr><td valign="top"><a href="#shard-2">shard/2</a></td><td>
+  Calculates the shard where the <code>Key</code> is handled.</td></tr>
+<tr><td valign="top"><a href="#shard_name-2">shard_name/2</a></td><td>
+  Builds a shard name <code>ShardName</code>.</td></tr>
+<tr><td valign="top"><a href="#slot-3">slot/3</a></td><td>.</td></tr>
+<tr><td valign="top"><a href="#state-1">state/1</a></td><td>
+  Returns the local <code>shards</code> state.</td></tr>
+<tr><td valign="top"><a href="#tab2file-3">tab2file/3</a></td><td>Equivalent to <a href="#tab2file-3"><tt>tab2file(Tab, Filenames, [])</tt></a>.
+</td></tr>
+<tr><td valign="top"><a href="#tab2file-4">tab2file/4</a></td><td>
+  Similar to <code>ets:tab2file/3</code>, but it returns a list of
+  responses for each shard table instead.</td></tr>
+<tr><td valign="top"><a href="#tab2list-2">tab2list/2</a></td><td>
+  This operation behaves like <code>ets:tab2list/1</code>.</td></tr>
+<tr><td valign="top"><a href="#tabfile_info-1">tabfile_info/1</a></td><td>Equivalent to <a href="ets.html#tabfile_info-1"><tt>ets:tabfile_info(Filename)</tt></a>.
+</td></tr>
+<tr><td valign="top"><a href="#table-2">table/2</a></td><td>Equivalent to <a href="#table-2"><tt>table(Tab, [])</tt></a>.
+</td></tr>
+<tr><td valign="top"><a href="#table-3">table/3</a></td><td>
+  Similar to <code>ets:table/2</code>, but it returns a list of <code>ets:table/2</code>
+  responses, one for each shard table.</td></tr>
+<tr><td valign="top"><a href="#take-3">take/3</a></td><td>
+  This operation behaves like <code>ets:take/2</code>.</td></tr>
+<tr><td valign="top"><a href="#test_ms-2">test_ms/2</a></td><td>Equivalent to <a href="ets.html#test_ms-2"><tt>ets:test_ms(Tuple, MatchSpec)</tt></a>.
+</td></tr>
+<tr><td valign="top"><a href="#to_dets-3">to_dets/3</a></td><td>.</td></tr>
+<tr><td valign="top"><a href="#update_counter-4">update_counter/4</a></td><td>
+  This operation behaves like <code>ets:update_counter/3</code>.</td></tr>
+<tr><td valign="top"><a href="#update_counter-5">update_counter/5</a></td><td>
+  This operation behaves like <code>ets:update_counter/4</code>.</td></tr>
+<tr><td valign="top"><a href="#update_element-4">update_element/4</a></td><td>
+  This operation behaves like <code>ets:update_element/3</code>.</td></tr>
+</table>
+
+<h2><a name="functions">Function Details</a></h2>
+
+<h3 class="function"><a name="all-0">all/0</a></h3>
+<div class="spec">
+<p><tt>all() -&gt; any()</tt></p>
+</div><p>Equivalent to <a href="ets.html#all-0"><tt>ets:all()</tt></a>.</p>
+
+
+<h3 class="function"><a name="delete-1">delete/1</a></h3>
+<div class="spec">
+<p><tt>delete(Tab::atom()) -&gt; true</tt><br></p>
+</div><p>
+  This operation behaves like <code>ets:delete/1</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#delete-1">ets:delete/1</a>.</p>
+
+<h3 class="function"><a name="delete-3">delete/3</a></h3>
+<div class="spec">
+<p><tt>delete(Tab, Key, State) -&gt; true</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:delete/2</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#delete-2">ets:delete/2</a>.</p>
+
+<h3 class="function"><a name="delete_all_objects-2">delete_all_objects/2</a></h3>
+<div class="spec">
+<p><tt>delete_all_objects(Tab, State) -&gt; true</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:delete_all_objects/1</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#delete_all_objects-1">ets:delete_all_objects/1</a>.</p>
+
+<h3 class="function"><a name="delete_object-3">delete_object/3</a></h3>
+<div class="spec">
+<p><tt>delete_object(Tab, Object, State) -&gt; true</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Object = tuple()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:delete_object/2</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#delete_object-2">ets:delete_object/2</a>.</p>
+
+<h3 class="function"><a name="file2tab-1">file2tab/1</a></h3>
+<div class="spec">
+<p><tt>file2tab(Filenames) -&gt; any()</tt></p>
+</div><p>Equivalent to <a href="#file2tab-2"><tt>file2tab(Filenames, [])</tt></a>.</p>
+
+
+<h3 class="function"><a name="file2tab-2">file2tab/2</a></h3>
+<div class="spec">
+<p><tt>file2tab(Filenames, Options) -&gt; Response</tt>
+<ul class="definitions"><li><tt>Filenames = [<a href="file.html#type-name">file:name()</a>]</tt></li><li><tt>Tab = atom()</tt></li><li><tt>Options = [Option]</tt></li><li><tt>Option = {verify, boolean()}</tt></li><li><tt>Reason = term()</tt></li><li><tt>Response = [{Tab, <a href="#type-state">state()</a>} | {error, Reason}]</tt></li></ul></p>
+</div><p>
+  Similar to <code>shards:file2tab/2</code>. Moreover, it restores the
+  supervision tree for the <code>shards</code> corresponding to the given
+  files, such as if they had been created using <code>shards:new/2,3</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#file2tab-2">ets:file2tab/2</a>.</p>
+
+<h3 class="function"><a name="first-2">first/2</a></h3>
+<div class="spec">
+<p><tt>first(Tab, State) -&gt; Key | '$end_of_table'</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:first/1</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#first-1">ets:first/1</a>.</p>
+
+<h3 class="function"><a name="foldl-4">foldl/4</a></h3>
+<div class="spec">
+<p><tt>foldl(Function, Acc0, Tab, State) -&gt; Acc1</tt>
+<ul class="definitions"><li><tt>Function = fun((Element::term(), AccIn) -&gt; AccOut)</tt></li><li><tt>Tab = atom()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Acc0 = term()</tt></li><li><tt>Acc1 = term()</tt></li><li><tt>AccIn = term()</tt></li><li><tt>AccOut = term()</tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:foldl/3</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#foldl-3">ets:foldl/3</a>.</p>
+
+<h3 class="function"><a name="foldr-4">foldr/4</a></h3>
+<div class="spec">
+<p><tt>foldr(Function, Acc0, Tab, State) -&gt; Acc1</tt>
+<ul class="definitions"><li><tt>Function = fun((Element::term(), AccIn) -&gt; AccOut)</tt></li><li><tt>Tab = atom()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Acc0 = term()</tt></li><li><tt>Acc1 = term()</tt></li><li><tt>AccIn = term()</tt></li><li><tt>AccOut = term()</tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:foldr/3</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#foldr-3">ets:foldr/3</a>.</p>
+
+<h3 class="function"><a name="from_dets-2">from_dets/2</a></h3>
+<div class="spec">
+<p><tt>from_dets(Tab, DetsTab) -&gt; any()</tt></p>
+</div><p>
+  <p><font color="red"><b>NOT SUPPORTED!</b></font></p></p>
+
+<h3 class="function"><a name="fun2ms-1">fun2ms/1</a></h3>
+<div class="spec">
+<p><tt>fun2ms(LiteralFun) -&gt; any()</tt></p>
+</div><p>
+  <p><font color="red"><b>WARNING:</b> Please use <code>ets:fun2ms/1</code>
+  instead.</font></p>
+ 
+  Since this function uses <code>parse_transform</code>, it isn't possible
+  to call <code>ets:fun2ms/1</code> from <code>shards</code>. Besides, it isn't
+  necessary, the effect is the same as you call directly
+  <code>ets:fun2ms/1</code> from you code.
+ </p>
+<p><b>See also:</b> <a href="ets.html#fun2ms-1">ets:fun2ms/1</a>.</p>
+
+<h3 class="function"><a name="give_away-4">give_away/4</a></h3>
+<div class="spec">
+<p><tt>give_away(Tab, Pid, GiftData, State) -&gt; true</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Pid = pid()</tt></li><li><tt>GiftData = term()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li></ul></p>
+</div><p><p>
+  Equivalent to <code>ets:give_away/3</code> for each shard table. It returns
+  a <code>boolean()</code> instead that just <code>true</code>. Returns <code>true</code> if the
+  function was applied successfully on each shard, otherwise
+  <code>false</code> is returned.</p>
+ 
+  <p><font color="red"><b>WARNING: It is not recommended execute
+  this function, since it might cause an unexpected behavior.
+  Once this function is executed, <code>shards</code> doesn't control/manage
+  the ETS shards anymore. So from this point, you should use
+  ETS API instead. Also it is recommended to run <code>shards:delete/1</code>
+  after run this function.
+  </b></font></p>
+ </p>
+<p><b>See also:</b> <a href="ets.html#give_away-3">ets:give_away/3</a>.</p>
+
+<h3 class="function"><a name="i-0">i/0</a></h3>
+<div class="spec">
+<p><tt>i() -&gt; any()</tt></p>
+</div><p>Equivalent to <a href="ets.html#i-0"><tt>ets:i()</tt></a>.</p>
+
+
+<h3 class="function"><a name="i-1">i/1</a></h3>
+<div class="spec">
+<p><tt>i(Tab) -&gt; any()</tt></p>
+</div><p>
+  <p><font color="red"><b>NOT SUPPORTED!</b></font></p></p>
+
+<h3 class="function"><a name="info-2">info/2</a></h3>
+<div class="spec">
+<p><tt>info(Tab, State) -&gt; Result</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Result = [InfoList]</tt></li><li><tt>InfoList = [term() | undefined]</tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:info/1</code>, but instead of return
+  the information about one single table, it returns a list with
+  the information of each shard table.
+ </p>
+<p><b>See also:</b> <a href="ets.html#info-1">ets:info/1</a>.</p>
+
+<h3 class="function"><a name="info-3">info/3</a></h3>
+<div class="spec">
+<p><tt>info(Tab, Item, State) -&gt; Result</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Item = atom()</tt></li><li><tt>Result = [Value]</tt></li><li><tt>Value = [term() | undefined]</tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:info/2</code>, but instead of return
+  the information about one single table, it returns a list with
+  the information of each shard table.
+ </p>
+<p><b>See also:</b> <a href="ets.html#info-2">ets:info/2</a>.</p>
+
+<h3 class="function"><a name="info_shard-2">info_shard/2</a></h3>
+<div class="spec">
+<p><tt>info_shard(Tab, Shard) -&gt; Result</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Shard = non_neg_integer()</tt></li><li><tt>Result = [term()] | undefined</tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:info/1</code>
+ </p>
+<p><b>See also:</b> <a href="ets.html#info-1">ets:info/1</a>.</p>
+
+<h3 class="function"><a name="info_shard-3">info_shard/3</a></h3>
+<div class="spec">
+<p><tt>info_shard(Tab, Shard, Item) -&gt; Result</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Shard = non_neg_integer()</tt></li><li><tt>Item = atom()</tt></li><li><tt>Result = term() | undefined</tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:info/2</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#info-2">ets:info/2</a>.</p>
+
+<h3 class="function"><a name="init_table-3">init_table/3</a></h3>
+<div class="spec">
+<p><tt>init_table(Tab, InitFun, State) -&gt; any()</tt></p>
+</div><p>
+  <p><font color="red"><b>NOT SUPPORTED!</b></font></p></p>
+
+<h3 class="function"><a name="insert-3">insert/3</a></h3>
+<div class="spec">
+<p><tt>insert(Tab, ObjOrObjL, State) -&gt; true</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>ObjOrObjL = tuple() | [tuple()]</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:insert/2</code>, with a big
+  difference, <b>it is not atomic</b>. This means if it fails
+  inserting some K/V pair, previous inserted KV pairs are not
+  rolled back.
+ </p>
+<p><b>See also:</b> <a href="ets.html#insert-2">ets:insert/2</a>.</p>
+
+<h3 class="function"><a name="insert_new-3">insert_new/3</a></h3>
+<div class="spec">
+<p><tt>insert_new(Tab, ObjOrObjL, State) -&gt; Result</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>ObjOrObjL = tuple() | [tuple()]</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Result = boolean() | [boolean()]</tt></li></ul></p>
+</div><p><p>
+  This operation behaves like <code>ets:insert_new/2</code> BUT it is not atomic,  
+which means if it fails inserting some K/V pair, only that K/V  
+pair is affected, the rest may be successfully inserted.</p>
+ 
+  This function returns a list if the <code>ObjectOrObjects</code> is a list.
+ </p>
+<p><b>See also:</b> <a href="ets.html#insert_new-2">ets:insert_new/2</a>.</p>
+
+<h3 class="function"><a name="is_compiled_ms-1">is_compiled_ms/1</a></h3>
+<div class="spec">
+<p><tt>is_compiled_ms(Term) -&gt; any()</tt></p>
+</div><p>Equivalent to <a href="ets.html#is_compiled_ms-1"><tt>ets:is_compiled_ms(Term)</tt></a>.</p>
+
+
+<h3 class="function"><a name="last-2">last/2</a></h3>
+<div class="spec">
+<p><tt>last(Tab, State) -&gt; Key | '$end_of_table'</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Key = term()</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:last/1</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#last-1">ets:last/1</a>.</p>
+
+<h3 class="function"><a name="list-2">list/2</a></h3>
+<div class="spec">
+<p><tt>list(TabName, NumShards) -&gt; ShardTabNames</tt>
+<ul class="definitions"><li><tt>TabName = atom()</tt></li><li><tt>NumShards = pos_integer()</tt></li><li><tt>ShardTabNames = [atom()]</tt></li></ul></p>
+</div><p>
+  Returns the list of shard names associated to the given <code>TabName</code>.
+  The shard names that were created in the <code>shards:new/2,3</code> fun.
+  <ul>
+  <li><code>TabName</code>: Table name.</li>
+  <li><code>NumShards</code>: Number of shards.</li>
+  </ul></p>
+
+<h3 class="function"><a name="lookup-3">lookup/3</a></h3>
+<div class="spec">
+<p><tt>lookup(Tab, Key, State) -&gt; Result</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Result = [tuple()]</tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:lookup/2</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#lookup-2">ets:lookup/2</a>.</p>
+
+<h3 class="function"><a name="lookup_element-4">lookup_element/4</a></h3>
+<div class="spec">
+<p><tt>lookup_element(Tab, Key, Pos, State) -&gt; Elem</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>Pos = pos_integer()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Elem = term() | [term()]</tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:lookup_element/3</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#lookup_element-3">ets:lookup_element/3</a>.</p>
+
+<h3 class="function"><a name="match-2">match/2</a></h3>
+<div class="spec">
+<p><tt>match(Continuation, State) -&gt; Response</tt>
+<ul class="definitions"><li><tt>Match = term()</tt></li><li><tt>Continuation = <a href="#type-continuation">continuation()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Response = {[Match], Continuation} | '$end_of_table'</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:match/1</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#match-1">ets:match/1</a>.</p>
+
+<h3 class="function"><a name="match-3">match/3</a></h3>
+<div class="spec">
+<p><tt>match(Tab, Pattern, State) -&gt; [Match]</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Pattern = <a href="ets.html#type-match_pattern">ets:match_pattern()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Match = [term()]</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:match/2</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#match-2">ets:match/2</a>.</p>
+
+<h3 class="function"><a name="match-4">match/4</a></h3>
+<div class="spec">
+<p><tt>match(Tab, Pattern, Limit, State) -&gt; Response</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Pattern = <a href="ets.html#type-match_pattern">ets:match_pattern()</a></tt></li><li><tt>Limit = pos_integer()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Match = term()</tt></li><li><tt>Continuation = <a href="#type-continuation">continuation()</a></tt></li><li><tt>Response = {[Match], Continuation} | '$end_of_table'</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:match/3</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#match-3">ets:match/3</a>.</p>
+
+<h3 class="function"><a name="match_delete-3">match_delete/3</a></h3>
+<div class="spec">
+<p><tt>match_delete(Tab, Pattern, State) -&gt; true</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Pattern = <a href="ets.html#type-match_pattern">ets:match_pattern()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:match_delete/2</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#match_delete-2">ets:match_delete/2</a>.</p>
+
+<h3 class="function"><a name="match_object-2">match_object/2</a></h3>
+<div class="spec">
+<p><tt>match_object(Continuation, State) -&gt; Response</tt>
+<ul class="definitions"><li><tt>Match = term()</tt></li><li><tt>Continuation = <a href="#type-continuation">continuation()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Response = {[Match], Continuation} | '$end_of_table'</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:match_object/1</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#match_object-1">ets:match_object/1</a>.</p>
+
+<h3 class="function"><a name="match_object-3">match_object/3</a></h3>
+<div class="spec">
+<p><tt>match_object(Tab, Pattern, State) -&gt; [Object]</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Pattern = <a href="ets.html#type-match_pattern">ets:match_pattern()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Object = tuple()</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:match_object/2</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#match_object-2">ets:match_object/2</a>.</p>
+
+<h3 class="function"><a name="match_object-4">match_object/4</a></h3>
+<div class="spec">
+<p><tt>match_object(Tab, Pattern, Limit, State) -&gt; Response</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Pattern = <a href="ets.html#type-match_pattern">ets:match_pattern()</a></tt></li><li><tt>Limit = pos_integer()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Match = term()</tt></li><li><tt>Continuation = <a href="#type-continuation">continuation()</a></tt></li><li><tt>Response = {[Match], Continuation} | '$end_of_table'</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:match_object/3</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#match_object-3">ets:match_object/3</a>.</p>
+
+<h3 class="function"><a name="match_spec_compile-1">match_spec_compile/1</a></h3>
+<div class="spec">
+<p><tt>match_spec_compile(MatchSpec) -&gt; any()</tt></p>
+</div><p>Equivalent to <a href="ets.html#match_spec_compile-1"><tt>ets:match_spec_compile(MatchSpec)</tt></a>.</p>
+
+
+<h3 class="function"><a name="match_spec_run-2">match_spec_run/2</a></h3>
+<div class="spec">
+<p><tt>match_spec_run(List, CompiledMatchSpec) -&gt; any()</tt></p>
+</div><p>Equivalent to <a href="ets.html#match_spec_run-2"><tt>ets:match_spec_run(List, CompiledMatchSpec)</tt></a>.</p>
+
+
+<h3 class="function"><a name="member-3">member/3</a></h3>
+<div class="spec">
+<p><tt>member(Tab, Key, State) -&gt; boolean()</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:member/2</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#member-2">ets:member/2</a>.</p>
+
+<h3 class="function"><a name="new-2">new/2</a></h3>
+<div class="spec">
+<p><tt>new(Name, Options) -&gt; Result</tt>
+<ul class="definitions"><li><tt>Name = atom()</tt></li><li><tt>Options = [Option]</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Result = {Name, State}</tt></li><li><tt>Option = <a href="#type-type">type()</a> | <a href="ets.html#type-access">ets:access()</a> | named_table | {keypos, pos_integer()} | {heir, pid(), HeirData::term()} | {heir, none} | Tweaks | {n_shards, pos_integer()} | {scope, l | g}</tt></li><li><tt>Tweaks = {write_concurrency, boolean()} | {read_concurrency, boolean()} | compressed</tt></li></ul></p>
+</div><p><p>
+  This operation is analogous to <code>ets:new/2</code>, BUT it behaves totally
+  different. When this function is called, instead of create a single
+  table, a new supervision tree is created and added to <code>shards_sup</code>.</p>
+ 
+  <p>This supervision tree has a main supervisor <code>shards_sup</code> which
+  creates a control ETS table and also creates <code>N</code> number of
+  <code>shards_owner</code> (being <code>N</code> the number of shards). Each <code>shards_owner</code>
+  creates an ETS table to represent each shard, so this <code>gen_server</code>  
+acts as the table owner.</p>
+ 
+  <p>Finally, when you create a table, internally <code>N</code> physical tables
+  are created (one per shard), but <code>shards</code> encapsulates all this  
+and you see only one logical table (similar to how a distributed  
+storage works).</p>
+ 
+  <b>IMPORTANT: By default, <code>NumShards = number of schedulers</code>.</b>
+ </p>
+<p><b>See also:</b> <a href="ets.html#new-2">ets:new/2</a>.</p>
+
+<h3 class="function"><a name="next-3">next/3</a></h3>
+<div class="spec">
+<p><tt>next(Tab, Key1, State) -&gt; Key2 | '$end_of_table'</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key1 = term()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Key2 = term()</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:next/2</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#next-2">ets:next/2</a>.</p>
+
+<h3 class="function"><a name="prev-3">prev/3</a></h3>
+<div class="spec">
+<p><tt>prev(Tab, Key1, State) -&gt; Key2 | '$end_of_table'</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key1 = term()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Key2 = term()</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:prev/2</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#prev-2">ets:prev/2</a>.</p>
+
+<h3 class="function"><a name="rename-3">rename/3</a></h3>
+<div class="spec">
+<p><tt>rename(Tab, Name, State) -&gt; any()</tt></p>
+</div><p>
+  <p><font color="red"><b>NOT SUPPORTED!</b></font></p></p>
+
+<h3 class="function"><a name="repair_continuation-3">repair_continuation/3</a></h3>
+<div class="spec">
+<p><tt>repair_continuation(Continuation, MatchSpec, State) -&gt; any()</tt></p>
+</div><p>
+  <p><font color="red"><b>NOT SUPPORTED!</b></font></p></p>
+
+<h3 class="function"><a name="safe_fixtable-3">safe_fixtable/3</a></h3>
+<div class="spec">
+<p><tt>safe_fixtable(Tab, Fix, State) -&gt; any()</tt></p>
+</div><p>
+  <p><font color="red"><b>NOT SUPPORTED!</b></font></p></p>
+
+<h3 class="function"><a name="select-2">select/2</a></h3>
+<div class="spec">
+<p><tt>select(Continuation, State) -&gt; Response</tt>
+<ul class="definitions"><li><tt>Match = term()</tt></li><li><tt>Continuation = <a href="#type-continuation">continuation()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Response = {[Match], Continuation} | '$end_of_table'</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:select/1</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#select-1">ets:select/1</a>.</p>
+
+<h3 class="function"><a name="select-3">select/3</a></h3>
+<div class="spec">
+<p><tt>select(Tab, MatchSpec, State) -&gt; [Match]</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>MatchSpec = <a href="ets.html#type-match_spec">ets:match_spec()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Match = term()</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:select/2</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#select-2">ets:select/2</a>.</p>
+
+<h3 class="function"><a name="select-4">select/4</a></h3>
+<div class="spec">
+<p><tt>select(Tab, MatchSpec, Limit, State) -&gt; Response</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>MatchSpec = <a href="ets.html#type-match_spec">ets:match_spec()</a></tt></li><li><tt>Limit = pos_integer()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Match = term()</tt></li><li><tt>Continuation = <a href="#type-continuation">continuation()</a></tt></li><li><tt>Response = {[Match], Continuation} | '$end_of_table'</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:select/3</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#select-3">ets:select/3</a>.</p>
+
+<h3 class="function"><a name="select_count-3">select_count/3</a></h3>
+<div class="spec">
+<p><tt>select_count(Tab, MatchSpec, State) -&gt; NumMatched</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>MatchSpec = <a href="ets.html#type-match_spec">ets:match_spec()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>NumMatched = non_neg_integer()</tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:select_count/2</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#select_count-2">ets:select_count/2</a>.</p>
+
+<h3 class="function"><a name="select_delete-3">select_delete/3</a></h3>
+<div class="spec">
+<p><tt>select_delete(Tab, MatchSpec, State) -&gt; NumDeleted</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>MatchSpec = <a href="ets.html#type-match_spec">ets:match_spec()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>NumDeleted = non_neg_integer()</tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:select_delete/2</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#select_delete-2">ets:select_delete/2</a>.</p>
+
+<h3 class="function"><a name="select_reverse-2">select_reverse/2</a></h3>
+<div class="spec">
+<p><tt>select_reverse(Continuation, State) -&gt; Response</tt>
+<ul class="definitions"><li><tt>Match = term()</tt></li><li><tt>Continuation = <a href="#type-continuation">continuation()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Response = {[Match], Continuation} | '$end_of_table'</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:select_reverse/1</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#select_reverse-1">ets:select_reverse/1</a>.</p>
+
+<h3 class="function"><a name="select_reverse-3">select_reverse/3</a></h3>
+<div class="spec">
+<p><tt>select_reverse(Tab, MatchSpec, State) -&gt; [Match]</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>MatchSpec = <a href="ets.html#type-match_spec">ets:match_spec()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Match = term()</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:select_reverse/2</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#select_reverse-2">ets:select_reverse/2</a>.</p>
+
+<h3 class="function"><a name="select_reverse-4">select_reverse/4</a></h3>
+<div class="spec">
+<p><tt>select_reverse(Tab, MatchSpec, Limit, State) -&gt; Response</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>MatchSpec = <a href="ets.html#type-match_spec">ets:match_spec()</a></tt></li><li><tt>Limit = pos_integer()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Match = term()</tt></li><li><tt>Continuation = <a href="#type-continuation">continuation()</a></tt></li><li><tt>Response = {[Match], Continuation} | '$end_of_table'</tt></li></ul></p>
+</div><p>
+  This operation behaves similar to <code>ets:select_reverse/3</code>.
+  The order in which results are returned, might be not the same
+  as the original ETS function. Remember shards architecture
+  described at the beginning.
+ </p>
+<p><b>See also:</b> <a href="ets.html#select_reverse-3">ets:select_reverse/3</a>.</p>
+
+<h3 class="function"><a name="setopts-3">setopts/3</a></h3>
+<div class="spec">
+<p><tt>setopts(Tab, Opts, State) -&gt; boolean()</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Opts = Opt | [Opt]</tt></li><li><tt>Opt = {heir, pid(), HeirData} | {heir, none}</tt></li><li><tt>HeirData = term()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li></ul></p>
+</div><p>
+  Equivalent to <code>ets:setopts/2</code> for each shard table. It returns
+  a <code>boolean()</code> instead that just <code>true</code>. Returns <code>true</code> if the
+  function was applied successfully on each shard, otherwise
+  <code>false</code> is returned.
+ </p>
+<p><b>See also:</b> <a href="ets.html#setopts-2">ets:setopts/2</a>.</p>
+
+<h3 class="function"><a name="shard-2">shard/2</a></h3>
+<div class="spec">
+<p><tt>shard(Key, NumShards) -&gt; ShardNum</tt>
+<ul class="definitions"><li><tt>Key = term()</tt></li><li><tt>NumShards = pos_integer()</tt></li><li><tt>ShardNum = non_neg_integer()</tt></li></ul></p>
+</div><p>
+  Calculates the shard where the <code>Key</code> is handled.
+  <ul>
+  <li><code>Key</code>: The key to be hashed to calculate the shard.</li>
+  <li><code>NumShards</code>: Number of shards.</li>
+  </ul></p>
+
+<h3 class="function"><a name="shard_name-2">shard_name/2</a></h3>
+<div class="spec">
+<p><tt>shard_name(TabName, ShardNum) -&gt; ShardName</tt>
+<ul class="definitions"><li><tt>TabName = atom()</tt></li><li><tt>ShardNum = non_neg_integer()</tt></li><li><tt>ShardName = atom()</tt></li></ul></p>
+</div><p>
+  Builds a shard name <code>ShardName</code>.
+  <ul>
+  <li><code>TabName</code>: Table name from which the shard name is generated.</li>
+  <li><code>ShardNum</code>: Shard number – from <code>0</code> to <code>(NumShards - 1)</code></li>
+  </ul></p>
+
+<h3 class="function"><a name="slot-3">slot/3</a></h3>
+<div class="spec">
+<p><tt>slot(Tab, I, State) -&gt; any()</tt></p>
+</div><p>
+  <p><font color="red"><b>NOT SUPPORTED!</b></font></p></p>
+
+<h3 class="function"><a name="state-1">state/1</a></h3>
+<div class="spec">
+<p><tt>state(TabName::atom()) -&gt; <a href="#type-state">state()</a></tt><br></p>
+</div><p>
+  Returns the local <code>shards</code> state.
+  <ul>
+  <li><code>TabName</code>: Table name.</li>
+  </ul></p>
+
+<h3 class="function"><a name="tab2file-3">tab2file/3</a></h3>
+<div class="spec">
+<p><tt>tab2file(Tab, Filenames, State) -&gt; any()</tt></p>
+</div><p>Equivalent to <a href="#tab2file-3"><tt>tab2file(Tab, Filenames, [])</tt></a>.</p>
+
+
+<h3 class="function"><a name="tab2file-4">tab2file/4</a></h3>
+<div class="spec">
+<p><tt>tab2file(Tab, Filenames, Options, State) -&gt; Response</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Filenames = [<a href="file.html#type-name">file:name()</a>]</tt></li><li><tt>Options = [Option]</tt></li><li><tt>Option = {extended_info, [ExtInfo]} | {sync, boolean()}</tt></li><li><tt>ExtInfo = md5sum | object_count</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>ShardTab = atom()</tt></li><li><tt>ShardRes = ok | {error, Reason::term()}</tt></li><li><tt>Response = [{ShardTab, ShardRes}]</tt></li></ul></p>
+</div><p>
+  Similar to <code>ets:tab2file/3</code>, but it returns a list of
+  responses for each shard table instead.
+ </p>
+<p><b>See also:</b> <a href="ets.html#tab2file-3">ets:tab2file/3</a>.</p>
+
+<h3 class="function"><a name="tab2list-2">tab2list/2</a></h3>
+<div class="spec">
+<p><tt>tab2list(Tab, State) -&gt; [Object]</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Object = tuple()</tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:tab2list/1</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#tab2list-1">ets:tab2list/1</a>.</p>
+
+<h3 class="function"><a name="tabfile_info-1">tabfile_info/1</a></h3>
+<div class="spec">
+<p><tt>tabfile_info(Filename) -&gt; any()</tt></p>
+</div><p>Equivalent to <a href="ets.html#tabfile_info-1"><tt>ets:tabfile_info(Filename)</tt></a>.</p>
+
+
+<h3 class="function"><a name="table-2">table/2</a></h3>
+<div class="spec">
+<p><tt>table(Tab, State) -&gt; any()</tt></p>
+</div><p>Equivalent to <a href="#table-2"><tt>table(Tab, [])</tt></a>.</p>
+
+
+<h3 class="function"><a name="table-3">table/3</a></h3>
+<div class="spec">
+<p><tt>table(Tab, Options, State) -&gt; [QueryHandle]</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>QueryHandle = <a href="qlc.html#type-query_handle">qlc:query_handle()</a></tt></li><li><tt>Options = [Option] | Option</tt></li><li><tt>Option = {n_objects, NObjects} | {traverse, TraverseMethod}</tt></li><li><tt>NObjects = default | pos_integer()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>MatchSpec = <a href="ets.html#type-match_spec">ets:match_spec()</a></tt></li><li><tt>TraverseMethod = first_next | last_prev | select | {select, MatchSpec}</tt></li></ul></p>
+</div><p>
+  Similar to <code>ets:table/2</code>, but it returns a list of <code>ets:table/2</code>
+  responses, one for each shard table.
+ </p>
+<p><b>See also:</b> <a href="ets.html#table-2">ets:table/2</a>.</p>
+
+<h3 class="function"><a name="take-3">take/3</a></h3>
+<div class="spec">
+<p><tt>take(Tab, Key, State) -&gt; [Object]</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Object = tuple()</tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:take/2</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#take-2">ets:take/2</a>.</p>
+
+<h3 class="function"><a name="test_ms-2">test_ms/2</a></h3>
+<div class="spec">
+<p><tt>test_ms(Tuple, MatchSpec) -&gt; any()</tt></p>
+</div><p>Equivalent to <a href="ets.html#test_ms-2"><tt>ets:test_ms(Tuple, MatchSpec)</tt></a>.</p>
+
+
+<h3 class="function"><a name="to_dets-3">to_dets/3</a></h3>
+<div class="spec">
+<p><tt>to_dets(Tab, DetsTab, State) -&gt; any()</tt></p>
+</div><p>
+  <p><font color="red"><b>NOT SUPPORTED!</b></font></p></p>
+
+<h3 class="function"><a name="update_counter-4">update_counter/4</a></h3>
+<div class="spec">
+<p><tt>update_counter(Tab, Key, UpdateOp, State) -&gt; Result</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>UpdateOp = term()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Result = integer()</tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:update_counter/3</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#update_counter-3">ets:update_counter/3</a>.</p>
+
+<h3 class="function"><a name="update_counter-5">update_counter/5</a></h3>
+<div class="spec">
+<p><tt>update_counter(Tab, Key, UpdateOp, Default, State) -&gt; Result</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>UpdateOp = term()</tt></li><li><tt>Default = tuple()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Result = integer()</tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:update_counter/4</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#update_counter-4">ets:update_counter/4</a>.</p>
+
+<h3 class="function"><a name="update_element-4">update_element/4</a></h3>
+<div class="spec">
+<p><tt>update_element(Tab, Key, ElementSpec, State) -&gt; boolean()</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>Pos = pos_integer()</tt></li><li><tt>Value = term()</tt></li><li><tt>ElementSpec = {Pos, Value} | [{Pos, Value}]</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li></ul></p>
+</div><p>
+  This operation behaves like <code>ets:update_element/3</code>.
+ </p>
+<p><b>See also:</b> <a href="ets.html#update_element-3">ets:update_element/3</a>.</p>
+<hr>
+
+<div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
+<p><i>Generated by EDoc, May 21 2016, 19:59:28.</i></p>
+</body>
+</html>
