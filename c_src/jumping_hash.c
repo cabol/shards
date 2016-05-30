@@ -18,7 +18,7 @@ jumping_hash (unsigned long long key, unsigned int num_buckets) {
 }
 
 static ERL_NIF_TERM
-calculate (ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+compute (ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
   unsigned long key;
   unsigned int num_buckets;
 
@@ -30,7 +30,7 @@ calculate (ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
 }
 
 static ErlNifFunc nif_funcs[] = {
-  {"calculate", 2, calculate}
+  {"compute", 2, compute}
 };
 
 ERL_NIF_INIT (jumping_hash, nif_funcs, NULL, NULL, NULL, NULL);

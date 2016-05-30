@@ -13,8 +13,11 @@
 %% Supervisor callbacks
 -export([init/1]).
 
-%% Macros
+%% Macro to setup a supervisor worker
 -define(worker(Mod, Args, Spec), child(worker, Mod, Args, Spec)).
+
+%% Macro to check if option is table type
+-define(is_type_prop(T_), T_ == set; T_ == ordered_set; T_ == bag; T_ == duplicate_bag).
 
 %%%===================================================================
 %%% API functions
@@ -36,8 +39,11 @@ start_link(Name, Options, NumShards) ->
 init([Name, Options, NumShards]) ->
   % ETS table to hold state info.
   Name = ets:new(Name, [set, named_table, public, {read_concurrency, true}]),
-  #{module := Module, type := Type, opts := Opts} = parse_opts(Options),
-  true = ets:insert(Name, {'$shards_state', {Module, Type, NumShards}}),
+  ParsedOpts = #{module := Module, opts := Opts} = parse_opts(Options),
+  LocalState = local_state(ParsedOpts#{n_shards => NumShards}),
+  DistState = dist_state(ParsedOpts),
+  Metadata = {Module, LocalState, DistState},
+  true = ets:insert(Name, {'$shards_meta', Metadata}),
 
   % create children
   Children = [begin
@@ -50,7 +56,7 @@ init([Name, Options, NumShards]) ->
   end || Shard <- lists:seq(0, NumShards - 1)],
 
   % init shards_dist pg2 group
-  ok = init_shards_dist(Name),
+  ok = init_shards_dist(Name, Module),
 
   % launch shards supervisor
   supervise(Children, #{strategy => one_for_one}).
@@ -83,9 +89,17 @@ assert_unique_ids([Id | Rest]) ->
 
 %% @private
 parse_opts(Opts) ->
-  AccIn = #{module => shards_local, type  => set, opts  => []},
+  AccIn = #{
+    module          => shards_local,
+    type            => set,
+    pick_shard_fun  => fun shards_local:pick_shard/3,
+    pick_node_fun   => fun shards_dist:pick_node/3,
+    autoeject_nodes => true,
+    opts            => []
+  },
   parse_opts(Opts, AccIn).
 
+%% @TODO: return error exception to invalid values
 %% @private
 parse_opts([], Acc) ->
   Acc;
@@ -93,24 +107,35 @@ parse_opts([{scope, l} | Opts], Acc) ->
   parse_opts(Opts, Acc#{module := shards_local});
 parse_opts([{scope, g} | Opts], Acc) ->
   parse_opts(Opts, Acc#{module := shards_dist});
-parse_opts([sharded_duplicate_bag | Opts], #{opts := NOpts} = Acc) ->
-  NAcc = Acc#{type := sharded_duplicate_bag, opts := [duplicate_bag | NOpts]},
-  parse_opts(Opts, NAcc);
-parse_opts([sharded_bag | Opts], #{opts := NOpts} = Acc) ->
-  parse_opts(Opts, Acc#{type := sharded_bag, opts := [bag | NOpts]});
-parse_opts([duplicate_bag | Opts], #{opts := NOpts} = Acc) ->
-  NAcc = Acc#{type := duplicate_bag, opts := [duplicate_bag | NOpts]},
-  parse_opts(Opts, NAcc);
-parse_opts([bag | Opts], #{opts := NOpts} = Acc) ->
-  parse_opts(Opts, Acc#{type := bag, opts := [bag | NOpts]});
-parse_opts([ordered_set | Opts], #{opts := NOpts} = Acc) ->
-  parse_opts(Opts, Acc#{type := ordered_set, opts := [ordered_set | NOpts]});
-parse_opts([set | Opts], #{opts := NOpts} = Acc) ->
-  parse_opts(Opts, Acc#{type := set, opts := [set | NOpts]});
+parse_opts([{pick_shard_fun, PickShard} | Opts], Acc) ->
+  parse_opts(Opts, Acc#{pick_shard_fun := PickShard});
+parse_opts([{pick_node_fun, PickNode} | Opts], Acc) ->
+  parse_opts(Opts, Acc#{pick_node_fun := PickNode});
+parse_opts([{autoeject_nodes, AutoEject} | Opts], Acc) ->
+  parse_opts(Opts, Acc#{autoeject_nodes := AutoEject});
+parse_opts([Opt | Opts], #{opts := NOpts} = Acc) when ?is_type_prop(Opt) ->
+  parse_opts(Opts, Acc#{type := Opt, opts := [Opt | NOpts]});
 parse_opts([Opt | Opts], #{opts := NOpts} = Acc) ->
   parse_opts(Opts, Acc#{opts := [Opt | NOpts]}).
 
 %% @private
-init_shards_dist(Tab) ->
+local_state(Opts) ->
+  #{n_shards       := NumShards,
+    type           := Type,
+    pick_shard_fun := PickShard
+  } = Opts,
+  {NumShards, PickShard, Type}.
+
+%% @private
+dist_state(Opts) ->
+  #{pick_node_fun   := PickNode,
+    autoeject_nodes := AutoEject
+  } = Opts,
+  {PickNode, AutoEject}.
+
+%% @private
+init_shards_dist(Tab, shards_dist) ->
   ok = pg2:create(Tab),
-  ok = pg2:join(Tab, self()).
+  ok = pg2:join(Tab, self());
+init_shards_dist(_, _) ->
+  ok.
