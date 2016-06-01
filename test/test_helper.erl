@@ -22,8 +22,30 @@
   delete_shards_pool/0
 ]).
 
+%% Pick Callbacks
+-export([
+  pick_shard/3,
+  pick_node/3
+]).
+
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("test_common.hrl").
+
+%%%===================================================================
+%%% Tests Key Generator
+%%%===================================================================
+
+pick_shard(write, Key, N) ->
+  erlang:phash2({Key, os:timestamp()}, N);
+pick_shard(_, _, _) ->
+  any.
+
+pick_node(write, Key, Nodes) ->
+  NewKey = {Key, os:timestamp()},
+  Nth = jumping_hash:compute(erlang:phash2(NewKey), length(Nodes)) + 1,
+  lists:nth(Nth, Nodes);
+pick_node(_, _, _) ->
+  any.
 
 %%%===================================================================
 %%% Test Cases
@@ -425,27 +447,33 @@ t_unsupported_ops(_Config) ->
 %%%===================================================================
 
 init_shards(Scope) ->
-  shards:new(?SET, [{n_shards, 2}, {scope, Scope}, set]),
-  shards:new(?DUPLICATE_BAG, [{n_shards, 5}, {scope, Scope}, duplicate_bag]),
-  shards:new(?ORDERED_SET, [{scope, Scope}, ordered_set]),
-  shards:new(?SHARDED_DUPLICATE_BAG, [
-    {n_shards, 5}, {scope, Scope}, sharded_duplicate_bag
+  DefaultShards = ?N_SHARDS,
+  {_, {2, _, set}} = shards:new(?SET, [{n_shards, 2}, {scope, Scope}, set]),
+  {_, {5, _, duplicate_bag}} =
+    shards:new(?DUPLICATE_BAG, [{n_shards, 5}, {scope, Scope}, duplicate_bag]),
+  {_, {DefaultShards, _, ordered_set}} =
+    shards:new(?ORDERED_SET, [{scope, Scope}, ordered_set]),
+  {_, {5, _, duplicate_bag}} = shards:new(?SHARDED_DUPLICATE_BAG, [
+    {n_shards, 5},
+    {scope, Scope},
+    duplicate_bag,
+    {pick_shard_fun, fun pick_shard/3},
+    {pick_node_fun, fun pick_node/3}
   ]),
+
+  set = shards_local:info_shard(?SET, 0, type),
+  duplicate_bag = shards_local:info_shard(?DUPLICATE_BAG, 0, type),
+  ordered_set = shards_local:info_shard(?ORDERED_SET, 0, type),
+  duplicate_bag = shards_local:info_shard(?SHARDED_DUPLICATE_BAG, 0, type),
+  shards_created(?SHARDS_TABS),
 
   Mod = case Scope of
     g -> shards_dist;
     _ -> shards_local
   end,
-
-  DefaultShards = ?N_SHARDS,
-  shards_created(?SHARDS_TABS),
-  {Mod, set, 2} = shards:state(?SET),
-  {Mod, duplicate_bag, 5} = shards:state(?DUPLICATE_BAG),
-  {Mod, ordered_set, DefaultShards} = shards:state(?ORDERED_SET),
-  {Mod, sharded_duplicate_bag, 5} =
-    shards:state(?SHARDED_DUPLICATE_BAG),
-  duplicate_bag =
-    ets:info(shards_local:shard_name(?SHARDED_DUPLICATE_BAG, 0), type),
+  lists:foreach(fun(Tab) ->
+    Mod = shards:module(Tab)
+  end, ?SHARDS_TABS),
 
   ets:new(?ETS_SET, [set, public, named_table]),
   ets:give_away(?ETS_SET, whereis(?SET), []),
@@ -474,7 +502,6 @@ cleanup_shards_(shards_dist) ->
 delete_shards_pool() ->
   L = lists:duplicate(4, true),
   L = [shards:delete(Tab) || Tab <- ?SHARDS_TABS],
-  L = [ets:delete(Tab) || Tab <- ?ETS_TABS],
   Count = supervisor:count_children(shards_sup),
   {_, 0} = lists:keyfind(workers, 1, Count),
   {_, 0} = lists:keyfind(supervisors, 1, Count),

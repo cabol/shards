@@ -115,7 +115,7 @@
 %% Extended API
 -export([
   shard_name/2,
-  shard/2,
+  pick_shard/3,
   list/2,
   state/1
 ]).
@@ -124,30 +124,47 @@
 %%% Types & Macros
 %%%===================================================================
 
-%% @type type() = set | ordered_set | bag | duplicate_bag
-%%              | sharded_bad | sharded_duplicate_bag.
+%% @type operation_t() = read | write | delete.
 %%
-%% Defines the table types, which are the same as ETS with two more
-%% types: `sharded_bad' and `sharded_duplicate_bag'.
--type type() :: set | ordered_set | bag | duplicate_bag
-              | sharded_bad | sharded_duplicate_bag.
+%% Defines operation type.
+-type operation_t() :: read | write | delete.
+
+%% @type key() = term().
+%%
+%% Defines key type.
+-type key() :: term().
+
+%% @type n_shards() = pos_integer().
+%%
+%% Defines number of shards.
+-type n_shards() :: pos_integer().
+
+%% @type pick_shard_fun() = fun((operation_t(), key(), n_shards()) -> non_neg_integer()) | any.
+%%
+%% Defines spec function to pick or compute the shard.
+-type pick_shard_fun() :: fun((operation_t(), key(), n_shards()) -> non_neg_integer()) | any.
+
+%% @type pick_node_fun() = fun((operation_t(), key(), [node()]) -> node()) | any.
+%%
+%% Defines spec function to pick or compute the node.
+-type pick_node_fun() :: fun((operation_t(), key(), [node()]) -> node()) | any.
 
 %% @type state() = {
-%%  Module    :: shards_local | shards_dist,
-%%  Type      :: type(),
-%%  NumShards :: pos_integer()
+%%  NumShards :: pos_integer(),
+%%  PickShard :: pick_shard_fun(),
+%%  Type      :: ets:type()
 %% }.
 %%
 %% Defines the `shards' local state:
 %% <ul>
-%% <li>`Module': Module to use: `shards_local' | `shards_dist'.</li>
-%% <li>`TableType': Table type.</li>
 %% <li>`NumShards': Number of ETS shards/fragments.</li>
+%% <li>`PickShard': Function callback to pick/compute the shard.</li>
+%% <li>`TableType': Table type.</li>
 %% </ul>
 -type state() :: {
-  Module    :: shards_local | shards_dist,
-  TableType :: type(),
-  NumShards :: pos_integer()
+  NumShards :: pos_integer(),
+  PickShard :: pick_shard_fun(),
+  TableType :: ets:type()
 }.
 
 %% @type continuation() = {
@@ -176,16 +193,14 @@
 
 %% Exported types
 -export_type([
-  type/0,
+  operation_t/0,
+  pick_shard_fun/0,
   state/0,
   continuation/0
 ]).
 
 %% Default number of shards
 -define(N_SHARDS, erlang:system_info(schedulers_online)).
-
-%% Macro to validate if table type is sharded or not
--define(is_sharded(T_), T_ =:= sharded_duplicate_bag; T_ =:= sharded_bag).
 
 %%%===================================================================
 %%% ETS API
@@ -215,7 +230,7 @@ delete(Tab) ->
   Key   :: term(),
   State :: state().
 delete(Tab, Key, State) ->
-  mapred(Tab, Key, {fun ets:delete/2, [Key]}, nil, State),
+  mapred(Tab, Key, {fun ets:delete/2, [Key]}, nil, State, delete),
   true.
 
 %% @doc
@@ -241,7 +256,7 @@ delete_all_objects(Tab, State) ->
   State  :: state().
 delete_object(Tab, Object, State) when is_tuple(Object) ->
   [Key | _] = tuple_to_list(Object),
-  mapred(Tab, Key, {fun ets:delete_object/2, [Object]}, nil, State),
+  mapred(Tab, Key, {fun ets:delete_object/2, [Object]}, nil, State, delete),
   true.
 
 %% @equiv file2tab(Filenames, [])
@@ -291,7 +306,7 @@ file2tab(Filenames, Options) ->
   Tab   :: atom(),
   Key   :: term(),
   State :: state().
-first(Tab, {_, _, N}) ->
+first(Tab, {N, _, _}) ->
   Shard = N - 1,
   first(Tab, ets:first(shard_name(Tab, Shard)), Shard).
 
@@ -317,7 +332,7 @@ first(_, Key, _) ->
   Acc1     :: term(),
   AccIn    :: term(),
   AccOut   :: term().
-foldl(Function, Acc0, Tab, {_, _, N}) ->
+foldl(Function, Acc0, Tab, {N, _, _}) ->
   fold(Tab, N, foldl, [Function, Acc0]).
 
 %% @doc
@@ -333,7 +348,7 @@ foldl(Function, Acc0, Tab, {_, _, N}) ->
   Acc1     :: term(),
   AccIn    :: term(),
   AccOut   :: term().
-foldr(Function, Acc0, Tab, {_, _, N}) ->
+foldr(Function, Acc0, Tab, {N, _, _}) ->
   fold(Tab, N, foldr, [Function, Acc0]).
 
 %% @doc
@@ -472,17 +487,10 @@ insert(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
   lists:foreach(fun(Object) ->
     true = insert(Tab, Object, State)
   end, ObjOrObjL), true;
-insert(Tab, ObjOrObjL, {_, Type, N}) when is_tuple(ObjOrObjL) ->
+insert(Tab, ObjOrObjL, {N, PickShard, _}) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
-  insert_(Tab, Key, ObjOrObjL, N, Type).
-
-%% @private
-insert_(Tab, Key, Obj, N, Type) when ?is_sharded(Type) ->
-  ShardName = shard_name(Tab, shard({Key, os:timestamp()}, N)),
-  ets:insert(ShardName, Obj);
-insert_(Tab, Key, Obj, N, _) ->
-  ShardName = shard_name(Tab, shard(Key, N)),
-  ets:insert(ShardName, Obj).
+  ShardName = shard_name(Tab, PickShard(write, Key, N)),
+  ets:insert(ShardName, ObjOrObjL).
 
 %% @doc
 %% This operation behaves like `ets:insert_new/2' BUT it is not atomic,
@@ -502,22 +510,21 @@ insert_new(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
   lists:foldr(fun(Object, Acc) ->
     [insert_new(Tab, Object, State) | Acc]
   end, [], ObjOrObjL);
-insert_new(Tab, ObjOrObjL, {_, Type, N} = State) when is_tuple(ObjOrObjL) ->
+insert_new(Tab, ObjOrObjL, {N, PickShard, _} = State) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
-  case Type of
-    _ when ?is_sharded(Type) ->
+  case PickShard(read, Key, N) of
+    any ->
       Map = {fun ets:lookup/2, [Key]},
       Reduce = fun lists:append/2,
       case mapred(Tab, Map, Reduce, State) of
         [] ->
-          NewKey = {Key, os:timestamp()},
-          ShardName = shard_name(Tab, shard(NewKey, N)),
+          ShardName = shard_name(Tab, PickShard(write, Key, N)),
           ets:insert_new(ShardName, ObjOrObjL);
         _ ->
           false
       end;
     _ ->
-      ShardName = shard_name(Tab, shard(Key, N)),
+      ShardName = shard_name(Tab, PickShard(write, Key, N)),
       ets:insert_new(ShardName, ObjOrObjL)
   end.
 
@@ -537,7 +544,7 @@ is_compiled_ms(Term) ->
   Tab   :: atom(),
   State :: state(),
   Key   :: term().
-last(Tab, {_, ordered_set, N}) ->
+last(Tab, {N, _, ordered_set}) ->
   last(Tab, ets:last(shard_name(Tab, 0)), 0, N - 1);
 last(Tab, State) ->
   first(Tab, State).
@@ -562,7 +569,9 @@ last(_, Key, _, _) ->
   State  :: state(),
   Result :: [tuple()].
 lookup(Tab, Key, State) ->
-  mapred(Tab, Key, {fun ets:lookup/2, [Key]}, fun lists:append/2, State).
+  Map = {fun ets:lookup/2, [Key]},
+  Reduce = fun lists:append/2,
+  mapred(Tab, Key, Map, Reduce, State, read).
 
 %% @doc
 %% This operation behaves like `ets:lookup_element/3'.
@@ -575,21 +584,24 @@ lookup(Tab, Key, State) ->
   Pos   :: pos_integer(),
   State :: state(),
   Elem  :: term() | [term()].
-lookup_element(Tab, Key, Pos, {_, Type, _} = State) when ?is_sharded(Type) ->
-  LookupElem = fun(Tx, Kx, Px) ->
-    catch ets:lookup_element(Tx, Kx, Px)
-  end,
-  Filter = lists:filter(fun
-    ({'EXIT', _}) -> false;
-    (_)           -> true
-  end, mapred(Tab, {LookupElem, [Key, Pos]}, State)),
-  case Filter of
-    [] -> exit({badarg, erlang:get_stacktrace()});
-    _  -> lists:append(Filter)
-  end;
-lookup_element(Tab, Key, Pos, {_, _, N}) ->
-  ShardName = shard_name(Tab, shard(Key, N)),
-  ets:lookup_element(ShardName, Key, Pos).
+lookup_element(Tab, Key, Pos, {N, PickShard, _} = State) ->
+  case PickShard(read, Key, N) of
+    any ->
+      LookupElem = fun(Tx, Kx, Px) ->
+        catch ets:lookup_element(Tx, Kx, Px)
+      end,
+      Filter = lists:filter(fun
+        ({'EXIT', _}) -> false;
+        (_)           -> true
+      end, mapred(Tab, {LookupElem, [Key, Pos]}, State)),
+      case Filter of
+        [] -> exit({badarg, erlang:get_stacktrace()});
+        _  -> lists:append(Filter)
+      end;
+    Shard ->
+      ShardName = shard_name(Tab, Shard),
+      ets:lookup_element(ShardName, Key, Pos)
+  end.
 
 %% @doc
 %% This operation behaves similar to `ets:match/2'.
@@ -625,7 +637,7 @@ match(Tab, Pattern, State) ->
   Match        :: term(),
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-match(Tab, Pattern, Limit, {_, Type, N}) ->
+match(Tab, Pattern, Limit, {N, _, Type}) ->
   q(match,
     Tab,
     Pattern,
@@ -648,7 +660,7 @@ match(Tab, Pattern, Limit, {_, Type, N}) ->
   Continuation :: continuation(),
   State        :: state(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-match({_, _, Limit, _, _} = Continuation, {_, Type, _}) ->
+match({_, _, Limit, _, _} = Continuation, {_, _, Type}) ->
   q(match, Continuation, q_fun(Type), Limit, []).
 
 %% @doc
@@ -699,7 +711,7 @@ match_object(Tab, Pattern, State) ->
   Match        :: term(),
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-match_object(Tab, Pattern, Limit, {_, Type, N}) ->
+match_object(Tab, Pattern, Limit, {N, _, Type}) ->
   q(match_object,
     Tab,
     Pattern,
@@ -722,7 +734,7 @@ match_object(Tab, Pattern, Limit, {_, Type, N}) ->
   Continuation :: continuation(),
   State        :: state(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-match_object({_, _, Limit, _, _} = Continuation, {_, Type, _}) ->
+match_object({_, _, Limit, _, _} = Continuation, {_, _, Type}) ->
   q(match_object, Continuation, q_fun(Type), Limit, []).
 
 %% @equiv ets:match_spec_compile(MatchSpec)
@@ -743,7 +755,7 @@ match_spec_run(List, CompiledMatchSpec) ->
   Key   :: term(),
   State :: state().
 member(Tab, Key, State) ->
-  case mapred(Tab, Key, {fun ets:member/2, [Key]}, nil, State) of
+  case mapred(Tab, Key, {fun ets:member/2, [Key]}, nil, State, read) of
     R when is_list(R) -> lists:member(true, R);
     R                 -> R
   end.
@@ -773,9 +785,11 @@ member(Tab, Key, State) ->
   Options :: [Option],
   State   :: state(),
   Result  :: {Name, State},
-  Option  :: type() | ets:access() | named_table | {keypos, pos_integer()}
+  Option  :: ets:type() | ets:access() | named_table | {keypos, pos_integer()}
            | {heir, pid(), HeirData :: term()} | {heir, none} | Tweaks
-           | {n_shards, pos_integer()} | {scope, l | g},
+           | {n_shards, pos_integer()} | {scope, l | g}
+           | {pick_shard_fun, pick_shard_fun()}
+           | {pick_node_fun, pick_node_fun()},
   Tweaks  :: {write_concurrency, boolean()}
            | {read_concurrency, boolean()}
            | compressed.
@@ -807,8 +821,11 @@ new(Name, Options, NumShards) ->
   Key1  :: term(),
   State :: state(),
   Key2  :: term().
-next(Tab, Key1, {_, _, N}) ->
-  Shard = shard(Key1, N),
+next(Tab, Key1, {N, PickShard, _}) ->
+  Shard = case PickShard(read, Key1, N) of
+    any -> 0;
+    Val -> Val
+  end,
   ShardName = shard_name(Tab, Shard),
   next_(Tab, ets:next(ShardName, Key1), Shard).
 
@@ -834,8 +851,11 @@ next_(_, Key2, _) ->
   Key1  :: term(),
   State :: state(),
   Key2  :: term().
-prev(Tab, Key1, {_, ordered_set, N}) ->
-  Shard = shard(Key1, N),
+prev(Tab, Key1, {N, PickShard, ordered_set}) ->
+  Shard = case PickShard(read, Key1, N) of
+    any -> 0;
+    Val -> Val
+  end,
   ShardName = shard_name(Tab, Shard),
   prev(Tab, ets:prev(ShardName, Key1), Shard, N - 1);
 prev(Tab, Key1, State) ->
@@ -902,7 +922,7 @@ select(Tab, MatchSpec, State) ->
   Match        :: term(),
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-select(Tab, MatchSpec, Limit, {_, Type, N}) ->
+select(Tab, MatchSpec, Limit, {N, _, Type}) ->
   q(select,
     Tab,
     MatchSpec,
@@ -925,7 +945,7 @@ select(Tab, MatchSpec, Limit, {_, Type, N}) ->
   Continuation :: continuation(),
   State        :: state(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-select({_, _, Limit, _, _} = Continuation, {_, Type, _}) ->
+select({_, _, Limit, _, _} = Continuation, {_, _, Type}) ->
   q(select, Continuation, q_fun(Type), Limit, []).
 
 %% @doc
@@ -992,7 +1012,7 @@ select_reverse(Tab, MatchSpec, State) ->
   Match        :: term(),
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-select_reverse(Tab, MatchSpec, Limit, {_, Type, N}) ->
+select_reverse(Tab, MatchSpec, Limit, {N, _, Type}) ->
   q(select_reverse,
     Tab, MatchSpec,
     Limit,
@@ -1014,7 +1034,7 @@ select_reverse(Tab, MatchSpec, Limit, {_, Type, N}) ->
   Continuation :: continuation(),
   State        :: state(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-select_reverse({_, _, Limit, _, _} = Continuation, {_, Type, _}) ->
+select_reverse({_, _, Limit, _, _} = Continuation, {_, _, Type}) ->
   q(select_reverse, Continuation, q_fun(Type), Limit, []).
 
 %% @doc
@@ -1062,7 +1082,7 @@ tab2file(Tab, Filenames, State) ->
   ShardTab  :: atom(),
   ShardRes  :: ok | {error, Reason :: term()},
   Response  :: [{ShardTab, ShardRes}].
-tab2file(Tab, Filenames, Options, {_, _, N}) ->
+tab2file(Tab, Filenames, Options, {N, _, _}) ->
   [begin
      ets:tab2file(Shard, Filename, Options)
    end || {Shard, Filename} <- lists:zip(list(Tab, N), Filenames)].
@@ -1120,7 +1140,9 @@ test_ms(Tuple, MatchSpec) ->
   State  :: state(),
   Object :: tuple().
 take(Tab, Key, State) ->
-  mapred(Tab, Key, {fun ets:take/2, [Key]}, fun lists:append/2, State).
+  Map = {fun ets:take/2, [Key]},
+  Reduce = fun lists:append/2,
+  mapred(Tab, Key, Map, Reduce, State, read).
 
 %% @doc
 %% <p><font color="red"><b>NOT SUPPORTED!</b></font></p>
@@ -1140,7 +1162,8 @@ to_dets(_Tab, _DetsTab, _State) ->
   State    :: state(),
   Result   :: integer().
 update_counter(Tab, Key, UpdateOp, State) ->
-  mapred(Tab, Key, {fun ets:update_counter/3, [Key, UpdateOp]}, nil, State).
+  Map = {fun ets:update_counter/3, [Key, UpdateOp]},
+  mapred(Tab, Key, Map, nil, State, write).
 
 %% @doc
 %% This operation behaves like `ets:update_counter/4'.
@@ -1156,7 +1179,7 @@ update_counter(Tab, Key, UpdateOp, State) ->
   Result   :: integer().
 update_counter(Tab, Key, UpdateOp, Default, State) ->
   Map = {fun ets:update_counter/4, [Key, UpdateOp, Default]},
-  mapred(Tab, Key, Map, nil, State).
+  mapred(Tab, Key, Map, nil, State, write).
 
 %% @doc
 %% This operation behaves like `ets:update_element/3'.
@@ -1172,7 +1195,7 @@ update_counter(Tab, Key, UpdateOp, Default, State) ->
   State       :: state().
 update_element(Tab, Key, ElementSpec, State) ->
   Map = {fun ets:update_element/3, [Key, ElementSpec]},
-  mapred(Tab, Key, Map, nil, State).
+  mapred(Tab, Key, Map, nil, State, write).
 
 %%%===================================================================
 %%% Extended API
@@ -1193,17 +1216,19 @@ shard_name(TabName, Shard) ->
   shards_owner:shard_name(TabName, Shard).
 
 %% @doc
-%% Calculates the shard where the `Key' is handled.
+%% Pick/computes the shard where the `Key' will be handled.
 %% <ul>
+%% <li>`Op': Operation type: `read | write | delete`.</li>
 %% <li>`Key': The key to be hashed to calculate the shard.</li>
 %% <li>`NumShards': Number of shards.</li>
 %% </ul>
 %% @end
--spec shard(Key, NumShards) -> ShardNum when
+-spec pick_shard(Op, Key, NumShards) -> ShardNum when
+  Op        :: operation_t(),
   Key       :: term(),
   NumShards :: pos_integer(),
   ShardNum  :: non_neg_integer().
-shard(Key, NumShards) ->
+pick_shard(_, Key, NumShards) ->
   erlang:phash2(Key, NumShards).
 
 %% @doc
@@ -1230,7 +1255,8 @@ list(TabName, NumShards) ->
 %% @end
 -spec state(TabName :: atom()) -> state().
 state(TabName) when is_atom(TabName) ->
-  ets:lookup_element(TabName, '$shards_state', 2).
+  {_, State, _} = ets:lookup_element(TabName, '$shards_meta', 2),
+  State.
 
 %%%===================================================================
 %%% Internal functions
@@ -1242,18 +1268,20 @@ mapred(Tab, Map, State) ->
 
 %% @private
 mapred(Tab, Map, Reduce, State) ->
-  mapred(Tab, nil, Map, Reduce, State).
+  mapred(Tab, nil, Map, Reduce, State, read).
 
 %% @private
-mapred(Tab, Key, Map, nil, State) ->
-  mapred(Tab, Key, Map, fun(E, Acc) -> [E | Acc] end, State);
-mapred(Tab, nil, Map, Reduce, {_, _, N}) ->
+mapred(Tab, Key, Map, nil, State, Op) ->
+  mapred(Tab, Key, Map, fun(E, Acc) -> [E | Acc] end, State, Op);
+mapred(Tab, nil, Map, Reduce, {N, _, _}, _) ->
   p_mapred(Tab, N, Map, Reduce);
-mapred(Tab, _, Map, Reduce, {_, Type, N}) when ?is_sharded(Type) ->
-  s_mapred(Tab, N, Map, Reduce);
-mapred(Tab, Key, {MapFun, Args}, _, {_, _, N}) ->
-  ShardName = shard_name(Tab, shard(Key, N)),
-  apply(MapFun, [ShardName | Args]).
+mapred(Tab, Key, {MapFun, Args} = Map, Reduce, {N, PickShard, _}, Op) ->
+  case PickShard(Op, Key, N) of
+    any ->
+      s_mapred(Tab, N, Map, Reduce);
+    Shard ->
+      apply(MapFun, [shard_name(Tab, Shard) | Args])
+  end.
 
 %% @private
 s_mapred(Tab, NumShards, {MapFun, Args}, {ReduceFun, AccIn}) ->

@@ -1,6 +1,6 @@
 -module(jumping_hash).
 
--export([calculate/2]).
+-export([compute/2]).
 -on_load(init/0).
 
 -define(APPNAME, shards).
@@ -11,7 +11,7 @@
 %%%===================================================================
 
 %% @hidden
-calculate(_, _) ->
+compute(_, _) ->
   not_loaded(?LINE).
 
 %% @private

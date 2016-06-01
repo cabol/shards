@@ -74,14 +74,18 @@
   join/2,
   leave/2,
   get_nodes/1,
-  pick_one/2
+  pick_node/2
 ]).
 
 -export([
+  metadata/1,
   state/1,
+  local_state/1,
+  dist_state/1,
   module/1,
-  tab_type/1,
   n_shards/1,
+  pick_shard_fun/1,
+  tab_type/1,
   list/1
 ]).
 
@@ -89,11 +93,36 @@
 %%% Types & Macros
 %%%===================================================================
 
-%% @type state() = shards_local:state().
--type state() :: shards_local:state().
+%% @type metadata() = shards_local:state().
+-type metadata() :: {
+  module(),
+  shards_local:state(),
+  shards_dist:state()
+}.
+
+%% @type state() = {
+%%  LocalState :: shards_local:state(),
+%%  DistState  :: shards_dist:state()
+%% }.
+%%
+%% Defines the `shards' distributed state:
+%% <ul>
+%% <li>`PickNode': Function callback to pick/compute the node.</li>
+%% <li>`TableType': Table type.</li>
+%% </ul>
+-type state() :: {
+  LocalState :: shards_local:state(),
+  DistState  :: shards_dist:state()
+}.
 
 %% @type continuation() = shards_local:continuation().
 -type continuation() :: shards_local:continuation().
+
+-export_type([
+  metadata/0,
+  state/0,
+  continuation/0
+]).
 
 %% Macro to get the default module to use: `shards_local'.
 -define(SHARDS, shards_local).
@@ -136,7 +165,7 @@ all() ->
 %% @end
 -spec delete(Tab :: atom()) -> true.
 delete(Tab) ->
-  {Module, _, _} = state(Tab),
+  {Module, _, _} = metadata(Tab),
   Module:delete(Tab).
 
 %% @doc
@@ -149,8 +178,7 @@ delete(Tab) ->
   Tab   :: atom(),
   Key   :: term().
 delete(Tab, Key) ->
-  State = {Module, _, _} = state(Tab),
-  Module:delete(Tab, Key, State).
+  call(Tab, delete, [Tab, Key]).
 
 %% @doc
 %% Wrapper to `shards_local:delete_all_objects/2' and
@@ -161,8 +189,7 @@ delete(Tab, Key) ->
 %% @end
 -spec delete_all_objects(Tab :: atom()) -> true.
 delete_all_objects(Tab) ->
-  State = {Module, _, _} = state(Tab),
-  Module:delete_all_objects(Tab, State).
+  call(Tab, delete_all_objects, [Tab]).
 
 %% @doc
 %% Wrapper to `shards_local:delete_object/3' and `shards_dist:delete_object/3'.
@@ -174,8 +201,7 @@ delete_all_objects(Tab) ->
   Tab    :: atom(),
   Object :: tuple().
 delete_object(Tab, Object) ->
-  State = {Module, _, _} = state(Tab),
-  Module:delete_object(Tab, Object, State).
+  call(Tab, delete_object, [Tab, Object]).
 
 %% @equiv shards_local:file2tab(Filenames)
 file2tab(Filenames) ->
@@ -193,8 +219,7 @@ file2tab(Filenames, Options) ->
 %% @end
 -spec first(Tab :: atom()) -> Key :: term() | '$end_of_table'.
 first(Tab) ->
-  State = {Module, _, _} = state(Tab),
-  Module:first(Tab, State).
+  call(Tab, first, [Tab]).
 
 %% @doc
 %% Wrapper to `shards_local:foldl/4' and `shards_dist:foldl/4'.
@@ -210,8 +235,7 @@ first(Tab) ->
   AccIn    :: term(),
   AccOut   :: term().
 foldl(Function, Acc0, Tab) ->
-  State = {Module, _, _} = state(Tab),
-  Module:foldl(Function, Acc0, Tab, State).
+  call(Tab, foldl, [Function, Acc0, Tab]).
 
 %% @doc
 %% Wrapper to `shards_local:foldr/4' and `shards_dist:foldr/4'.
@@ -227,8 +251,7 @@ foldl(Function, Acc0, Tab) ->
   AccIn    :: term(),
   AccOut   :: term().
 foldr(Function, Acc0, Tab) ->
-  State = {Module, _, _} = state(Tab),
-  Module:foldr(Function, Acc0, Tab, State).
+  call(Tab, foldr, [Function, Acc0, Tab]).
 
 %% @doc
 %% Wrapper to `shards_local:from_dets/2' and `shards_dist:from_dets/2'.
@@ -240,7 +263,7 @@ foldr(Function, Acc0, Tab) ->
   Tab     :: atom(),
   DetsTab :: dets:tab_name().
 from_dets(Tab, DetsTab) ->
-  {Module, _, _} = state(Tab),
+  {Module, _, _} = metadata(Tab),
   Module:from_dets(Tab, DetsTab).
 
 %% @doc
@@ -268,8 +291,7 @@ fun2ms(_LiteralFun) ->
   Pid      :: pid(),
   GiftData :: term().
 give_away(Tab, Pid, GiftData) ->
-  State = {Module, _, _} = state(Tab),
-  Module:give_away(Tab, Pid, GiftData, State).
+  call(Tab, give_away, [Tab, Pid, GiftData]).
 
 %% @equiv shards_local:i()
 i() ->
@@ -283,7 +305,7 @@ i() ->
 %% @end
 -spec i(Tab :: atom()) -> ok.
 i(Tab) ->
-  {Module, _, _} = state(Tab),
+  {Module, _, _} = metadata(Tab),
   Module:i(Tab).
 
 %% @doc
@@ -297,8 +319,7 @@ i(Tab) ->
   Result   :: [InfoList],
   InfoList :: [term() | undefined].
 info(Tab) ->
-  State = {Module, _, _} = state(Tab),
-  Module:info(Tab, State).
+  call(Tab, info, [Tab]).
 
 %% @doc
 %% Wrapper to `shards_local:info/3' and `shards_dist:info/3'.
@@ -313,11 +334,8 @@ info(Tab) ->
   Value  :: [term() | undefined].
 info(Tab, Item) ->
   case whereis(Tab) of
-    undefined ->
-      undefined;
-    _ ->
-      State = {Module, _, _} = state(Tab),
-      Module:info(Tab, Item, State)
+    undefined -> undefined;
+    _         -> call(Tab, info, [Tab, Item])
   end.
 
 %% @doc
@@ -331,7 +349,7 @@ info(Tab, Item) ->
   Shard  :: non_neg_integer(),
   Result :: [term()] | undefined.
 info_shard(Tab, Shard) ->
-  {Module, _, _} = state(Tab),
+  {Module, _, _} = metadata(Tab),
   Module:info_shard(Tab, Shard).
 
 %% @doc
@@ -346,7 +364,7 @@ info_shard(Tab, Shard) ->
   Item   :: atom(),
   Result :: term() | undefined.
 info_shard(Tab, Shard, Item) ->
-  {Module, _, _} = state(Tab),
+  {Module, _, _} = metadata(Tab),
   Module:info_shard(Tab, Shard, Item).
 
 %% @doc
@@ -361,8 +379,7 @@ info_shard(Tab, Shard, Item) ->
   Arg     :: read | close,
   Res     :: end_of_input | {Objects :: [term()], InitFun} | term().
 init_table(Tab, InitFun) ->
-  State = {Module, _, _} = state(Tab),
-  Module:init_table(Tab, InitFun, State).
+  call(Tab, init_table, [Tab, InitFun]).
 
 %% @doc
 %% Wrapper to `shards_local:insert/3' and `shards_dist:insert/3'.
@@ -374,8 +391,7 @@ init_table(Tab, InitFun) ->
   Tab       :: atom(),
   ObjOrObjL :: tuple() | [tuple()].
 insert(Tab, ObjectOrObjects) ->
-  State = {Module, _, _} = state(Tab),
-  Module:insert(Tab, ObjectOrObjects, State).
+  call(Tab, insert, [Tab, ObjectOrObjects]).
 
 %% @doc
 %% Wrapper to `shards_local:insert_new/3' and `shards_dist:insert_new/3'.
@@ -388,8 +404,7 @@ insert(Tab, ObjectOrObjects) ->
   ObjOrObjL :: tuple() | [tuple()],
   Result    :: boolean() | [boolean()].
 insert_new(Tab, ObjectOrObjects) ->
-  State = {Module, _, _} = state(Tab),
-  Module:insert_new(Tab, ObjectOrObjects, State).
+  call(Tab, insert_new, [Tab, ObjectOrObjects]).
 
 %% @equiv shards_local:is_compiled_ms(Term)
 is_compiled_ms(Term) ->
@@ -403,8 +418,7 @@ is_compiled_ms(Term) ->
 %% @end
 -spec last(Tab :: atom()) -> Key :: term() | '$end_of_table'.
 last(Tab) ->
-  State = {Module, _, _} = state(Tab),
-  Module:last(Tab, State).
+  call(Tab, last, [Tab]).
 
 %% @doc
 %% Wrapper to `shards_local:lookup/3' and `shards_dist:lookup/3'.
@@ -417,8 +431,7 @@ last(Tab) ->
   Key    :: term(),
   Result :: [tuple()].
 lookup(Tab, Key) ->
-  State = {Module, _, _} = state(Tab),
-  Module:lookup(Tab, Key, State).
+  call(Tab, lookup, [Tab, Key]).
 
 %% @doc
 %% Wrapper to `shards_local:lookup_element/4' and
@@ -433,8 +446,7 @@ lookup(Tab, Key) ->
   Pos   :: pos_integer(),
   Elem  :: term() | [term()].
 lookup_element(Tab, Key, Pos) ->
-  State = {Module, _, _} = state(Tab),
-  Module:lookup_element(Tab, Key, Pos, State).
+  call(Tab, lookup_element, [Tab, Key, Pos]).
 
 %% @doc
 %% Wrapper to `shards_local:match/3' and `shards_dist:match/3'.
@@ -447,8 +459,7 @@ lookup_element(Tab, Key, Pos) ->
   Pattern :: ets:match_pattern(),
   Match   :: [term()].
 match(Tab, Pattern) ->
-  State = {Module, _, _} = state(Tab),
-  Module:match(Tab, Pattern, State).
+  call(Tab, match, [Tab, Pattern]).
 
 %% @doc
 %% Wrapper to `shards_local:match/4' and `shards_dist:match/4'.
@@ -464,8 +475,7 @@ match(Tab, Pattern) ->
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
 match(Tab, Pattern, Limit) ->
-  State = {Module, _, _} = state(Tab),
-  Module:match(Tab, Pattern, Limit, State).
+  call(Tab, match, [Tab, Pattern, Limit]).
 
 %% @doc
 %% Wrapper to `shards_local:match/2' and `shards_dist:match/2'.
@@ -479,8 +489,7 @@ match(Tab, Pattern, Limit) ->
   Response     :: {[Match], Continuation} | '$end_of_table'.
 match(Continuation) ->
   [Tab | _] = tuple_to_list(Continuation),
-  State = {Module, _, _} = state(Tab),
-  Module:match(Continuation, State).
+  call(Tab, match, [Continuation]).
 
 %% @doc
 %% Wrapper to `shards_local:match_delete/3' and `shards_dist:match_delete/3'.
@@ -492,8 +501,7 @@ match(Continuation) ->
   Tab     :: atom(),
   Pattern :: ets:match_pattern().
 match_delete(Tab, Pattern) ->
-  State = {Module, _, _} = state(Tab),
-  Module:match_delete(Tab, Pattern, State).
+  call(Tab, match_delete, [Tab, Pattern]).
 
 %% @doc
 %% Wrapper to `shards_local:match_object/3' and `shards_dist:match_object/3'.
@@ -506,8 +514,7 @@ match_delete(Tab, Pattern) ->
   Pattern :: ets:match_pattern(),
   Object  :: tuple().
 match_object(Tab, Pattern) ->
-  State = {Module, _, _} = state(Tab),
-  Module:match_object(Tab, Pattern, State).
+  call(Tab, match_object, [Tab, Pattern]).
 
 %% @doc
 %% Wrapper to `shards_local:match_object/4' and `shards_dist:match_object/4'.
@@ -523,8 +530,7 @@ match_object(Tab, Pattern) ->
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
 match_object(Tab, Pattern, Limit) ->
-  State = {Module, _, _} = state(Tab),
-  Module:match_object(Tab, Pattern, Limit, State).
+  call(Tab, match_object, [Tab, Pattern, Limit]).
 
 %% @doc
 %% Wrapper to `shards_local:match_object/2' and `shards_dist:match_object/2'.
@@ -538,8 +544,7 @@ match_object(Tab, Pattern, Limit) ->
   Response     :: {[Match], Continuation} | '$end_of_table'.
 match_object(Continuation) ->
   [Tab | _] = tuple_to_list(Continuation),
-  State = {Module, _, _} = state(Tab),
-  Module:match_object(Continuation, State).
+  call(Tab, match_object, [Continuation]).
 
 %% @equiv shards_local:match_spec_compile(MatchSpec)
 match_spec_compile(MatchSpec) ->
@@ -557,8 +562,7 @@ match_spec_run(List, CompiledMatchSpec) ->
 %% @end
 -spec member(Tab :: atom(), Key :: term()) -> boolean().
 member(Tab, Key) ->
-  State = {Module, _, _} = state(Tab),
-  Module:member(Tab, Key, State).
+  call(Tab, member, [Tab, Key]).
 
 %% @equiv shards_local:new(Name, Options)
 new(Name, Options) ->
@@ -575,8 +579,7 @@ new(Name, Options) ->
   Key1  :: term(),
   Key2  :: term().
 next(Tab, Key1) ->
-  State = {Module, _, _} = state(Tab),
-  Module:next(Tab, Key1, State).
+  call(Tab, next, [Tab, Key1]).
 
 %% @doc
 %% Wrapper to `shards_local:prev/3' and `shards_dist:prev/3'.
@@ -589,8 +592,7 @@ next(Tab, Key1) ->
   Key1  :: term(),
   Key2  :: term().
 prev(Tab, Key1) ->
-  State = {Module, _, _} = state(Tab),
-  Module:prev(Tab, Key1, State).
+  call(Tab, prev, [Tab, Key1]).
 
 %% @doc
 %% Wrapper to `shards_local:rename/3' and `shards_dist:rename/3'.
@@ -602,8 +604,7 @@ prev(Tab, Key1) ->
   Tab  :: atom(),
   Name :: atom().
 rename(Tab, Name) ->
-  State = {Module, _, _} = state(Tab),
-  Module:rename(Tab, Name, State).
+  call(Tab, rename, [Tab, Name]).
 
 %% @doc
 %% Wrapper to `shards_local:repair_continuation/3' and
@@ -617,8 +618,7 @@ rename(Tab, Name) ->
   MatchSpec    :: ets:match_spec().
 repair_continuation(Continuation, MatchSpec) ->
   [Tab | _] = tuple_to_list(Continuation),
-  State = {Module, _, _} = state(Tab),
-  Module:repair_continuation(Continuation, MatchSpec, State).
+  call(Tab, repair_continuation, [Continuation, MatchSpec]).
 
 %% @doc
 %% Wrapper to `shards_local:i/1' and `shards_dist:i/1'.
@@ -630,8 +630,7 @@ repair_continuation(Continuation, MatchSpec) ->
   Tab :: atom(),
   Fix :: boolean().
 safe_fixtable(Tab, Fix) ->
-  State = {Module, _, _} = state(Tab),
-  Module:safe_fixtable(Tab, Fix, State).
+  call(Tab, safe_fixtable, [Tab, Fix]).
 
 %% @doc
 %% Wrapper to `shards_local:select/3' and `shards_dist:select/3'.
@@ -644,8 +643,7 @@ safe_fixtable(Tab, Fix) ->
   MatchSpec :: ets:match_spec(),
   Match     :: term().
 select(Tab, MatchSpec) ->
-  State = {Module, _, _} = state(Tab),
-  Module:select(Tab, MatchSpec, State).
+  call(Tab, select, [Tab, MatchSpec]).
 
 %% @doc
 %% Wrapper to `shards_local:select/4' and `shards_dist:select/4'.
@@ -661,8 +659,7 @@ select(Tab, MatchSpec) ->
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
 select(Tab, MatchSpec, Limit) ->
-  State = {Module, _, _} = state(Tab),
-  Module:select(Tab, MatchSpec, Limit, State).
+  call(Tab, select, [Tab, MatchSpec, Limit]).
 
 %% @doc
 %% Wrapper to `shards_local:select/2' and `shards_dist:select/2'.
@@ -676,8 +673,7 @@ select(Tab, MatchSpec, Limit) ->
   Response     :: {[Match], Continuation} | '$end_of_table'.
 select(Continuation) ->
   [Tab | _] = tuple_to_list(Continuation),
-  State = {Module, _, _} = state(Tab),
-  Module:select(Continuation, State).
+  call(Tab, select, [Continuation]).
 
 %% @doc
 %% Wrapper to `shards_local:select_count/3' and `shards_dist:select_count/3'.
@@ -690,8 +686,7 @@ select(Continuation) ->
   MatchSpec  :: ets:match_spec(),
   NumMatched :: non_neg_integer().
 select_count(Tab, MatchSpec) ->
-  State = {Module, _, _} = state(Tab),
-  Module:select_count(Tab, MatchSpec, State).
+  call(Tab, select_count, [Tab, MatchSpec]).
 
 %% @doc
 %% Wrapper to `shards_local:select_delete/3' and `shards_dist:select_delete/3'.
@@ -704,8 +699,7 @@ select_count(Tab, MatchSpec) ->
   MatchSpec  :: ets:match_spec(),
   NumDeleted :: non_neg_integer().
 select_delete(Tab, MatchSpec) ->
-  State = {Module, _, _} = state(Tab),
-  Module:select_delete(Tab, MatchSpec, State).
+  call(Tab, select_delete, [Tab, MatchSpec]).
 
 %% @doc
 %% Wrapper to `shards_local:select_reverse/3' and
@@ -719,8 +713,7 @@ select_delete(Tab, MatchSpec) ->
   MatchSpec :: ets:match_spec(),
   Match     :: term().
 select_reverse(Tab, MatchSpec) ->
-  State = {Module, _, _} = state(Tab),
-  Module:select_reverse(Tab, MatchSpec, State).
+  call(Tab, select_reverse, [Tab, MatchSpec]).
 
 %% @doc
 %% Wrapper to `shards_local:select_reverse/4' and
@@ -737,8 +730,7 @@ select_reverse(Tab, MatchSpec) ->
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
 select_reverse(Tab, MatchSpec, Limit) ->
-  State = {Module, _, _} = state(Tab),
-  Module:select_reverse(Tab, MatchSpec, Limit, State).
+  call(Tab, select_reverse, [Tab, MatchSpec, Limit]).
 
 %% @doc
 %% Wrapper to `shards_local:select_reverse/2' and
@@ -753,8 +745,7 @@ select_reverse(Tab, MatchSpec, Limit) ->
   Response     :: {[Match], Continuation} | '$end_of_table'.
 select_reverse(Continuation) ->
   [Tab | _] = tuple_to_list(Continuation),
-  State = {Module, _, _} = state(Tab),
-  Module:select_reverse(Continuation, State).
+  call(Tab, select_reverse, [Continuation]).
 
 %% @doc
 %% Wrapper to `shards_local:setopts/3' and `shards_dist:setopts/3'.
@@ -768,8 +759,7 @@ select_reverse(Continuation) ->
   Opt      :: {heir, pid(), HeirData} | {heir, none},
   HeirData :: term().
 setopts(Tab, Opts) ->
-  State = {Module, _, _} = state(Tab),
-  Module:setopts(Tab, Opts, State).
+  call(Tab, setopts, [Tab, Opts]).
 
 %% @doc
 %% Wrapper to `shards_local:slot/3' and `shards_dist:slot/3'.
@@ -782,8 +772,7 @@ setopts(Tab, Opts) ->
   I      :: non_neg_integer(),
   Object :: tuple().
 slot(Tab, I) ->
-  State = {Module, _, _} = state(Tab),
-  Module:slot(Tab, I, State).
+  call(Tab, slot, [Tab, I]).
 
 %% @doc
 %% Wrapper to `shards_local:tab2file/3' and `shards_dist:tab2file/3'.
@@ -798,8 +787,7 @@ slot(Tab, I) ->
   ShardRes  :: ok | {error, Reason :: term()},
   Response  :: [{ShardTab, ShardRes}].
 tab2file(Tab, Filenames) ->
-  State = {Module, _, _} = state(Tab),
-  Module:tab2file(Tab, Filenames, State).
+  call(Tab, tab2file, [Tab, Filenames]).
 
 %% @doc
 %% Wrapper to `shards_local:tab2file/4' and `shards_dist:tab2file/4'.
@@ -817,8 +805,7 @@ tab2file(Tab, Filenames) ->
   ShardRes  :: ok | {error, Reason :: term()},
   Response  :: [{ShardTab, ShardRes}].
 tab2file(Tab, Filenames, Options) ->
-  State = {Module, _, _} = state(Tab),
-  Module:tab2file(Tab, Filenames, Options, State).
+  call(Tab, tab2file, [Tab, Filenames, Options]).
 
 %% @doc
 %% Wrapper to `shards_local:tab2list/2' and `shards_dist:tab2list/2'.
@@ -830,8 +817,7 @@ tab2file(Tab, Filenames, Options) ->
   Tab    :: atom(),
   Object :: tuple().
 tab2list(Tab) ->
-  State = {Module, _, _} = state(Tab),
-  Module:tab2list(Tab, State).
+  call(Tab, tab2list, [Tab]).
 
 %% @equiv shards_local:tabfile_info(Filename)
 tabfile_info(Filename) ->
@@ -847,8 +833,7 @@ tabfile_info(Filename) ->
   Tab         :: atom(),
   QueryHandle :: qlc:query_handle().
 table(Tab) ->
-  State = {Module, _, _} = state(Tab),
-  Module:table(Tab, State).
+  call(Tab, table, [Tab]).
 
 %% @doc
 %% Wrapper to `shards_local:table/3' and `shards_dist:table/3'.
@@ -865,8 +850,7 @@ table(Tab) ->
   MatchSpec      :: ets:match_spec(),
   TraverseMethod :: first_next | last_prev | select | {select, MatchSpec}.
 table(Tab, Options) ->
-  State = {Module, _, _} = state(Tab),
-  Module:table(Tab, Options, State).
+  call(Tab, table, [Tab, Options]).
 
 %% @equiv shards_local:test_ms(Tuple, MatchSpec)
 test_ms(Tuple, MatchSpec) ->
@@ -883,8 +867,7 @@ test_ms(Tuple, MatchSpec) ->
   Key    :: term(),
   Object :: tuple().
 take(Tab, Key) ->
-  State = {Module, _, _} = state(Tab),
-  Module:take(Tab, Key, State).
+  call(Tab, take, [Tab, Key]).
 
 %% @doc
 %% Wrapper to `shards_local:to_dets/2' and `shards_dist:to_dets/2'.
@@ -896,8 +879,7 @@ take(Tab, Key) ->
   Tab     :: atom(),
   DetsTab :: dets:tab_name().
 to_dets(Tab, DetsTab) ->
-  State = {Module, _, _} = state(Tab),
-  Module:to_dets(Tab, DetsTab, State).
+  call(Tab, to_dets, [Tab, DetsTab]).
 
 %% @doc
 %% Wrapper to `shards_local:update_counter/4' and
@@ -912,8 +894,7 @@ to_dets(Tab, DetsTab) ->
   UpdateOp :: term(),
   Result   :: integer().
 update_counter(Tab, Key, UpdateOp) ->
-  State = {Module, _, _} = state(Tab),
-  Module:update_counter(Tab, Key, UpdateOp, State).
+  call(Tab, update_counter, [Tab, Key, UpdateOp]).
 
 %% @doc
 %% Wrapper to `shards_local:update_counter/5' and
@@ -929,8 +910,7 @@ update_counter(Tab, Key, UpdateOp) ->
   Default  :: tuple(),
   Result   :: integer().
 update_counter(Tab, Key, UpdateOp, Default) ->
-  State = {Module, _, _} = state(Tab),
-  Module:update_counter(Tab, Key, UpdateOp, Default, State).
+  call(Tab, update_counter, [Tab, Key, UpdateOp, Default]).
 
 %% @doc
 %% Wrapper to `shards_local:update_element/4' and
@@ -946,8 +926,7 @@ update_counter(Tab, Key, UpdateOp, Default) ->
   Value       :: term(),
   ElementSpec :: {Pos, Value} | [{Pos, Value}].
 update_element(Tab, Key, ElementSpec) ->
-  State = {Module, _, _} = state(Tab),
-  Module:update_element(Tab, Key, ElementSpec, State).
+  call(Tab, update_element, [Tab, Key, ElementSpec]).
 
 %%%===================================================================
 %%% Distributed API
@@ -973,16 +952,28 @@ leave(Tab, Nodes) ->
 get_nodes(Tab) ->
   shards_dist:get_nodes(Tab).
 
--spec pick_one(Key, Nodes) -> Node when
+-spec pick_node(Key, Nodes) -> Node when
   Key   :: term(),
   Nodes :: [node()],
   Node  :: node().
-pick_one(Key, Nodes) ->
-  shards_dist:pick_one(Key, Nodes).
+pick_node(Key, Nodes) ->
+  shards_dist:pick_node(read, Key, Nodes).
 
 %%%===================================================================
 %%% Extended API
 %%%===================================================================
+
+%% @doc
+%% Returns the stored table metadata.
+%% <ul>
+%% <li>`TabName': Table name.</li>
+%% </ul>
+%% @end
+-spec metadata(TabName) -> Metadata when
+  TabName  :: atom(),
+  Metadata :: metadata().
+metadata(TabName) ->
+  ets:lookup_element(TabName, '$shards_meta', 2).
 
 %% @doc
 %% Returns the stored state information.
@@ -993,31 +984,46 @@ pick_one(Key, Nodes) ->
 -spec state(TabName) -> State when
   TabName :: atom(),
   State   :: state().
-state(TabName) -> shards_local:state(TabName).
+state(TabName) ->
+  {_, Local, Dist} = metadata(TabName),
+  {Local, Dist}.
 
 %% @doc
-%% Returns the module used by the given table.
+%% Returns the stored local state information.
 %% <ul>
-%% <li>`TabNameOrState': Table name or State.</li>
+%% <li>`TabName': Table name.</li>
 %% </ul>
 %% @end
--spec module(TabNameOrState) -> Type when
-  TabNameOrState :: state() | atom(),
-  Type           :: shards_local:type().
-module({Module, _, _}) -> Module;
-module(TabName)        -> module(state(TabName)).
+-spec local_state(TabName) -> State when
+  TabName :: atom(),
+  State   :: shards_local:state().
+local_state(TabName) ->
+  shards_local:state(TabName).
 
 %% @doc
-%% Returns the table type.
+%% Returns the stored distributed state information.
 %% <ul>
-%% <li>`TabNameOrState': Table name or State.</li>
+%% <li>`TabName': Table name.</li>
 %% </ul>
 %% @end
--spec tab_type(TabNameOrState) -> Type when
-  TabNameOrState :: state() | atom(),
-  Type           :: shards_local:type().
-tab_type({_, Type, _}) -> Type;
-tab_type(TabName)      -> tab_type(state(TabName)).
+-spec dist_state(TabName) -> State when
+  TabName :: atom(),
+  State   :: shards_dist:state().
+dist_state(TabName) ->
+  shards_dist:state(TabName).
+
+%% @doc
+%% Returns the set module.
+%% <ul>
+%% <li>`TabName': Table name.</li>
+%% </ul>
+%% @end
+-spec module(TabName) -> Module when
+  TabName :: atom(),
+  Module  :: module().
+module(TabName) when is_atom(TabName) ->
+  {Module, _, _} = metadata(TabName),
+  Module.
 
 %% @doc
 %% Returns the number of shards.
@@ -1026,10 +1032,34 @@ tab_type(TabName)      -> tab_type(state(TabName)).
 %% </ul>
 %% @end
 -spec n_shards(TabNameOrState) -> NumShards when
-  TabNameOrState :: state() | atom(),
+  TabNameOrState :: shards_local:state() | atom(),
   NumShards      :: pos_integer().
-n_shards({_, _, NumShards}) -> NumShards;
-n_shards(TabName)           -> n_shards(state(TabName)).
+n_shards({NumShards, _, _}) -> NumShards;
+n_shards(TabName)           -> n_shards(local_state(TabName)).
+
+%% @doc
+%% Returns the function to pick/compute the shard.
+%% <ul>
+%% <li>`TabNameOrState': Table name or State.</li>
+%% </ul>
+%% @end
+-spec pick_shard_fun(TabNameOrState) -> PickShardFun when
+  TabNameOrState :: shards_local:state() | atom(),
+  PickShardFun   :: shards_local:pick_shard_fun().
+pick_shard_fun({_, KeygenFun, _}) -> KeygenFun;
+pick_shard_fun(TabName)           -> tab_type(local_state(TabName)).
+
+%% @doc
+%% Returns the table type.
+%% <ul>
+%% <li>`TabNameOrState': Table name or State.</li>
+%% </ul>
+%% @end
+-spec tab_type(TabNameOrState) -> Type when
+  TabNameOrState :: shards_local:state() | atom(),
+  Type           :: ets:type().
+tab_type({_, _, Type}) -> Type;
+tab_type(TabName)      -> tab_type(local_state(TabName)).
 
 %% @doc
 %% Returns the list of shard names associated to the given `TabName'.
@@ -1041,4 +1071,18 @@ n_shards(TabName)           -> n_shards(state(TabName)).
 -spec list(TabName) -> ShardTabNames when
   TabName       :: atom(),
   ShardTabNames :: [atom()].
-list(TabName) -> shards_local:list(TabName, n_shards(TabName)).
+list(TabName) ->
+  shards_local:list(TabName, n_shards(TabName)).
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+
+%% @private
+call(Tab, Fun, Args) ->
+  case metadata(Tab) of
+    {shards_local, Local, _} ->
+      apply(shards_local, Fun, Args ++ [Local]);
+    {shards_dist, Local, Dist} ->
+      apply(shards_dist, Fun, Args ++ [{Local, Dist}])
+  end.

@@ -70,6 +70,7 @@ t_join_leave_ops(Config) ->
 
   % create tables
   setup_tabs(Config),
+  timer:sleep(500),
 
   % join
   AllNodes = shards:join(?DUPLICATE_BAG, AllNodes),
