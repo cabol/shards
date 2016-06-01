@@ -10,12 +10,26 @@
 <hr>
 
 <h1>Module shards_dist</h1>
-<ul class="index"><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>
    Distributed Shards.
 
 
 <h2><a name="description">Description</a></h2>
    Distributed Shards.
+<h2><a name="types">Data Types</a></h2>
+
+<h3 class="typedecl"><a name="type-pick_node_fun">pick_node_fun()</a></h3>
+<p><tt>pick_node_fun() = <a href="shards_local.html#type-pick_node_fun">shards_local:pick_node_fun()</a></tt></p>
+<p>Defines spec function to pick or compute the node.</p>
+
+<h3 class="typedecl"><a name="type-state">state()</a></h3>
+<p><tt>state() = {PickNode::<a href="#type-pick_node_fun">pick_node_fun()</a>, AutoEject::boolean()}</tt></p>
+<p>Defines the <code>shards</code> distributed state:
+  <ul>
+  <li><code>PickNode</code>: Function callback to pick/compute the node.</li>
+  <li><code>TableType</code>: Table type.</li>
+  </ul></p>
+
 <h2><a name="index">Function Index</a></h2>
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#delete-1">delete/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#delete-3">delete/3</a></td><td></td></tr>
@@ -28,10 +42,18 @@
 <tr><td valign="top"><a href="#leave-2">leave/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#lookup-3">lookup/3</a></td><td></td></tr>
 <tr><td valign="top"><a href="#lookup_element-4">lookup_element/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#match-3">match/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#match_delete-3">match_delete/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#match_object-3">match_object/3</a></td><td></td></tr>
 <tr><td valign="top"><a href="#member-3">member/3</a></td><td></td></tr>
-<tr><td valign="top"><a href="#new-2">new/2</a></td><td>Equivalent to <a href="shards_local.html#new-2"><tt>shards_local:new(Name, Options)</tt></a>.
-</td></tr>
-<tr><td valign="top"><a href="#pick_one-2">pick_one/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#new-2">new/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#pick_node-3">pick_node/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#select-3">select/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#select_count-3">select_count/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#select_delete-3">select_delete/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#select_reverse-3">select_reverse/3</a></td><td></td></tr>
+<tr><td valign="top"><a href="#state-1">state/1</a></td><td>
+  Returns the stored state information.</td></tr>
 <tr><td valign="top"><a href="#take-3">take/3</a></td><td></td></tr>
 </table>
 
@@ -45,19 +67,19 @@
 <h3 class="function"><a name="delete-3">delete/3</a></h3>
 <div class="spec">
 <p><tt>delete(Tab, Key, State) -&gt; true</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>State = <a href="shards_local.html#type-state">shards_local:state()</a></tt></li></ul></p>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>State = <a href="shards.html#type-state">shards:state()</a></tt></li></ul></p>
 </div>
 
 <h3 class="function"><a name="delete_all_objects-2">delete_all_objects/2</a></h3>
 <div class="spec">
 <p><tt>delete_all_objects(Tab, State) -&gt; true</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>State = <a href="shards_local.html#type-state">shards_local:state()</a></tt></li></ul></p>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>State = <a href="shards.html#type-state">shards:state()</a></tt></li></ul></p>
 </div>
 
 <h3 class="function"><a name="delete_object-3">delete_object/3</a></h3>
 <div class="spec">
 <p><tt>delete_object(Tab, Object, State) -&gt; true</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Object = tuple()</tt></li><li><tt>State = <a href="shards_local.html#type-state">shards_local:state()</a></tt></li></ul></p>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Object = tuple()</tt></li><li><tt>State = <a href="shards.html#type-state">shards:state()</a></tt></li></ul></p>
 </div>
 
 <h3 class="function"><a name="get_nodes-1">get_nodes/1</a></h3>
@@ -69,13 +91,13 @@
 <h3 class="function"><a name="insert-3">insert/3</a></h3>
 <div class="spec">
 <p><tt>insert(Tab, ObjOrObjL, State) -&gt; true</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>ObjOrObjL = tuple() | [tuple()]</tt></li><li><tt>State = <a href="shards_local.html#type-state">shards_local:state()</a></tt></li></ul></p>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>ObjOrObjL = tuple() | [tuple()]</tt></li><li><tt>State = <a href="shards.html#type-state">shards:state()</a></tt></li></ul></p>
 </div>
 
 <h3 class="function"><a name="insert_new-3">insert_new/3</a></h3>
 <div class="spec">
 <p><tt>insert_new(Tab, ObjOrObjL, State) -&gt; Result</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>ObjOrObjL = tuple() | [tuple()]</tt></li><li><tt>State = <a href="shards_local.html#type-state">shards_local:state()</a></tt></li><li><tt>Result = boolean() | [boolean()]</tt></li></ul></p>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>ObjOrObjL = tuple() | [tuple()]</tt></li><li><tt>State = <a href="shards.html#type-state">shards:state()</a></tt></li><li><tt>Result = boolean() | [boolean()]</tt></li></ul></p>
 </div>
 
 <h3 class="function"><a name="join-2">join/2</a></h3>
@@ -93,41 +115,93 @@
 <h3 class="function"><a name="lookup-3">lookup/3</a></h3>
 <div class="spec">
 <p><tt>lookup(Tab, Key, State) -&gt; Result</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>State = <a href="shards_local.html#type-state">shards_local:state()</a></tt></li><li><tt>Result = [tuple()]</tt></li></ul></p>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>State = <a href="shards.html#type-state">shards:state()</a></tt></li><li><tt>Result = [tuple()]</tt></li></ul></p>
 </div>
 
 <h3 class="function"><a name="lookup_element-4">lookup_element/4</a></h3>
 <div class="spec">
 <p><tt>lookup_element(Tab, Key, Pos, State) -&gt; Elem</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>Pos = pos_integer()</tt></li><li><tt>State = <a href="shards_local.html#type-state">shards_local:state()</a></tt></li><li><tt>Elem = term() | [term()]</tt></li></ul></p>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>Pos = pos_integer()</tt></li><li><tt>State = <a href="shards.html#type-state">shards:state()</a></tt></li><li><tt>Elem = term() | [term()]</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="match-3">match/3</a></h3>
+<div class="spec">
+<p><tt>match(Tab, Pattern, State) -&gt; [Match]</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Pattern = <a href="ets.html#type-match_pattern">ets:match_pattern()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Match = [term()]</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="match_delete-3">match_delete/3</a></h3>
+<div class="spec">
+<p><tt>match_delete(Tab, Pattern, State) -&gt; true</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Pattern = <a href="ets.html#type-match_pattern">ets:match_pattern()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="match_object-3">match_object/3</a></h3>
+<div class="spec">
+<p><tt>match_object(Tab, Pattern, State) -&gt; [Object]</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Pattern = <a href="ets.html#type-match_pattern">ets:match_pattern()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Object = tuple()</tt></li></ul></p>
 </div>
 
 <h3 class="function"><a name="member-3">member/3</a></h3>
 <div class="spec">
 <p><tt>member(Tab, Key, State) -&gt; boolean()</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>State = <a href="shards_local.html#type-state">shards_local:state()</a></tt></li></ul></p>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>State = <a href="shards.html#type-state">shards:state()</a></tt></li></ul></p>
 </div>
 
 <h3 class="function"><a name="new-2">new/2</a></h3>
 <div class="spec">
-<p><tt>new(Name, Options) -&gt; any()</tt></p>
-</div><p>Equivalent to <a href="shards_local.html#new-2"><tt>shards_local:new(Name, Options)</tt></a>.</p>
-
-
-<h3 class="function"><a name="pick_one-2">pick_one/2</a></h3>
-<div class="spec">
-<p><tt>pick_one(Key, Nodes) -&gt; Node</tt>
-<ul class="definitions"><li><tt>Key = term()</tt></li><li><tt>Nodes = [node()]</tt></li><li><tt>Node = node()</tt></li></ul></p>
+<p><tt>new(Name, Options) -&gt; Result</tt>
+<ul class="definitions"><li><tt>Name = atom()</tt></li><li><tt>Options = [<a href="shards_local.html#type-option">shards_local:option()</a>]</tt></li><li><tt>LocalState = <a href="shards_local.html#type-state">shards_local:state()</a></tt></li><li><tt>DistState = <a href="#type-state">state()</a></tt></li><li><tt>Result = {Name, {LocalState, DistState}}</tt></li></ul></p>
 </div>
+
+<h3 class="function"><a name="pick_node-3">pick_node/3</a></h3>
+<div class="spec">
+<p><tt>pick_node(Op, Key, Nodes) -&gt; Node</tt>
+<ul class="definitions"><li><tt>Op = <a href="shards_local.html#type-operation_t">shards_local:operation_t()</a></tt></li><li><tt>Key = term()</tt></li><li><tt>Nodes = [node()]</tt></li><li><tt>Node = node()</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="select-3">select/3</a></h3>
+<div class="spec">
+<p><tt>select(Tab, MatchSpec, State) -&gt; [Match]</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>MatchSpec = <a href="ets.html#type-match_spec">ets:match_spec()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Match = term()</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="select_count-3">select_count/3</a></h3>
+<div class="spec">
+<p><tt>select_count(Tab, MatchSpec, State) -&gt; NumMatched</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>MatchSpec = <a href="ets.html#type-match_spec">ets:match_spec()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>NumMatched = non_neg_integer()</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="select_delete-3">select_delete/3</a></h3>
+<div class="spec">
+<p><tt>select_delete(Tab, MatchSpec, State) -&gt; NumDeleted</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>MatchSpec = <a href="ets.html#type-match_spec">ets:match_spec()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>NumDeleted = non_neg_integer()</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="select_reverse-3">select_reverse/3</a></h3>
+<div class="spec">
+<p><tt>select_reverse(Tab, MatchSpec, State) -&gt; [Match]</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>MatchSpec = <a href="ets.html#type-match_spec">ets:match_spec()</a></tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Match = term()</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="state-1">state/1</a></h3>
+<div class="spec">
+<p><tt>state(TabName) -&gt; State</tt>
+<ul class="definitions"><li><tt>TabName = atom()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li></ul></p>
+</div><p>
+  Returns the stored state information.
+  <ul>
+  <li><code>TabName</code>: Table name.</li>
+  </ul></p>
 
 <h3 class="function"><a name="take-3">take/3</a></h3>
 <div class="spec">
 <p><tt>take(Tab, Key, State) -&gt; [Object]</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>State = <a href="shards_local.html#type-state">shards_local:state()</a></tt></li><li><tt>Object = tuple()</tt></li></ul></p>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Key = term()</tt></li><li><tt>State = <a href="shards.html#type-state">shards:state()</a></tt></li><li><tt>Object = tuple()</tt></li></ul></p>
 </div>
 <hr>
 
 <div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
-<p><i>Generated by EDoc, May 21 2016, 19:59:28.</i></p>
+<p><i>Generated by EDoc, Jun 8 2016, 13:43:17.</i></p>
 </body>
 </html>

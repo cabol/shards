@@ -83,19 +83,46 @@ guaranteed to be the same as the original ETS functions.</p>
   <li><code>Continuation</code>: The <code>ets:continuation()</code>.</li>
   </ul></p>
 
+<h3 class="typedecl"><a name="type-key">key()</a></h3>
+<p><tt>key() = term()</tt></p>
+<p>Defines key type.</p>
+
+<h3 class="typedecl"><a name="type-n_shards">n_shards()</a></h3>
+<p><tt>n_shards() = pos_integer()</tt></p>
+<p>Defines number of shards.</p>
+
+<h3 class="typedecl"><a name="type-operation_t">operation_t()</a></h3>
+<p><tt>operation_t() = read | write | delete</tt></p>
+<p>Defines operation type.</p>
+
+<h3 class="typedecl"><a name="type-option">option()</a></h3>
+<p><tt>option() = <a href="ets.html#type-type">ets:type()</a> | <a href="ets.html#type-access">ets:access()</a> | named_table | {keypos, pos_integer()} | {heir, pid(), HeirData::term()} | {heir, none} | <a href="#type-tweaks">tweaks()</a> | <a href="#type-shards_opt">shards_opt()</a></tt></p>
+<p>Create table options – used by <code>new/2</code>.</p>
+
+<h3 class="typedecl"><a name="type-pick_node_fun">pick_node_fun()</a></h3>
+<p><tt>pick_node_fun() = fun((<a href="#type-operation_t">operation_t()</a>, <a href="#type-key">key()</a>, [node()]) -&gt; node()) | any</tt></p>
+<p>Defines spec function to pick or compute the node.</p>
+
+<h3 class="typedecl"><a name="type-pick_shard_fun">pick_shard_fun()</a></h3>
+<p><tt>pick_shard_fun() = fun((<a href="#type-operation_t">operation_t()</a>, <a href="#type-key">key()</a>, <a href="#type-n_shards">n_shards()</a>) -&gt; non_neg_integer()) | any</tt></p>
+<p>Defines spec function to pick or compute the shard.</p>
+
+<h3 class="typedecl"><a name="type-shards_opt">shards_opt()</a></h3>
+<p><tt>shards_opt() = {scope, l | g} | {n_shards, pos_integer()} | {pick_shard_fun, <a href="#type-pick_shard_fun">pick_shard_fun()</a>} | {pick_node_fun, <a href="#type-pick_node_fun">pick_node_fun()</a>} | {restart_strategy, one_for_one | one_for_all}</tt></p>
+<p>Shards extended options.</p>
+
 <h3 class="typedecl"><a name="type-state">state()</a></h3>
-<p><tt>state() = {Module::shards_local | shards_dist, Type::<a href="#type-type">type()</a>, NumShards::pos_integer()}</tt></p>
+<p><tt>state() = {NumShards::pos_integer(), PickShard::<a href="#type-pick_shard_fun">pick_shard_fun()</a>, Type::<a href="ets.html#type-type">ets:type()</a>}</tt></p>
 <p>Defines the <code>shards</code> local state:
   <ul>
-  <li><code>Module</code>: Module to use: <code>shards_local</code> | <code>shards_dist</code>.</li>
-  <li><code>TableType</code>: Table type.</li>
   <li><code>NumShards</code>: Number of ETS shards/fragments.</li>
+  <li><code>PickShard</code>: Function callback to pick/compute the shard.</li>
+  <li><code>TableType</code>: Table type.</li>
   </ul></p>
 
-<h3 class="typedecl"><a name="type-type">type()</a></h3>
-<p><tt>type() = set | ordered_set | bag | duplicate_bag | sharded_bad | sharded_duplicate_bag</tt></p>
-<p>Defines the table types, which are the same as ETS with two more
-  types: <code>sharded_bad</code> and <code>sharded_duplicate_bag</code>.</p>
+<h3 class="typedecl"><a name="type-tweaks">tweaks()</a></h3>
+<p><tt>tweaks() = {write_concurrency, boolean()} | {read_concurrency, boolean()} | compressed</tt></p>
+<p>ETS tweaks option</p>
 
 <h2><a name="index">Function Index</a></h2>
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#all-0">all/0</a></td><td>Equivalent to <a href="ets.html#all-0"><tt>ets:all()</tt></a>.
@@ -180,6 +207,8 @@ pair is affected, the rest may be successfully inserted.</td></tr>
   different.</td></tr>
 <tr><td valign="top"><a href="#next-3">next/3</a></td><td>
   This operation behaves similar to <code>ets:next/2</code>.</td></tr>
+<tr><td valign="top"><a href="#pick_shard-3">pick_shard/3</a></td><td>
+  Pick/computes the shard where the <code>Key</code> will be handled.</td></tr>
 <tr><td valign="top"><a href="#prev-3">prev/3</a></td><td>
   This operation behaves similar to <code>ets:prev/2</code>.</td></tr>
 <tr><td valign="top"><a href="#rename-3">rename/3</a></td><td>.</td></tr>
@@ -203,8 +232,6 @@ pair is affected, the rest may be successfully inserted.</td></tr>
   This operation behaves similar to <code>ets:select_reverse/3</code>.</td></tr>
 <tr><td valign="top"><a href="#setopts-3">setopts/3</a></td><td>
   Equivalent to <code>ets:setopts/2</code> for each shard table.</td></tr>
-<tr><td valign="top"><a href="#shard-2">shard/2</a></td><td>
-  Calculates the shard where the <code>Key</code> is handled.</td></tr>
 <tr><td valign="top"><a href="#shard_name-2">shard_name/2</a></td><td>
   Builds a shard name <code>ShardName</code>.</td></tr>
 <tr><td valign="top"><a href="#slot-3">slot/3</a></td><td>.</td></tr>
@@ -603,7 +630,7 @@ pair is affected, the rest may be successfully inserted.</p>
 <h3 class="function"><a name="new-2">new/2</a></h3>
 <div class="spec">
 <p><tt>new(Name, Options) -&gt; Result</tt>
-<ul class="definitions"><li><tt>Name = atom()</tt></li><li><tt>Options = [Option]</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Result = {Name, State}</tt></li><li><tt>Option = <a href="#type-type">type()</a> | <a href="ets.html#type-access">ets:access()</a> | named_table | {keypos, pos_integer()} | {heir, pid(), HeirData::term()} | {heir, none} | Tweaks | {n_shards, pos_integer()} | {scope, l | g}</tt></li><li><tt>Tweaks = {write_concurrency, boolean()} | {read_concurrency, boolean()} | compressed</tt></li></ul></p>
+<ul class="definitions"><li><tt>Name = atom()</tt></li><li><tt>Options = [<a href="#type-option">option()</a>]</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li><li><tt>Result = {Name, State}</tt></li></ul></p>
 </div><p><p>
   This operation is analogous to <code>ets:new/2</code>, BUT it behaves totally
   different. When this function is called, instead of create a single
@@ -635,6 +662,18 @@ storage works).</p>
   described at the beginning.
  </p>
 <p><b>See also:</b> <a href="ets.html#next-2">ets:next/2</a>.</p>
+
+<h3 class="function"><a name="pick_shard-3">pick_shard/3</a></h3>
+<div class="spec">
+<p><tt>pick_shard(Op, Key, NumShards) -&gt; ShardNum</tt>
+<ul class="definitions"><li><tt>Op = <a href="#type-operation_t">operation_t()</a></tt></li><li><tt>Key = term()</tt></li><li><tt>NumShards = pos_integer()</tt></li><li><tt>ShardNum = non_neg_integer()</tt></li></ul></p>
+</div><p>
+  Pick/computes the shard where the <code>Key</code> will be handled.
+  <ul>
+  <li><code>Op</code>: Operation type: <code>read | write | delete`.&lt;/li&gt;
+  &lt;li&gt;`Key</code>: The key to be hashed to calculate the shard.</li>
+  <li><code>NumShards</code>: Number of shards.</li>
+  </ul></p>
 
 <h3 class="function"><a name="prev-3">prev/3</a></h3>
 <div class="spec">
@@ -768,17 +807,6 @@ storage works).</p>
  </p>
 <p><b>See also:</b> <a href="ets.html#setopts-2">ets:setopts/2</a>.</p>
 
-<h3 class="function"><a name="shard-2">shard/2</a></h3>
-<div class="spec">
-<p><tt>shard(Key, NumShards) -&gt; ShardNum</tt>
-<ul class="definitions"><li><tt>Key = term()</tt></li><li><tt>NumShards = pos_integer()</tt></li><li><tt>ShardNum = non_neg_integer()</tt></li></ul></p>
-</div><p>
-  Calculates the shard where the <code>Key</code> is handled.
-  <ul>
-  <li><code>Key</code>: The key to be hashed to calculate the shard.</li>
-  <li><code>NumShards</code>: Number of shards.</li>
-  </ul></p>
-
 <h3 class="function"><a name="shard_name-2">shard_name/2</a></h3>
 <div class="spec">
 <p><tt>shard_name(TabName, ShardNum) -&gt; ShardName</tt>
@@ -902,6 +930,6 @@ storage works).</p>
 <hr>
 
 <div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
-<p><i>Generated by EDoc, May 21 2016, 19:59:28.</i></p>
+<p><i>Generated by EDoc, Jun 8 2016, 13:43:17.</i></p>
 </body>
 </html>
