@@ -233,9 +233,15 @@ member(Tab, Key, {Local, Dist}) ->
     R                 -> R
   end.
 
-%% @equiv shards_local:new(Name, Options)
+-spec new(Name, Options) -> Result when
+  Name       :: atom(),
+  Options    :: [shards_local:option()],
+  LocalState :: shards_local:state(),
+  DistState  :: state(),
+  Result     :: {Name, {LocalState, DistState}}.
 new(Name, Options) ->
-  shards_local:new(Name, Options).
+  {Name, LocalState} = shards_local:new(Name, Options),
+  {Name, {LocalState, state(Name)}}.
 
 -spec take(Tab, Key, State) -> [Object] when
   Tab    :: atom(),

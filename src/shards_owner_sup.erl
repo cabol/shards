@@ -17,7 +17,7 @@
 -define(worker(Mod, Args, Spec), child(worker, Mod, Args, Spec)).
 
 %% Macro to check if option is table type
--define(is_type_prop(T_), T_ == set; T_ == ordered_set; T_ == bag; T_ == duplicate_bag).
+-define(is_ets_type(T_), T_ == set; T_ == ordered_set; T_ == bag; T_ == duplicate_bag).
 
 %%%===================================================================
 %%% API functions
@@ -113,7 +113,7 @@ parse_opts([{pick_node_fun, PickNode} | Opts], Acc) ->
   parse_opts(Opts, Acc#{pick_node_fun := PickNode});
 parse_opts([{autoeject_nodes, AutoEject} | Opts], Acc) ->
   parse_opts(Opts, Acc#{autoeject_nodes := AutoEject});
-parse_opts([Opt | Opts], #{opts := NOpts} = Acc) when ?is_type_prop(Opt) ->
+parse_opts([Opt | Opts], #{opts := NOpts} = Acc) when ?is_ets_type(Opt) ->
   parse_opts(Opts, Acc#{type := Opt, opts := [Opt | NOpts]});
 parse_opts([Opt | Opts], #{opts := NOpts} = Acc) ->
   parse_opts(Opts, Acc#{opts := [Opt | NOpts]}).

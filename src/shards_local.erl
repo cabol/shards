@@ -191,12 +191,46 @@
   Continuation :: ets:continuation()
 }.
 
+%% @type tweaks() = {write_concurrency, boolean()}
+%%                | {read_concurrency, boolean()}
+%%                | compressed.
+%%
+%% ETS tweaks option
+-type tweaks() :: {write_concurrency, boolean()}
+                | {read_concurrency, boolean()}
+                | compressed.
+
+%% @type shards_opt() = {n_shards, pos_integer()}
+%%                    | {scope, l | g}
+%%                    | {pick_shard_fun, pick_shard_fun()}
+%%                    | {pick_node_fun, pick_node_fun()}.
+%%
+%% Shards extended options
+-type shards_opt() :: {n_shards, pos_integer()}
+                    | {scope, l | g}
+                    | {pick_shard_fun, pick_shard_fun()}
+                    | {pick_node_fun, pick_node_fun()}.
+
+%% @type option() = ets:type() | ets:access() | named_table
+%%                | {keypos, pos_integer()}
+%%                | {heir, pid(), HeirData :: term()}
+%%                | {heir, none} | tweaks()
+%%                | shards_opt().
+%%
+%% Create table options – used by `new/2'.
+-type option() :: ets:type() | ets:access() | named_table
+                | {keypos, pos_integer()}
+                | {heir, pid(), HeirData :: term()}
+                | {heir, none} | tweaks()
+                | shards_opt().
+
 %% Exported types
 -export_type([
   operation_t/0,
   pick_shard_fun/0,
   state/0,
-  continuation/0
+  continuation/0,
+  option/0
 ]).
 
 %% Default number of shards
@@ -782,17 +816,9 @@ member(Tab, Key, State) ->
 %% @end
 -spec new(Name, Options) -> Result when
   Name    :: atom(),
-  Options :: [Option],
+  Options :: [option()],
   State   :: state(),
-  Result  :: {Name, State},
-  Option  :: ets:type() | ets:access() | named_table | {keypos, pos_integer()}
-           | {heir, pid(), HeirData :: term()} | {heir, none} | Tweaks
-           | {n_shards, pos_integer()} | {scope, l | g}
-           | {pick_shard_fun, pick_shard_fun()}
-           | {pick_node_fun, pick_node_fun()},
-  Tweaks  :: {write_concurrency, boolean()}
-           | {read_concurrency, boolean()}
-           | compressed.
+  Result  :: {Name, State}.
 new(Name, Options) ->
   case lists:keytake(n_shards, 1, Options) of
     {value, {n_shards, NumShards}, NewOpts} ->

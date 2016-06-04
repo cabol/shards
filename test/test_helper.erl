@@ -29,7 +29,7 @@
 ]).
 
 -include_lib("stdlib/include/ms_transform.hrl").
--include("test_common.hrl").
+-include("test_helper.hrl").
 
 %%%===================================================================
 %%% Tests Key Generator
@@ -447,19 +447,7 @@ t_unsupported_ops(_Config) ->
 %%%===================================================================
 
 init_shards(Scope) ->
-  DefaultShards = ?N_SHARDS,
-  {_, {2, _, set}} = shards:new(?SET, [{n_shards, 2}, {scope, Scope}, set]),
-  {_, {5, _, duplicate_bag}} =
-    shards:new(?DUPLICATE_BAG, [{n_shards, 5}, {scope, Scope}, duplicate_bag]),
-  {_, {DefaultShards, _, ordered_set}} =
-    shards:new(?ORDERED_SET, [{scope, Scope}, ordered_set]),
-  {_, {5, _, duplicate_bag}} = shards:new(?SHARDED_DUPLICATE_BAG, [
-    {n_shards, 5},
-    {scope, Scope},
-    duplicate_bag,
-    {pick_shard_fun, fun pick_shard/3},
-    {pick_node_fun, fun pick_node/3}
-  ]),
+  init_shards_new(Scope),
 
   set = shards_local:info_shard(?SET, 0, type),
   duplicate_bag = shards_local:info_shard(?DUPLICATE_BAG, 0, type),
@@ -484,6 +472,36 @@ init_shards(Scope) ->
   ets:new(?ETS_SHARDED_DUPLICATE_BAG, [duplicate_bag, public, named_table]),
   ets:give_away(?ETS_SHARDED_DUPLICATE_BAG, whereis(?SHARDED_DUPLICATE_BAG), []),
   ok.
+
+%% @private
+init_shards_new(g) ->
+  DefaultShards = ?N_SHARDS,
+  {_, {{2, _, set}, _}} = shards:new(?SET, [{n_shards, 2}, {scope, g}, set]),
+  {_, {{5, _, duplicate_bag}, _}} =
+    shards:new(?DUPLICATE_BAG, [{n_shards, 5}, {scope, g}, duplicate_bag]),
+  {_, {{DefaultShards, _, ordered_set}, _}} =
+    shards:new(?ORDERED_SET, [{scope, g}, ordered_set]),
+  {_, {{5, _, duplicate_bag}, _}} = shards:new(?SHARDED_DUPLICATE_BAG, [
+    {n_shards, 5},
+    {scope, g},
+    duplicate_bag,
+    {pick_shard_fun, fun pick_shard/3},
+    {pick_node_fun, fun pick_node/3}
+  ]);
+init_shards_new(Scope) ->
+  DefaultShards = ?N_SHARDS,
+  {_, {2, _, set}} = shards:new(?SET, [{n_shards, 2}, {scope, Scope}, set]),
+  {_, {5, _, duplicate_bag}} =
+    shards:new(?DUPLICATE_BAG, [{n_shards, 5}, {scope, Scope}, duplicate_bag]),
+  {_, {DefaultShards, _, ordered_set}} =
+    shards:new(?ORDERED_SET, [{scope, Scope}, ordered_set]),
+  {_, {5, _, duplicate_bag}} = shards:new(?SHARDED_DUPLICATE_BAG, [
+    {n_shards, 5},
+    {scope, Scope},
+    duplicate_bag,
+    {pick_shard_fun, fun pick_shard/3},
+    {pick_node_fun, fun pick_node/3}
+  ]).
 
 cleanup_shards() ->
   Mod = shards:module(?SET),
