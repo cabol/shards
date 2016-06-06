@@ -59,7 +59,7 @@ init([Name, Options, NumShards]) ->
   ok = init_shards_dist(Name, Module),
 
   % launch shards supervisor
-  supervise(Children, #{strategy => one_for_one}).
+  supervise(Children).
 
 %%%===================================================================
 %%% Internal functions
@@ -67,16 +67,25 @@ init([Name, Options, NumShards]) ->
 
 %% @private
 child(Type, Module, Args, Spec) when is_map(Spec) ->
-  #{id       => maps:get(id, Spec, Module),
-    start    => maps:get(start, Spec, {Module, start_link, Args}),
-    restart  => maps:get(restart, Spec, permanent),
-    shutdown => maps:get(shutdown, Spec, 5000),
-    type     => Type,
-    modules  => maps:get(modules, Spec, [Module])}.
+  {maps:get(id, Spec, Module),
+   maps:get(start, Spec, {Module, start_link, Args}),
+   maps:get(restart, Spec, permanent),
+   maps:get(shutdown, Spec, 5000),
+   Type,
+   maps:get(modules, Spec, [Module])}.
 
 %% @private
-supervise(Children, SupFlags) ->
+supervise(Children) ->
+  supervise(Children, #{}).
+
+%% @private
+supervise(Children, SupFlagsMap) ->
   assert_unique_ids([Id || #{id := Id} <- Children]),
+  SupFlags = {
+    maps:get(strategy, SupFlagsMap, one_for_one),
+    maps:get(intensity, SupFlagsMap, 1),
+    maps:get(period, SupFlagsMap, 5)
+  },
   {ok, {SupFlags, Children}}.
 
 %% @private
