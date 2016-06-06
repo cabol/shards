@@ -12,7 +12,7 @@
   end_per_testcase/2
 ]).
 
-%% Test Cases
+%% Common Test Cases
 -include_lib("mixer/include/mixer.hrl").
 -mixin([
   {test_helper, [

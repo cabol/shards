@@ -55,6 +55,9 @@ the options. With `shards` there are additional options:
  * `{scope, l | g}`: defines `shards` scope, in other words, if sharding will be applied
    locally (`l`) or global/distributed (`g`) – default is `l`.
 
+ * `{restart_strategy, one_for_one | one_for_all}`: allows to configure the restart strategy for
+   `shards_owner_sup`. Default is `one_for_one`.
+
  * `{pick_shard_fun, pick_shard_fun()}`: Function to pick the **shard** on which the `key`
    will be handled locally – used by `shards_local`. See the spec [HERE](https://github.com/cabol/shards/blob/master/src/shards_local.erl#L145).
 
