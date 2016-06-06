@@ -17,7 +17,7 @@
 -define(worker(Mod, Args, Spec), child(worker, Mod, Args, Spec)).
 
 %% Macro to check if option is table type
--define(is_type_prop(T_), T_ == set; T_ == ordered_set; T_ == bag; T_ == duplicate_bag).
+-define(is_ets_type(T_), T_ == set; T_ == ordered_set; T_ == bag; T_ == duplicate_bag).
 
 %%%===================================================================
 %%% API functions
@@ -59,7 +59,7 @@ init([Name, Options, NumShards]) ->
   ok = init_shards_dist(Name, Module),
 
   % launch shards supervisor
-  supervise(Children, #{strategy => one_for_one}).
+  supervise(Children).
 
 %%%===================================================================
 %%% Internal functions
@@ -67,16 +67,25 @@ init([Name, Options, NumShards]) ->
 
 %% @private
 child(Type, Module, Args, Spec) when is_map(Spec) ->
-  #{id       => maps:get(id, Spec, Module),
-    start    => maps:get(start, Spec, {Module, start_link, Args}),
-    restart  => maps:get(restart, Spec, permanent),
-    shutdown => maps:get(shutdown, Spec, 5000),
-    type     => Type,
-    modules  => maps:get(modules, Spec, [Module])}.
+  {maps:get(id, Spec, Module),
+   maps:get(start, Spec, {Module, start_link, Args}),
+   maps:get(restart, Spec, permanent),
+   maps:get(shutdown, Spec, 5000),
+   Type,
+   maps:get(modules, Spec, [Module])}.
 
 %% @private
-supervise(Children, SupFlags) ->
+supervise(Children) ->
+  supervise(Children, #{}).
+
+%% @private
+supervise(Children, SupFlagsMap) ->
   assert_unique_ids([Id || #{id := Id} <- Children]),
+  SupFlags = {
+    maps:get(strategy, SupFlagsMap, one_for_one),
+    maps:get(intensity, SupFlagsMap, 1),
+    maps:get(period, SupFlagsMap, 5)
+  },
   {ok, {SupFlags, Children}}.
 
 %% @private
@@ -113,7 +122,7 @@ parse_opts([{pick_node_fun, PickNode} | Opts], Acc) ->
   parse_opts(Opts, Acc#{pick_node_fun := PickNode});
 parse_opts([{autoeject_nodes, AutoEject} | Opts], Acc) ->
   parse_opts(Opts, Acc#{autoeject_nodes := AutoEject});
-parse_opts([Opt | Opts], #{opts := NOpts} = Acc) when ?is_type_prop(Opt) ->
+parse_opts([Opt | Opts], #{opts := NOpts} = Acc) when ?is_ets_type(Opt) ->
   parse_opts(Opts, Acc#{type := Opt, opts := [Opt | NOpts]});
 parse_opts([Opt | Opts], #{opts := NOpts} = Acc) ->
   parse_opts(Opts, Acc#{opts := [Opt | NOpts]}).

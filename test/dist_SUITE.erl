@@ -26,7 +26,7 @@
   t_delete_tabs/1
 ]).
 
--include("test_common.hrl").
+-include("test_helper.hrl").
 
 -define(SLAVES, [a, b, c, d, e, f]).
 

@@ -105,10 +105,10 @@
 %%  DistState  :: shards_dist:state()
 %% }.
 %%
-%% Defines the `shards' distributed state:
+%% Defines the `shards' state:
 %% <ul>
-%% <li>`PickNode': Function callback to pick/compute the node.</li>
-%% <li>`TableType': Table type.</li>
+%% <li>`LocalState': Local state handled by `shards_local'.</li>
+%% <li>`DistState': Distributed state handled by `shards_dist'.</li>
 %% </ul>
 -type state() :: {
   LocalState :: shards_local:state(),
@@ -564,9 +564,25 @@ match_spec_run(List, CompiledMatchSpec) ->
 member(Tab, Key) ->
   call(Tab, member, [Tab, Key]).
 
-%% @equiv shards_local:new(Name, Options)
+%% @doc
+%% Wrapper to `shards_local:new/2' and `shards_dist:new/2'.
+%%
+%% @see shards_local:new/2.
+%% @see shards_dist:new/2.
+%% @end
+-spec new(Name, Options) -> Result when
+  Name       :: atom(),
+  Options    :: [shards_local:option()],
+  LocalState :: shards_local:state(),
+  DistState  :: shards_dist:state(),
+  Local      :: {Name, LocalState},
+  Dist       :: {Name, {LocalState, DistState}},
+  Result     :: Local | Dist.
 new(Name, Options) ->
-  ?SHARDS:new(Name, Options).
+  case lists:keyfind(scope, 1, Options) of
+    {scope, g} -> shards_dist:new(Name, Options);
+    _          -> shards_local:new(Name, Options)
+  end.
 
 %% @doc
 %% Wrapper to `shards_local:next/3' and `shards_dist:next/3'.
