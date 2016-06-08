@@ -200,16 +200,18 @@
                 | {read_concurrency, boolean()}
                 | compressed.
 
-%% @type shards_opt() = {n_shards, pos_integer()}
-%%                    | {scope, l | g}
+%% @type shards_opt() = {scope, l | g}
+%%                    | {n_shards, pos_integer()}
 %%                    | {pick_shard_fun, pick_shard_fun()}
-%%                    | {pick_node_fun, pick_node_fun()}.
+%%                    | {pick_node_fun, pick_node_fun()}
+%%                    | {restart_strategy, one_for_one | one_for_all}.
 %%
-%% Shards extended options
--type shards_opt() :: {n_shards, pos_integer()}
-                    | {scope, l | g}
+%% Shards extended options.
+-type shards_opt() :: {scope, l | g}
+                    | {n_shards, pos_integer()}
                     | {pick_shard_fun, pick_shard_fun()}
-                    | {pick_node_fun, pick_node_fun()}.
+                    | {pick_node_fun, pick_node_fun()}
+                    | {restart_strategy, one_for_one | one_for_all}.
 
 %% @type option() = ets:type() | ets:access() | named_table
 %%                | {keypos, pos_integer()}
@@ -232,9 +234,6 @@
   continuation/0,
   option/0
 ]).
-
-%% Default number of shards
--define(N_SHARDS, erlang:system_info(schedulers_online)).
 
 %%%===================================================================
 %%% ETS API
@@ -820,16 +819,7 @@ member(Tab, Key, State) ->
   State   :: state(),
   Result  :: {Name, State}.
 new(Name, Options) ->
-  case lists:keytake(n_shards, 1, Options) of
-    {value, {n_shards, NumShards}, NewOpts} ->
-      new(Name, NewOpts, NumShards);
-    false ->
-      new(Name, Options, ?N_SHARDS)
-  end.
-
-%% @private
-new(Name, Options, NumShards) ->
-  case shards_sup:start_child([Name, Options, NumShards]) of
+  case shards_sup:start_child([Name, Options]) of
     {ok, _} -> {Name, state(Name)};
     _       -> throw(badarg)
   end.

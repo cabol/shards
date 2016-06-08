@@ -11,7 +11,7 @@
   end_per_testcase/2
 ]).
 
-%% Test Cases
+%% Common Test Cases
 -include_lib("mixer/include/mixer.hrl").
 -mixin([
   {test_helper, [
@@ -28,6 +28,13 @@
     t_unsupported_ops/1
   ]}
 ]).
+
+%% Test Cases
+-export([
+  t_shard_restarted_when_down/1
+]).
+
+-include("test_helper.hrl").
 
 -define(EXCLUDED_FUNS, [
   module_info,
@@ -60,5 +67,54 @@ init_per_testcase(_, Config) ->
   Config.
 
 end_per_testcase(_, Config) ->
-  test_helper:delete_shards_pool(),
+  test_helper:delete_shards(),
   Config.
+
+%%%===================================================================
+%%% Tests Cases
+%%%===================================================================
+
+t_shard_restarted_when_down(_Config) ->
+  % create some sharded tables
+  {tab1, _} = shards:new(tab1, []),
+  {tab2, _} = shards:new(tab2, [{restart_strategy, one_for_all}]),
+
+  % insert some values
+  true = shards:insert(tab1, [{1, 1}, {2, 2}, {3, 3}]),
+  true = shards:insert(tab2, [{1, 1}, {2, 2}, {3, 3}]),
+
+  assert_values(tab1, [1, 2, 3], [1, 2, 3]),
+  assert_values(tab2, [1, 2, 3], [1, 2, 3]),
+
+  NumShards = shards:n_shards(tab1),
+  ShardToKill = shards_local:pick_shard(write, 1, NumShards),
+  ShardToKillTab1 = shards_local:shard_name(tab1, ShardToKill),
+  exit(whereis(ShardToKillTab1), kill),
+  timer:sleep(500),
+
+  assert_values(tab1, [1, 2, 3], [nil, 2, 3]),
+
+  ShardToKillTab2 = shards_local:shard_name(tab2, ShardToKill),
+  exit(whereis(ShardToKillTab2), kill),
+  timer:sleep(500),
+
+  assert_values(tab2, [1, 2, 3], [nil, nil, nil]),
+
+  % delete tables
+  true = shards:delete(tab1),
+  true = shards:delete(tab2),
+
+  ct:print("\e[1;1m t_shard_restarted_when_down: \e[0m\e[32m[OK] \e[0m"),
+  ok.
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+
+assert_values(Tab, Keys, Expected) ->
+  lists:foreach(fun({K, ExpectedV}) ->
+    ExpectedV = case shards:lookup(Tab, K) of
+      []       -> nil;
+      [{K, V}] -> V
+    end
+  end, lists:zip(Keys, Expected)).

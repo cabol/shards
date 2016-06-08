@@ -19,7 +19,7 @@
 -export([
   init_shards/1,
   cleanup_shards/0,
-  delete_shards_pool/0
+  delete_shards/0
 ]).
 
 %% Pick Callbacks
@@ -504,20 +504,14 @@ init_shards_new(Scope) ->
   ]).
 
 cleanup_shards() ->
-  Mod = shards:module(?SET),
-  cleanup_shards_(Mod).
-
-cleanup_shards_(shards_local) ->
   L = lists:duplicate(4, true),
   L = [shards:delete_all_objects(Tab) || Tab <- ?SHARDS_TABS],
   L = [ets:delete_all_objects(Tab) || Tab <- ?ETS_TABS],
   All = [[] = ets:match(Tab, '$1') || Tab <- ?ETS_TABS],
   All = [[] = shards:match(Tab, '$1') || Tab <- ?SHARDS_TABS],
-  true;
-cleanup_shards_(shards_dist) ->
   true.
 
-delete_shards_pool() ->
+delete_shards() ->
   L = lists:duplicate(4, true),
   L = [shards:delete(Tab) || Tab <- ?SHARDS_TABS],
   Count = supervisor:count_children(shards_sup),

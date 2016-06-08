@@ -12,11 +12,13 @@
   end_per_testcase/2
 ]).
 
-%% Test Cases
+%% Common Test Cases
 -include_lib("mixer/include/mixer.hrl").
 -mixin([
   {test_helper, [
-    t_basic_ops/1
+    t_basic_ops/1,
+    t_match_ops/1,
+    t_select_ops/1
   ]}
 ]).
 
@@ -41,6 +43,8 @@ groups() ->
   [{dist_test_group, [sequence], [
     t_join_leave_ops,
     t_basic_ops,
+    t_match_ops,
+    t_select_ops,
     t_delete_tabs
   ]}].
 
@@ -56,6 +60,7 @@ init_per_testcase(_, Config) ->
   Config.
 
 end_per_testcase(_, Config) ->
+  cleanup_tabs(Config),
   Config.
 
 %%%===================================================================
@@ -68,7 +73,7 @@ t_join_leave_ops(Config) ->
   OkNodes1 = lists:usort([node() | lists:droplast(Nodes)]),
   ENode = lists:last(OkNodes1),
 
-  % create tables
+  % setup tables
   setup_tabs(Config),
   timer:sleep(500),
 
@@ -121,8 +126,8 @@ t_join_leave_ops(Config) ->
   ct:print("\e[1;1m t_join_leave_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
-t_delete_tabs(_Config) ->
-  ok = cleanup_tabs(),
+t_delete_tabs(Config) ->
+  ok = cleanup_tabs(Config),
 
   UpNodes = shards:get_nodes(?SET),
   6 = length(UpNodes),
@@ -179,10 +184,13 @@ setup_tabs(Config) ->
   AllNodes = lists:usort([node() | Nodes]),
 
   {_, []} = rpc:multicall(
-    AllNodes, erlang, apply, [fun test_helper:init_shards/1, [g]]),
+    AllNodes, test_helper, init_shards, [g]),
   ok.
 
-cleanup_tabs() ->
-  lists:foreach(fun(Tab) ->
-    true = shards:delete_all_objects(Tab)
-  end, ?SHARDS_TABS).
+cleanup_tabs(Config) ->
+  {_, Nodes} = lists:keyfind(nodes, 1, Config),
+  AllNodes = lists:usort([node() | Nodes]),
+
+  {_, _} = rpc:multicall(
+    AllNodes, test_helper, cleanup_shards, []),
+  ok.
