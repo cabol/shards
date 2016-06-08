@@ -23,7 +23,14 @@
   insert_new/3,
   lookup/3,
   lookup_element/4,
+  match/3,
+  match_delete/3,
+  match_object/3,
   member/3,
+  select/3,
+  select_count/3,
+  select_delete/3,
+  select_reverse/3,
   take/3
 ]).
 
@@ -222,6 +229,35 @@ lookup_element(Tab, Key, Pos, {Local, {PickNode, _} = Dist}) ->
       rpc:call(Node, ?SHARDS, lookup_element, [Tab, Key, Pos, Local])
   end.
 
+-spec match(Tab, Pattern, State) -> [Match] when
+  Tab     :: atom(),
+  Pattern :: ets:match_pattern(),
+  State   :: state(),
+  Match   :: [term()].
+match(Tab, Pattern, {Local, Dist}) ->
+  Map = {?SHARDS, match, [Tab, Pattern, Local]},
+  Reduce = fun lists:append/2,
+  mapred(Tab, Map, Reduce, Dist, read).
+
+-spec match_delete(Tab, Pattern, State) -> true when
+  Tab     :: atom(),
+  Pattern :: ets:match_pattern(),
+  State   :: state().
+match_delete(Tab, Pattern, {Local, Dist}) ->
+  Map = {?SHARDS, match_delete, [Tab, Pattern, Local]},
+  Reduce = {fun(Res, Acc) -> Acc and Res end, true},
+  mapred(Tab, Map, Reduce, Dist, delete).
+
+-spec match_object(Tab, Pattern, State) -> [Object] when
+  Tab     :: atom(),
+  Pattern :: ets:match_pattern(),
+  State   :: state(),
+  Object  :: tuple().
+match_object(Tab, Pattern, {Local, Dist}) ->
+  Map = {?SHARDS, match_object, [Tab, Pattern, Local]},
+  Reduce = fun lists:append/2,
+  mapred(Tab, Map, Reduce, Dist, read).
+
 -spec member(Tab, Key, State) -> boolean() when
   Tab   :: atom(),
   Key   :: term(),
@@ -242,6 +278,46 @@ member(Tab, Key, {Local, Dist}) ->
 new(Name, Options) ->
   {Name, LocalState} = shards_local:new(Name, Options),
   {Name, {LocalState, state(Name)}}.
+
+-spec select(Tab, MatchSpec, State) -> [Match] when
+  Tab       :: atom(),
+  MatchSpec :: ets:match_spec(),
+  State     :: state(),
+  Match     :: term().
+select(Tab, MatchSpec, {Local, Dist}) ->
+  Map = {?SHARDS, select, [Tab, MatchSpec, Local]},
+  Reduce = fun lists:append/2,
+  mapred(Tab, Map, Reduce, Dist, read).
+
+-spec select_count(Tab, MatchSpec, State) -> NumMatched when
+  Tab        :: atom(),
+  MatchSpec  :: ets:match_spec(),
+  State      :: state(),
+  NumMatched :: non_neg_integer().
+select_count(Tab, MatchSpec, {Local, Dist}) ->
+  Map = {?SHARDS, select_count, [Tab, MatchSpec, Local]},
+  Reduce = {fun(Res, Acc) -> Acc + Res end, 0},
+  mapred(Tab, Map, Reduce, Dist, read).
+
+-spec select_delete(Tab, MatchSpec, State) -> NumDeleted when
+  Tab        :: atom(),
+  MatchSpec  :: ets:match_spec(),
+  State      :: state(),
+  NumDeleted :: non_neg_integer().
+select_delete(Tab, MatchSpec, {Local, Dist}) ->
+  Map = {?SHARDS, select_delete, [Tab, MatchSpec, Local]},
+  Reduce = {fun(Res, Acc) -> Acc + Res end, 0},
+  mapred(Tab, Map, Reduce, Dist, delete).
+
+-spec select_reverse(Tab, MatchSpec, State) -> [Match] when
+  Tab       :: atom(),
+  MatchSpec :: ets:match_spec(),
+  State     :: state(),
+  Match     :: term().
+select_reverse(Tab, MatchSpec, {Local, Dist}) ->
+  Map = {?SHARDS, select_reverse, [Tab, MatchSpec, Local]},
+  Reduce = fun lists:append/2,
+  mapred(Tab, Map, Reduce, Dist, read).
 
 -spec take(Tab, Key, State) -> [Object] when
   Tab    :: atom(),

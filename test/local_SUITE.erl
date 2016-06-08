@@ -67,7 +67,7 @@ init_per_testcase(_, Config) ->
   Config.
 
 end_per_testcase(_, Config) ->
-  test_helper:delete_shards_pool(),
+  test_helper:delete_shards(),
   Config.
 
 %%%===================================================================
