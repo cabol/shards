@@ -118,7 +118,7 @@ parse_opts(Opts) ->
     type             => set,
     pick_shard_fun   => fun shards_local:pick_shard/3,
     pick_node_fun    => fun shards_dist:pick_node/3,
-    autoeject_nodes  => true,
+    auto_eject_nodes => true,
     restart_strategy => one_for_one,
     opts             => []
   },
@@ -137,8 +137,8 @@ parse_opts([{pick_shard_fun, PickShard} | Opts], Acc) when is_function(PickShard
   parse_opts(Opts, Acc#{pick_shard_fun := PickShard});
 parse_opts([{pick_node_fun, PickNode} | Opts], Acc) when is_function(PickNode) ->
   parse_opts(Opts, Acc#{pick_node_fun := PickNode});
-parse_opts([{autoeject_nodes, AutoEject} | Opts], Acc) when is_boolean(AutoEject) ->
-  parse_opts(Opts, Acc#{autoeject_nodes := AutoEject});
+parse_opts([{auto_eject_nodes, Flag} | Opts], Acc) when is_boolean(Flag) ->
+  parse_opts(Opts, Acc#{auto_eject_nodes := Flag});
 parse_opts([{restart_strategy, Strategy} | Opts], Acc) when ?is_restart_strategy(Strategy) ->
   parse_opts(Opts, Acc#{restart_strategy := Strategy});
 parse_opts([Opt | Opts], #{opts := NOpts} = Acc) when ?is_ets_type(Opt) ->
@@ -155,9 +155,9 @@ local_state(Opts) ->
 
 %% @private
 dist_state(Opts) ->
-  #{pick_node_fun   := PickNode,
-    autoeject_nodes := AutoEject} = Opts,
-  {PickNode, AutoEject}.
+  #{pick_node_fun    := PickNode,
+    auto_eject_nodes := AutoEjectNodes} = Opts,
+  {PickNode, AutoEjectNodes}.
 
 %% @private
 init_shards_dist(Tab, shards_dist) ->

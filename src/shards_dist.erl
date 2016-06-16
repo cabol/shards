@@ -52,18 +52,19 @@
 -type pick_node_fun() :: shards_local:pick_node_fun().
 
 %% @type state() = {
-%%  PickNode  :: pick_node_fun(),
-%%  AutoEject :: boolean()
+%%  PickNode       :: pick_node_fun(),
+%%  AutoEjectNodes :: boolean()
 %% }.
 %%
 %% Defines the `shards' distributed state:
 %% <ul>
 %% <li>`PickNode': Function callback to pick/compute the node.</li>
-%% <li>`TableType': Table type.</li>
+%% <li>`AutoEjectNodes': A boolean value that controls if node should be
+%% ejected when it fails.</li>
 %% </ul>
 -type state() :: {
-  PickNode  :: pick_node_fun(),
-  AutoEject :: boolean()
+  PickNode       :: pick_node_fun(),
+  AutoEjectNodes :: boolean()
 }.
 
 -export_type([
@@ -125,7 +126,7 @@ pick_node(_, Key, Nodes) ->
 
 -spec delete(Tab :: atom()) -> true.
 delete(Tab) ->
-  mapred(Tab, {?SHARDS, delete, [Tab]}, nil, nil, delete),
+  mapred(Tab, {?SHARDS, delete, [Tab]}, nil, state(Tab), delete),
   true.
 
 -spec delete(Tab, Key, State) -> true when
@@ -163,10 +164,10 @@ insert(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
   lists:foreach(fun(Object) ->
     true = insert(Tab, Object, State)
   end, ObjOrObjL), true;
-insert(Tab, ObjOrObjL, {Local, {PickNode, _}}) when is_tuple(ObjOrObjL) ->
+insert(Tab, ObjOrObjL, {Local, {PickNode, AutoEject}}) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
   Node = PickNode(write, Key, get_nodes(Tab)),
-  rpc_call(Node, ?SHARDS, insert, [Tab, ObjOrObjL, Local]).
+  rpc_call(Node, {?SHARDS, insert, [Tab, ObjOrObjL, Local]}, Tab, AutoEject).
 
 -spec insert_new(Tab, ObjOrObjL, State) -> Result when
   Tab       :: atom(),
@@ -177,7 +178,7 @@ insert_new(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
   lists:foldr(fun(Object, Acc) ->
     [insert_new(Tab, Object, State) | Acc]
   end, [], ObjOrObjL);
-insert_new(Tab, ObjOrObjL, {Local, {PickNode, _} = Dist}) when is_tuple(ObjOrObjL) ->
+insert_new(Tab, ObjOrObjL, {Local, {PickNode, AutoEject} = Dist}) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
   Nodes = get_nodes(Tab),
   case PickNode(read, Key, Nodes) of
@@ -187,13 +188,13 @@ insert_new(Tab, ObjOrObjL, {Local, {PickNode, _} = Dist}) when is_tuple(ObjOrObj
       case mapred(Tab, Map, Reduce, Dist, read) of
         [] ->
           Node = PickNode(write, Key, Nodes),
-          rpc_call(Node, ?SHARDS, insert_new, [Tab, ObjOrObjL, Local]);
+          rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, Local]}, Tab, AutoEject);
         _ ->
           false
       end;
     _ ->
       Node = PickNode(write, Key, Nodes),
-      rpc_call(Node, ?SHARDS, insert_new, [Tab, ObjOrObjL, Local])
+      rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, Local]}, Tab, AutoEject)
   end.
 
 -spec lookup(Tab, Key, State) -> Result when
@@ -232,7 +233,7 @@ lookup_element(Tab, Key, Pos, {Local, {PickNode, _} = Dist}) ->
 -spec match(Tab, Pattern, State) -> [Match] when
   Tab     :: atom(),
   Pattern :: ets:match_pattern(),
-  State   :: state(),
+  State   :: shards:state(),
   Match   :: [term()].
 match(Tab, Pattern, {Local, Dist}) ->
   Map = {?SHARDS, match, [Tab, Pattern, Local]},
@@ -242,7 +243,7 @@ match(Tab, Pattern, {Local, Dist}) ->
 -spec match_delete(Tab, Pattern, State) -> true when
   Tab     :: atom(),
   Pattern :: ets:match_pattern(),
-  State   :: state().
+  State   :: shards:state().
 match_delete(Tab, Pattern, {Local, Dist}) ->
   Map = {?SHARDS, match_delete, [Tab, Pattern, Local]},
   Reduce = {fun(Res, Acc) -> Acc and Res end, true},
@@ -251,7 +252,7 @@ match_delete(Tab, Pattern, {Local, Dist}) ->
 -spec match_object(Tab, Pattern, State) -> [Object] when
   Tab     :: atom(),
   Pattern :: ets:match_pattern(),
-  State   :: state(),
+  State   :: shards:state(),
   Object  :: tuple().
 match_object(Tab, Pattern, {Local, Dist}) ->
   Map = {?SHARDS, match_object, [Tab, Pattern, Local]},
@@ -282,7 +283,7 @@ new(Name, Options) ->
 -spec select(Tab, MatchSpec, State) -> [Match] when
   Tab       :: atom(),
   MatchSpec :: ets:match_spec(),
-  State     :: state(),
+  State     :: shards:state(),
   Match     :: term().
 select(Tab, MatchSpec, {Local, Dist}) ->
   Map = {?SHARDS, select, [Tab, MatchSpec, Local]},
@@ -292,7 +293,7 @@ select(Tab, MatchSpec, {Local, Dist}) ->
 -spec select_count(Tab, MatchSpec, State) -> NumMatched when
   Tab        :: atom(),
   MatchSpec  :: ets:match_spec(),
-  State      :: state(),
+  State      :: shards:state(),
   NumMatched :: non_neg_integer().
 select_count(Tab, MatchSpec, {Local, Dist}) ->
   Map = {?SHARDS, select_count, [Tab, MatchSpec, Local]},
@@ -302,7 +303,7 @@ select_count(Tab, MatchSpec, {Local, Dist}) ->
 -spec select_delete(Tab, MatchSpec, State) -> NumDeleted when
   Tab        :: atom(),
   MatchSpec  :: ets:match_spec(),
-  State      :: state(),
+  State      :: shards:state(),
   NumDeleted :: non_neg_integer().
 select_delete(Tab, MatchSpec, {Local, Dist}) ->
   Map = {?SHARDS, select_delete, [Tab, MatchSpec, Local]},
@@ -312,7 +313,7 @@ select_delete(Tab, MatchSpec, {Local, Dist}) ->
 -spec select_reverse(Tab, MatchSpec, State) -> [Match] when
   Tab       :: atom(),
   MatchSpec :: ets:match_spec(),
-  State     :: state(),
+  State     :: shards:state(),
   Match     :: term().
 select_reverse(Tab, MatchSpec, {Local, Dist}) ->
   Map = {?SHARDS, select_reverse, [Tab, MatchSpec, Local]},
@@ -351,11 +352,22 @@ state(TabName) ->
 %%%===================================================================
 
 %% @private
-rpc_call(Node, Module, Function, Args) ->
+rpc_call(Node, {Module, Function, Args}, Tab, AutoEject) ->
   case rpc:call(Node, Module, Function, Args) of
-    {badrpc, _} -> throw(unexpected_error); % @TODO: call GC to remove this node
-    Response    -> Response
+    {badrpc, _} ->
+      % unexpected to get here
+      maybe_eject_node(Node, Tab, AutoEject),
+      throw({unexpected_error, {badrpc, Node}});
+    Response ->
+      Response
   end.
+
+%% @private
+maybe_eject_node(Node, Tab, true) ->
+  leave(Tab, [Node]),
+  ok;
+maybe_eject_node(_, _, _) ->
+  ok.
 
 %% @private
 mapred(Tab, Map, Reduce, State, Op) ->
@@ -366,12 +378,12 @@ mapred(Tab, Key, Map, nil, State, Op) ->
   mapred(Tab, Key, Map, fun(E, Acc) -> [E | Acc] end, State, Op);
 mapred(Tab, nil, Map, Reduce, _, _) ->
   p_mapred(Tab, Map, Reduce);
-mapred(Tab, Key, {MapMod, MapFun, MapArgs} = Map, Reduce, {PickNode, _}, Op) ->
+mapred(Tab, Key, Map, Reduce, {PickNode, AutoEject}, Op) ->
   case PickNode(Op, Key, get_nodes(Tab)) of
     any ->
       p_mapred(Tab, Map, Reduce);
     Node ->
-      rpc_call(Node, MapMod, MapFun, MapArgs)
+      rpc_call(Node, Map, Tab, AutoEject)
   end.
 
 %% @private

@@ -332,9 +332,10 @@ t_info_ops(_Config) ->
   R0 = ets:i(),
 
   % test info/1,2
-  2 = length(shards:info(?SET)),
+  DefaultShards = ?N_SHARDS,
+  DefaultShards = length(shards:info(?SET)),
   5 = length(shards:info(?DUPLICATE_BAG)),
-  L1 = lists:duplicate(2, public),
+  L1 = lists:duplicate(DefaultShards, public),
   L1 = shards:info(?SET, protection),
   L2 = lists:duplicate(5, public),
   L2 = shards:info(?DUPLICATE_BAG, protection),
@@ -380,17 +381,23 @@ t_tab2list_tab2file_file2tab(_Config) ->
   4 = length(R1),
 
   % save tab to files
-  [ok, ok] = shards:tab2file(?SET, ["myfile0", "myfile1"]),
+  DefaultShards = ?N_SHARDS,
+  L = lists:duplicate(DefaultShards, ok),
+  FileL = [
+    "myfile0", "myfile1", "myfile2", "myfile3",
+    "myfile4", "myfile5", "myfile6", "myfile7"
+  ],
+  L = shards:tab2file(?SET, FileL),
 
   % delete table
   shards:delete(?SET),
 
   % restore table from files
   {error, _} = shards:file2tab(["myfile0", "wrong_file"]),
-  {?SET, _} = shards:file2tab(["myfile0", "myfile1"]),
+  {ok, ?SET} = shards:file2tab(FileL),
 
   % check
-  [_, _] = shards:info(?SET),
+  [_, _, _, _, _, _, _, _] = shards:info(?SET),
   KVPairs = lookup_keys(shards, ?SET, [k1, k2, k3, k4]),
 
   ct:print("\e[1;1m t_tab2list_tab2file_file2tab: \e[0m\e[32m[OK] \e[0m"),
@@ -476,7 +483,10 @@ init_shards(Scope) ->
 %% @private
 init_shards_new(g) ->
   DefaultShards = ?N_SHARDS,
-  {_, {{2, _, set}, _}} = shards:new(?SET, [{n_shards, 2}, {scope, g}, set]),
+  {_, {{DefaultShards, _, set}, _}} = shards:new(?SET, [
+    {scope, g},
+    {auto_eject_nodes, false}
+  ]),
   {_, {{5, _, duplicate_bag}, _}} =
     shards:new(?DUPLICATE_BAG, [{n_shards, 5}, {scope, g}, duplicate_bag]),
   {_, {{DefaultShards, _, ordered_set}, _}} =
@@ -490,7 +500,7 @@ init_shards_new(g) ->
   ]);
 init_shards_new(Scope) ->
   DefaultShards = ?N_SHARDS,
-  {_, {2, _, set}} = shards:new(?SET, [{n_shards, 2}, {scope, Scope}, set]),
+  {_, {DefaultShards, _, set}} = shards:new(?SET, [{scope, Scope}]),
   {_, {5, _, duplicate_bag}} =
     shards:new(?DUPLICATE_BAG, [{n_shards, 5}, {scope, Scope}, duplicate_bag]),
   {_, {DefaultShards, _, ordered_set}} =
