@@ -1,6 +1,6 @@
 {application, shards, [
   {description, "ETS with Sharding support."},
-  {vsn, "0.1.0"},
+  {vsn, "0.2.0"},
   {registered, []},
   {mod, {shards, []}},
   {applications, [kernel, stdlib]},
@@ -10,6 +10,7 @@
   {licenses, ["MIT"]},
   {links, [
     {"GitHub", "https://github.com/cabol/shards"},
-    {"Docs", "http://cabol.github.io/posts/2016/04/14/sharding-support-for-ets.html"}
+    {"Doc", "http://cabol.github.io/shards"},
+    {"Blog Post", "http://cabol.github.io/posts/2016/04/14/sharding-support-for-ets.html"}
   ]}
 ]}.

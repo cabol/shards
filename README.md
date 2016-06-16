@@ -58,6 +58,9 @@ the options. With `shards` there are additional options:
  * `{restart_strategy, one_for_one | one_for_all}`: allows to configure the restart strategy for
    `shards_owner_sup`. Default is `one_for_one`.
 
+ * `{auto_eject_nodes, boolean()}`: A boolean value that controls if node should be ejected
+   when it fails. – Default is `true`.
+
  * `{pick_shard_fun, pick_shard_fun()}`: Function to pick the **shard** on which the `key`
    will be handled locally – used by `shards_local`. See the spec [HERE](https://github.com/cabol/shards/blob/master/src/shards_local.erl#L145).
 
@@ -78,10 +81,10 @@ Besides, the `shards:new/2` function returns a tuple of two elements:
 ```
 
 The first element is the name of the created table; `mytab1`. And the second one is the
-[State](./src/shards_local.erl#L159): `{4, #Fun<shards_local.pick_shard.3>, set}`.
+[State](./src/shards_local.erl#L189-L205): `{4, #Fun<shards_local.pick_shard.3>, set}`.
 We'll talk about the **State** later, and see how it can be used.
 
-> **NOTE:** For more information about `shards:new/2` go [HERE](./src/shards_local.erl#L796).
+> **NOTE:** For more information about `shards:new/2` see [shards](./src/shards.erl).
 
 Let's continue:
 
@@ -166,13 +169,13 @@ Extremely simple isn't?
 
 The module `shards` is a wrapper on top of two main modules:
 
- * `shards_local`: Implements Sharding on top of ETS tables, but locally (on a single Erlang node).
- * `shards_dist`: Implements Sharding but across multiple distributed Erlang nodes, which must
+ * [shards_local](./src/shards_local.erl): Implements Sharding on top of ETS tables, but locally (on a single Erlang node).
+ * [shards_dist](./src/shards_dist.erl): Implements Sharding but across multiple distributed Erlang nodes, which must
    run `shards` locally, since `shards_dist` uses `shards_local` internally. We'll cover
    the distributed part later.
 
 When you use `shards` on top of `shards_local`, a call to the control ETS table owned by `shards_owner_sup`
-must be done, in order to recover the [State](./src/shards_local.erl#L159), mentioned previously.
+must be done, in order to recover the [State](./src/shards_local.erl#L189-L205), mentioned previously.
 Most of the `shards_local` functions receives the **State** as parameter, so it must be fetched before
 to call it. You can check how `shards` module is implemented [HERE](./src/shards.erl).
 
@@ -234,7 +237,8 @@ $ erl -sname c@localhost -pa _build/default/lib/*/ebin -s shards
 % when a tables is created with {scope, g}, the module shards_dist is used
 % internally by shards
 > shards:new(mytab, [{n_shards, 4}, {scope, g}]).
-{mytab,{4,#Fun<shards_local.pick_shard.3>,set}}
+{mytab,{{4,#Fun<shards_local.pick_shard.3>,set},
+        {#Fun<shards_dist.pick_node.3>,true}}}
 ```
 
 **3.** Setup the `shards` cluster.

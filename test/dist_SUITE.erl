@@ -25,6 +25,7 @@
 %% Tests Cases
 -export([
   t_join_leave_ops/1,
+  t_eject_node_on_failure/1,
   t_delete_tabs/1
 ]).
 
@@ -45,6 +46,7 @@ groups() ->
     t_basic_ops,
     t_match_ops,
     t_select_ops,
+    t_eject_node_on_failure,
     t_delete_tabs
   ]}].
 
@@ -77,13 +79,11 @@ t_join_leave_ops(Config) ->
   setup_tabs(Config),
   timer:sleep(500),
 
-  % join
-  AllNodes = shards:join(?DUPLICATE_BAG, AllNodes),
-  AllNodes = shards:join(?SET, AllNodes),
-
-  % check nodes
-  7 = length(shards:get_nodes(?SET)),
-  7 = length(shards:get_nodes(?DUPLICATE_BAG)),
+  % join and check nodes
+  lists:foreach(fun(Tab) ->
+    AllNodes = shards:join(Tab, AllNodes),
+    7 = length(shards:get_nodes(Tab))
+  end, ?SHARDS_TABS),
 
   % check no duplicate members
   Members = pg2:get_members(?SET),
@@ -124,6 +124,39 @@ t_join_leave_ops(Config) ->
   6 = length(shards:get_nodes(?DUPLICATE_BAG)),
 
   ct:print("\e[1;1m t_join_leave_ops: \e[0m\e[32m[OK] \e[0m"),
+  ok.
+
+t_eject_node_on_failure(Config) ->
+  ok = cleanup_tabs(Config),
+
+  UpNodes = shards:get_nodes(?SET),
+  6 = length(UpNodes),
+
+  % add new node
+  NewNodes = [Z] = start_slaves([z]),
+  ok = rpc:call(Z, test_helper, init_shards, [g]),
+  UpNodes1 = shards:join(?SET, NewNodes),
+  UpNodes1 = shards:get_nodes(?SET),
+
+  % insert some data on that node
+  Z = lists:last(UpNodes1),
+  Z = shards_dist:pick_node(read, 2, UpNodes1),
+  true = shards:insert(?SET, {2, 2}),
+
+  % cause an error
+  ok = rpc:call(Z, shards, stop, []),
+  timer:sleep(500),
+  7 = length(UpNodes1),
+
+  % new node should be ejected on failure
+  UpNodes2 = lists:usort(UpNodes1 -- NewNodes),
+  UpNodes2 = shards:get_nodes(?SET),
+  6 = length(UpNodes2),
+
+  % stop failure node
+  stop_slaves([z]),
+
+  ct:print("\e[1;1m t_eject_node_on_failure: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_delete_tabs(Config) ->

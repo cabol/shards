@@ -149,6 +149,43 @@
 %% Defines spec function to pick or compute the node.
 -type pick_node_fun() :: fun((operation_t(), key(), [node()]) -> node()) | any.
 
+%% @type tweaks() = {write_concurrency, boolean()}
+%%                | {read_concurrency, boolean()}
+%%                | compressed.
+%%
+%% ETS tweaks option
+-type tweaks() :: {write_concurrency, boolean()}
+                | {read_concurrency, boolean()}
+                | compressed.
+
+%% @type shards_opt() = {scope, l | g}
+%%                    | {n_shards, pos_integer()}
+%%                    | {pick_shard_fun, pick_shard_fun()}
+%%                    | {pick_node_fun, pick_node_fun()}
+%%                    | {restart_strategy, one_for_one | one_for_all}
+%%                    | {eject_nodes_on_failure, boolean()}.
+%%
+%% Shards extended options.
+-type shards_opt() :: {scope, l | g}
+                    | {n_shards, pos_integer()}
+                    | {pick_shard_fun, pick_shard_fun()}
+                    | {pick_node_fun, pick_node_fun()}
+                    | {restart_strategy, one_for_one | one_for_all}
+                    | {auto_eject_nodes, boolean()}.
+
+%% @type option() = ets:type() | ets:access() | named_table
+%%                | {keypos, pos_integer()}
+%%                | {heir, pid(), HeirData :: term()}
+%%                | {heir, none} | tweaks()
+%%                | shards_opt().
+%%
+%% Create table options – used by `new/2'.
+-type option() :: ets:type() | ets:access() | named_table
+                | {keypos, pos_integer()}
+                | {heir, pid(), HeirData :: term()}
+                | {heir, none} | tweaks()
+                | shards_opt().
+
 %% @type state() = {
 %%  NumShards :: pos_integer(),
 %%  PickShard :: pick_shard_fun(),
@@ -190,41 +227,6 @@
   Shard        :: non_neg_integer(),
   Continuation :: ets:continuation()
 }.
-
-%% @type tweaks() = {write_concurrency, boolean()}
-%%                | {read_concurrency, boolean()}
-%%                | compressed.
-%%
-%% ETS tweaks option
--type tweaks() :: {write_concurrency, boolean()}
-                | {read_concurrency, boolean()}
-                | compressed.
-
-%% @type shards_opt() = {scope, l | g}
-%%                    | {n_shards, pos_integer()}
-%%                    | {pick_shard_fun, pick_shard_fun()}
-%%                    | {pick_node_fun, pick_node_fun()}
-%%                    | {restart_strategy, one_for_one | one_for_all}.
-%%
-%% Shards extended options.
--type shards_opt() :: {scope, l | g}
-                    | {n_shards, pos_integer()}
-                    | {pick_shard_fun, pick_shard_fun()}
-                    | {pick_node_fun, pick_node_fun()}
-                    | {restart_strategy, one_for_one | one_for_all}.
-
-%% @type option() = ets:type() | ets:access() | named_table
-%%                | {keypos, pos_integer()}
-%%                | {heir, pid(), HeirData :: term()}
-%%                | {heir, none} | tweaks()
-%%                | shards_opt().
-%%
-%% Create table options – used by `new/2'.
--type option() :: ets:type() | ets:access() | named_table
-                | {keypos, pos_integer()}
-                | {heir, pid(), HeirData :: term()}
-                | {heir, none} | tweaks()
-                | shards_opt().
 
 %% Exported types
 -export_type([
@@ -309,7 +311,7 @@ file2tab(Filenames) ->
   Options   :: [Option],
   Option    :: {verify, boolean()},
   Reason    :: term(),
-  Response  :: [{Tab, state()} | {error, Reason}].
+  Response  :: {ok, Tab} | {error, Reason}.
 file2tab(Filenames, Options) ->
   try
     ShardTabs = [{First, _} | _] = [begin
@@ -322,7 +324,11 @@ file2tab(Filenames, Options) ->
       end
     end || FN <- Filenames],
     Tab = name_from_shard(First),
-    new(Tab, [{restore, ShardTabs, Options}, {n_shards, length(Filenames)}])
+    {Tab, _} = new(Tab, [
+      {restore, ShardTabs, Options},
+      {n_shards, length(Filenames)}
+    ]),
+    {ok, Tab}
   catch
     _:Error -> Error
   end.
