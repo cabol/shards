@@ -11,8 +11,7 @@
   t_fold_ops/1,
   t_info_ops/1,
   t_tab2list_tab2file_file2tab/1,
-  t_equivalent_ops/1,
-  t_unsupported_ops/1
+  t_equivalent_ops/1
 ]).
 
 %% Helpers
@@ -429,26 +428,6 @@ t_equivalent_ops(_Config) ->
   ct:print("\e[1;1m t_equivalent_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
-t_unsupported_ops(_Config) ->
-  UnsupportedOps = [
-    {fun2ms, [any]},
-    {i, [?SET]},
-    {init_table, [?SET, any]},
-    {slot, [?SET, any]},
-    {to_dets, [?SET, any]},
-    {from_dets, [?SET, any]}
-  ],
-
-  lists:foreach(fun({Op, Args}) ->
-    try apply(shards, Op, Args)
-    catch
-      _:unsupported_operation -> ok
-    end
-  end, UnsupportedOps),
-
-  ct:print("\e[1;1m t_unsupported_ops: \e[0m\e[32m[OK] \e[0m"),
-  ok.
-
 %%%===================================================================
 %%% Helpers
 %%%===================================================================
@@ -462,14 +441,6 @@ init_shards(Scope) ->
   duplicate_bag = shards_local:info_shard(?SHARDED_DUPLICATE_BAG, 0, type),
   shards_created(?SHARDS_TABS),
 
-  Mod = case Scope of
-    g -> shards_dist;
-    _ -> shards_local
-  end,
-  lists:foreach(fun(Tab) ->
-    Mod = shards:module(Tab)
-  end, ?SHARDS_TABS),
-
   ets:new(?ETS_SET, [set, public, named_table]),
   ets:give_away(?ETS_SET, whereis(?SET), []),
   ets:new(?ETS_DUPLICATE_BAG, [duplicate_bag, public, named_table]),
@@ -481,37 +452,57 @@ init_shards(Scope) ->
   ok.
 
 %% @private
-init_shards_new(g) ->
-  DefaultShards = ?N_SHARDS,
-  {_, {{DefaultShards, _, set}, _}} = shards:new(?SET, [
-    {scope, g},
-    {auto_eject_nodes, false}
-  ]),
-  {_, {{5, _, duplicate_bag}, _}} =
-    shards:new(?DUPLICATE_BAG, [{n_shards, 5}, {scope, g}, duplicate_bag]),
-  {_, {{DefaultShards, _, ordered_set}, _}} =
-    shards:new(?ORDERED_SET, [{scope, g}, ordered_set]),
-  {_, {{5, _, duplicate_bag}, _}} = shards:new(?SHARDED_DUPLICATE_BAG, [
-    {n_shards, 5},
-    {scope, g},
-    duplicate_bag,
-    {pick_shard_fun, fun pick_shard/3},
-    {pick_node_fun, fun pick_node/3}
-  ]);
 init_shards_new(Scope) ->
+  Mod = case Scope of
+    g -> shards_dist;
+    _ -> shards_local
+  end,
+
   DefaultShards = ?N_SHARDS,
-  {_, {DefaultShards, _, set}} = shards:new(?SET, [{scope, Scope}]),
-  {_, {5, _, duplicate_bag}} =
-    shards:new(?DUPLICATE_BAG, [{n_shards, 5}, {scope, Scope}, duplicate_bag]),
-  {_, {DefaultShards, _, ordered_set}} =
-    shards:new(?ORDERED_SET, [{scope, Scope}, ordered_set]),
-  {_, {5, _, duplicate_bag}} = shards:new(?SHARDED_DUPLICATE_BAG, [
+  {_, StateSet} = shards:new(?SET, [{scope, Scope}]),
+  StateSet = shards:state(?SET),
+  Mod = shards_state:module(?SET),
+  DefaultShards = shards_state:n_shards(?SET),
+  set = shards_state:type(?SET),
+  Fun1 = fun shards_local:pick_shard/3,
+  Fun1 = shards_state:pick_shard_fun(?SET),
+  Fun2 = fun shards_dist:pick_node/3,
+  Fun2 = shards_state:pick_node_fun(?SET),
+  true = shards_state:auto_eject_nodes(?SET),
+
+  {_, StateDupBag} = shards:new(?DUPLICATE_BAG, [
+    {n_shards, 5},
+    {scope, Scope},
+    duplicate_bag
+  ]),
+  StateDupBag = shards:state(?DUPLICATE_BAG),
+  #{module := Mod,
+    n_shards := 5,
+    type := duplicate_bag
+  } = shards_state:to_map(StateDupBag),
+
+  {_, StateOrderedSet} = shards:new(?ORDERED_SET, [
+    {scope, Scope},
+    ordered_set
+  ]),
+  StateOrderedSet = shards:state(?ORDERED_SET),
+  #{module := Mod,
+    n_shards := DefaultShards,
+    type := ordered_set
+  } = shards_state:to_map(StateOrderedSet),
+
+  {_, StateShardedDupBag} = shards:new(?SHARDED_DUPLICATE_BAG, [
     {n_shards, 5},
     {scope, Scope},
     duplicate_bag,
     {pick_shard_fun, fun pick_shard/3},
     {pick_node_fun, fun pick_node/3}
-  ]).
+  ]),
+  StateShardedDupBag = shards:state(?SHARDED_DUPLICATE_BAG),
+  #{module := Mod,
+    n_shards := 5,
+    type := duplicate_bag
+  } = shards_state:to_map(StateShardedDupBag).
 
 cleanup_shards() ->
   L = lists:duplicate(4, true),

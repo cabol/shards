@@ -52,17 +52,14 @@ init([Name, Options]) ->
 
   % parse options and build metadata, local and dist state
   ParsedOpts = #{
-    module           := Module,
-    n_shards         := NumShards,
-    restart_strategy := RestartStrategy,
-    opts             := Opts
+    opts             := Opts,
+    restart_strategy := RestartStrategy
   } = parse_opts(Options),
-  LocalState = local_state(ParsedOpts),
-  DistState = dist_state(ParsedOpts),
-  Metadata = {Module, LocalState, DistState},
-  true = ets:insert(Name, {'$shards_meta', Metadata}),
+  State = shards_state:from_map(ParsedOpts),
+  true = ets:insert(Name, State),
 
   % create children
+  NumShards = shards_state:n_shards(State),
   Children = [begin
     % get a local name to shard
     LocalShardName = shards_owner:shard_name(Name, Shard),
@@ -73,6 +70,7 @@ init([Name, Options]) ->
   end || Shard <- lists:seq(0, NumShards - 1)],
 
   % init shards_dist pg2 group
+  Module = shards_state:module(State),
   ok = init_shards_dist(Name, Module),
 
   % launch shards supervisor
@@ -112,15 +110,10 @@ assert_unique_ids([Id | Rest]) ->
 
 %% @private
 parse_opts(Opts) ->
-  AccIn = #{
-    module           => shards_local,
-    n_shards         => ?N_SHARDS,
-    type             => set,
-    pick_shard_fun   => fun shards_local:pick_shard/3,
-    pick_node_fun    => fun shards_dist:pick_node/3,
-    auto_eject_nodes => true,
-    restart_strategy => one_for_one,
-    opts             => []
+  StateMap = shards_state:to_map(shards_state:new()),
+  AccIn = StateMap#{
+    opts             => [],
+    restart_strategy => one_for_one
   },
   parse_opts(Opts, AccIn).
 
@@ -133,31 +126,18 @@ parse_opts([{scope, g} | Opts], Acc) ->
   parse_opts(Opts, Acc#{module := shards_dist});
 parse_opts([{n_shards, N} | Opts], Acc) when is_integer(N), N > 0 ->
   parse_opts(Opts, Acc#{n_shards := N});
-parse_opts([{pick_shard_fun, PickShard} | Opts], Acc) when is_function(PickShard) ->
-  parse_opts(Opts, Acc#{pick_shard_fun := PickShard});
-parse_opts([{pick_node_fun, PickNode} | Opts], Acc) when is_function(PickNode) ->
-  parse_opts(Opts, Acc#{pick_node_fun := PickNode});
-parse_opts([{auto_eject_nodes, Flag} | Opts], Acc) when is_boolean(Flag) ->
-  parse_opts(Opts, Acc#{auto_eject_nodes := Flag});
-parse_opts([{restart_strategy, Strategy} | Opts], Acc) when ?is_restart_strategy(Strategy) ->
-  parse_opts(Opts, Acc#{restart_strategy := Strategy});
+parse_opts([{pick_shard_fun, Val} | Opts], Acc) when is_function(Val) ->
+  parse_opts(Opts, Acc#{pick_shard_fun := Val});
+parse_opts([{pick_node_fun, Val} | Opts], Acc) when is_function(Val) ->
+  parse_opts(Opts, Acc#{pick_node_fun := Val});
+parse_opts([{auto_eject_nodes, Val} | Opts], Acc) when is_boolean(Val) ->
+  parse_opts(Opts, Acc#{auto_eject_nodes := Val});
+parse_opts([{restart_strategy, Val} | Opts], Acc) when ?is_restart_strategy(Val) ->
+  parse_opts(Opts, Acc#{restart_strategy := Val});
 parse_opts([Opt | Opts], #{opts := NOpts} = Acc) when ?is_ets_type(Opt) ->
   parse_opts(Opts, Acc#{type := Opt, opts := [Opt | NOpts]});
 parse_opts([Opt | Opts], #{opts := NOpts} = Acc) ->
   parse_opts(Opts, Acc#{opts := [Opt | NOpts]}).
-
-%% @private
-local_state(Opts) ->
-  #{n_shards       := NumShards,
-    type           := Type,
-    pick_shard_fun := PickShard} = Opts,
-  {NumShards, PickShard, Type}.
-
-%% @private
-dist_state(Opts) ->
-  #{pick_node_fun    := PickNode,
-    auto_eject_nodes := AutoEjectNodes} = Opts,
-  {PickNode, AutoEjectNodes}.
 
 %% @private
 init_shards_dist(Tab, shards_dist) ->

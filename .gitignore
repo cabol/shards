@@ -29,3 +29,6 @@ data
 *.sh
 edoc
 priv/*.so
+*.crashdump
+rebar.lock
+*_plt
