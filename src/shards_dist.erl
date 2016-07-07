@@ -34,42 +34,12 @@
   take/3
 ]).
 
-%% Extended API
--export([
-  state/1
-]).
-
 %%%===================================================================
 %%% Types & Macros
 %%%===================================================================
 
 %% Macro to get the default module to use: `shards_local'.
 -define(SHARDS, shards_local).
-
-%% @type pick_node_fun() = shards_local:pick_node_fun().
-%%
-%% Defines spec function to pick or compute the node.
--type pick_node_fun() :: shards_local:pick_node_fun().
-
-%% @type state() = {
-%%  PickNode       :: pick_node_fun(),
-%%  AutoEjectNodes :: boolean()
-%% }.
-%%
-%% Defines the `shards' distributed state:
-%% <ul>
-%% <li>`PickNode': Function callback to pick/compute the node.</li>
-%% <li>`AutoEjectNodes': A boolean value that controls if node should be
-%% ejected when it fails.</li>
-%% </ul>
--type state() :: {
-  PickNode       :: pick_node_fun(),
-  AutoEjectNodes :: boolean()
-}.
-
--export_type([
-  state/0
-]).
 
 %%%===================================================================
 %%% Extended API
@@ -112,7 +82,7 @@ get_nodes(Tab) ->
   lists:usort([node(Pid) || Pid <- pg2:get_members(Tab)]).
 
 -spec pick_node(Op, Key, Nodes) -> Node when
-  Op    :: shards_local:operation_t(),
+  Op    :: shards_state:op(),
   Key   :: term(),
   Nodes :: [node()],
   Node  :: node().
@@ -126,226 +96,212 @@ pick_node(_, Key, Nodes) ->
 
 -spec delete(Tab :: atom()) -> true.
 delete(Tab) ->
-  mapred(Tab, {?SHARDS, delete, [Tab]}, nil, state(Tab), delete),
+  mapred(Tab, {?SHARDS, delete, [Tab]}, nil, shards_state:get(Tab), delete),
   true.
 
 -spec delete(Tab, Key, State) -> true when
   Tab   :: atom(),
   Key   :: term(),
-  State :: shards:state().
-delete(Tab, Key, {Local, Dist}) ->
-  Map = {?SHARDS, delete, [Tab, Key, Local]},
-  mapred(Tab, Key, Map, nil, Dist, delete),
+  State :: shards_state:state().
+delete(Tab, Key, State) ->
+  Map = {?SHARDS, delete, [Tab, Key, State]},
+  mapred(Tab, Key, Map, nil, State, delete),
   true.
 
 -spec delete_all_objects(Tab, State) -> true when
   Tab   :: atom(),
-  State :: shards:state().
-delete_all_objects(Tab, {Local, Dist}) ->
-  Map = {?SHARDS, delete_all_objects, [Tab, Local]},
-  mapred(Tab, Map, nil, Dist, delete),
+  State :: shards_state:state().
+delete_all_objects(Tab, State) ->
+  Map = {?SHARDS, delete_all_objects, [Tab, State]},
+  mapred(Tab, Map, nil, State, delete),
   true.
 
 -spec delete_object(Tab, Object, State) -> true when
   Tab    :: atom(),
   Object :: tuple(),
-  State  :: shards:state().
-delete_object(Tab, Object, {Local, Dist}) when is_tuple(Object) ->
+  State  :: shards_state:state().
+delete_object(Tab, Object, State) when is_tuple(Object) ->
   [Key | _] = tuple_to_list(Object),
-  Map = {?SHARDS, delete_object, [Tab, Object, Local]},
-  mapred(Tab, Key, Map, nil, Dist, delete),
+  Map = {?SHARDS, delete_object, [Tab, Object, State]},
+  mapred(Tab, Key, Map, nil, State, delete),
   true.
 
 -spec insert(Tab, ObjOrObjL, State) -> true when
   Tab       :: atom(),
   ObjOrObjL :: tuple() | [tuple()],
-  State     :: shards:state().
+  State     :: shards_state:state().
 insert(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
   lists:foreach(fun(Object) ->
     true = insert(Tab, Object, State)
   end, ObjOrObjL), true;
-insert(Tab, ObjOrObjL, {Local, {PickNode, AutoEject}}) when is_tuple(ObjOrObjL) ->
+insert(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
-  Node = PickNode(write, Key, get_nodes(Tab)),
-  rpc_call(Node, {?SHARDS, insert, [Tab, ObjOrObjL, Local]}, Tab, AutoEject).
+  PickNodeFun = shards_state:pick_node_fun(State),
+  AutoEject = shards_state:auto_eject_nodes(State),
+  Node = PickNodeFun(write, Key, get_nodes(Tab)),
+  rpc_call(Node, {?SHARDS, insert, [Tab, ObjOrObjL, State]}, Tab, AutoEject).
 
 -spec insert_new(Tab, ObjOrObjL, State) -> Result when
   Tab       :: atom(),
   ObjOrObjL :: tuple() | [tuple()],
-  State     :: shards:state(),
+  State     :: shards_state:state(),
   Result    :: boolean() | [boolean()].
 insert_new(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
   lists:foldr(fun(Object, Acc) ->
     [insert_new(Tab, Object, State) | Acc]
   end, [], ObjOrObjL);
-insert_new(Tab, ObjOrObjL, {Local, {PickNode, AutoEject} = Dist}) when is_tuple(ObjOrObjL) ->
+insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
   Nodes = get_nodes(Tab),
-  case PickNode(read, Key, Nodes) of
+  PickNodeFun = shards_state:pick_node_fun(State),
+  AutoEject = shards_state:auto_eject_nodes(State),
+  case PickNodeFun(read, Key, Nodes) of
     any ->
-      Map = {?SHARDS, lookup, [Tab, Key, Local]},
+      Map = {?SHARDS, lookup, [Tab, Key, State]},
       Reduce = fun lists:append/2,
-      case mapred(Tab, Map, Reduce, Dist, read) of
+      case mapred(Tab, Map, Reduce, State, read) of
         [] ->
-          Node = PickNode(write, Key, Nodes),
-          rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, Local]}, Tab, AutoEject);
+          Node = PickNodeFun(write, Key, Nodes),
+          rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, State]}, Tab, AutoEject);
         _ ->
           false
       end;
     _ ->
-      Node = PickNode(write, Key, Nodes),
-      rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, Local]}, Tab, AutoEject)
+      Node = PickNodeFun(write, Key, Nodes),
+      rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, State]}, Tab, AutoEject)
   end.
 
 -spec lookup(Tab, Key, State) -> Result when
   Tab    :: atom(),
   Key    :: term(),
-  State  :: shards:state(),
+  State  :: shards_state:state(),
   Result :: [tuple()].
-lookup(Tab, Key, {Local, Dist}) ->
-  Map = {?SHARDS, lookup, [Tab, Key, Local]},
+lookup(Tab, Key, State) ->
+  Map = {?SHARDS, lookup, [Tab, Key, State]},
   Reduce = fun lists:append/2,
-  mapred(Tab, Key, Map, Reduce, Dist, read).
+  mapred(Tab, Key, Map, Reduce, State, read).
 
 -spec lookup_element(Tab, Key, Pos, State) -> Elem when
   Tab   :: atom(),
   Key   :: term(),
   Pos   :: pos_integer(),
-  State :: shards:state(),
+  State :: shards_state:state(),
   Elem  :: term() | [term()].
-lookup_element(Tab, Key, Pos, {Local, {PickNode, _} = Dist}) ->
+lookup_element(Tab, Key, Pos, State) ->
   Nodes = get_nodes(Tab),
-  case PickNode(read, Key, Nodes) of
+  PickNodeFun = shards_state:pick_node_fun(State),
+  case PickNodeFun(read, Key, Nodes) of
     any ->
-      Map = {?SHARDS, lookup_element, [Tab, Key, Pos, Local]},
+      Map = {?SHARDS, lookup_element, [Tab, Key, Pos, State]},
       Filter = lists:filter(fun
         ({badrpc, {'EXIT', _}}) -> false;
         (_)                     -> true
-      end, mapred(Tab, Map, nil, Dist, read)),
+      end, mapred(Tab, Map, nil, State, read)),
       case Filter of
         [] -> exit({badarg, erlang:get_stacktrace()});
         _  -> lists:append(Filter)
       end;
     Node ->
-      rpc:call(Node, ?SHARDS, lookup_element, [Tab, Key, Pos, Local])
+      rpc:call(Node, ?SHARDS, lookup_element, [Tab, Key, Pos, State])
   end.
 
 -spec match(Tab, Pattern, State) -> [Match] when
   Tab     :: atom(),
   Pattern :: ets:match_pattern(),
-  State   :: shards:state(),
+  State   :: shards_state:state(),
   Match   :: [term()].
-match(Tab, Pattern, {Local, Dist}) ->
-  Map = {?SHARDS, match, [Tab, Pattern, Local]},
+match(Tab, Pattern, State) ->
+  Map = {?SHARDS, match, [Tab, Pattern, State]},
   Reduce = fun lists:append/2,
-  mapred(Tab, Map, Reduce, Dist, read).
+  mapred(Tab, Map, Reduce, State, read).
 
 -spec match_delete(Tab, Pattern, State) -> true when
   Tab     :: atom(),
   Pattern :: ets:match_pattern(),
-  State   :: shards:state().
-match_delete(Tab, Pattern, {Local, Dist}) ->
-  Map = {?SHARDS, match_delete, [Tab, Pattern, Local]},
+  State   :: shards_state:state().
+match_delete(Tab, Pattern, State) ->
+  Map = {?SHARDS, match_delete, [Tab, Pattern, State]},
   Reduce = {fun(Res, Acc) -> Acc and Res end, true},
-  mapred(Tab, Map, Reduce, Dist, delete).
+  mapred(Tab, Map, Reduce, State, delete).
 
 -spec match_object(Tab, Pattern, State) -> [Object] when
   Tab     :: atom(),
   Pattern :: ets:match_pattern(),
-  State   :: shards:state(),
+  State   :: shards_state:state(),
   Object  :: tuple().
-match_object(Tab, Pattern, {Local, Dist}) ->
-  Map = {?SHARDS, match_object, [Tab, Pattern, Local]},
+match_object(Tab, Pattern, State) ->
+  Map = {?SHARDS, match_object, [Tab, Pattern, State]},
   Reduce = fun lists:append/2,
-  mapred(Tab, Map, Reduce, Dist, read).
+  mapred(Tab, Map, Reduce, State, read).
 
 -spec member(Tab, Key, State) -> boolean() when
   Tab   :: atom(),
   Key   :: term(),
-  State :: shards:state().
-member(Tab, Key, {Local, Dist}) ->
-  Map = {?SHARDS, member, [Tab, Key, Local]},
-  case mapred(Tab, Key, Map, nil, Dist, read) of
+  State :: shards_state:state().
+member(Tab, Key, State) ->
+  Map = {?SHARDS, member, [Tab, Key, State]},
+  case mapred(Tab, Key, Map, nil, State, read) of
     R when is_list(R) -> lists:member(true, R);
     R                 -> R
   end.
 
 -spec new(Name, Options) -> Result when
-  Name       :: atom(),
-  Options    :: [shards_local:option()],
-  LocalState :: shards_local:state(),
-  DistState  :: state(),
-  Result     :: {Name, {LocalState, DistState}}.
+  Name    :: atom(),
+  Options :: [shards_local:option()],
+  State   :: shards_state:state(),
+  Result  :: {Name, State}.
 new(Name, Options) ->
-  {Name, LocalState} = shards_local:new(Name, Options),
-  {Name, {LocalState, state(Name)}}.
+  shards_local:new(Name, Options).
 
 -spec select(Tab, MatchSpec, State) -> [Match] when
   Tab       :: atom(),
   MatchSpec :: ets:match_spec(),
-  State     :: shards:state(),
+  State     :: shards_state:state(),
   Match     :: term().
-select(Tab, MatchSpec, {Local, Dist}) ->
-  Map = {?SHARDS, select, [Tab, MatchSpec, Local]},
+select(Tab, MatchSpec, State) ->
+  Map = {?SHARDS, select, [Tab, MatchSpec, State]},
   Reduce = fun lists:append/2,
-  mapred(Tab, Map, Reduce, Dist, read).
+  mapred(Tab, Map, Reduce, State, read).
 
 -spec select_count(Tab, MatchSpec, State) -> NumMatched when
   Tab        :: atom(),
   MatchSpec  :: ets:match_spec(),
-  State      :: shards:state(),
+  State      :: shards_state:state(),
   NumMatched :: non_neg_integer().
-select_count(Tab, MatchSpec, {Local, Dist}) ->
-  Map = {?SHARDS, select_count, [Tab, MatchSpec, Local]},
+select_count(Tab, MatchSpec, State) ->
+  Map = {?SHARDS, select_count, [Tab, MatchSpec, State]},
   Reduce = {fun(Res, Acc) -> Acc + Res end, 0},
-  mapred(Tab, Map, Reduce, Dist, read).
+  mapred(Tab, Map, Reduce, State, read).
 
 -spec select_delete(Tab, MatchSpec, State) -> NumDeleted when
   Tab        :: atom(),
   MatchSpec  :: ets:match_spec(),
-  State      :: shards:state(),
+  State      :: shards_state:state(),
   NumDeleted :: non_neg_integer().
-select_delete(Tab, MatchSpec, {Local, Dist}) ->
-  Map = {?SHARDS, select_delete, [Tab, MatchSpec, Local]},
+select_delete(Tab, MatchSpec, State) ->
+  Map = {?SHARDS, select_delete, [Tab, MatchSpec, State]},
   Reduce = {fun(Res, Acc) -> Acc + Res end, 0},
-  mapred(Tab, Map, Reduce, Dist, delete).
+  mapred(Tab, Map, Reduce, State, delete).
 
 -spec select_reverse(Tab, MatchSpec, State) -> [Match] when
   Tab       :: atom(),
   MatchSpec :: ets:match_spec(),
-  State     :: shards:state(),
+  State     :: shards_state:state(),
   Match     :: term().
-select_reverse(Tab, MatchSpec, {Local, Dist}) ->
-  Map = {?SHARDS, select_reverse, [Tab, MatchSpec, Local]},
+select_reverse(Tab, MatchSpec, State) ->
+  Map = {?SHARDS, select_reverse, [Tab, MatchSpec, State]},
   Reduce = fun lists:append/2,
-  mapred(Tab, Map, Reduce, Dist, read).
+  mapred(Tab, Map, Reduce, State, read).
 
 -spec take(Tab, Key, State) -> [Object] when
   Tab    :: atom(),
   Key    :: term(),
-  State  :: shards:state(),
+  State  :: shards_state:state(),
   Object :: tuple().
-take(Tab, Key, {Local, Dist}) ->
-  Map = {?SHARDS, take, [Tab, Key, Local]},
+take(Tab, Key, State) ->
+  Map = {?SHARDS, take, [Tab, Key, State]},
   Reduce = fun lists:append/2,
-  mapred(Tab, Key, Map, Reduce, Dist, read).
-
-%%%===================================================================
-%%% Extended API
-%%%===================================================================
-
-%% @doc
-%% Returns the stored state information.
-%% <ul>
-%% <li>`TabName': Table name.</li>
-%% </ul>
-%% @end
--spec state(TabName) -> State when
-  TabName :: atom(),
-  State   :: state().
-state(TabName) ->
-  {_, _, State} = ets:lookup_element(TabName, '$shards_meta', 2),
-  State.
+  mapred(Tab, Key, Map, Reduce, State, read).
 
 %%%===================================================================
 %%% Internal functions
@@ -364,7 +320,7 @@ rpc_call(Node, {Module, Function, Args}, Tab, AutoEject) ->
 
 %% @private
 maybe_eject_node(Node, Tab, true) ->
-  leave(Tab, [Node]),
+  _ = leave(Tab, [Node]),
   ok;
 maybe_eject_node(_, _, _) ->
   ok.
@@ -378,8 +334,10 @@ mapred(Tab, Key, Map, nil, State, Op) ->
   mapred(Tab, Key, Map, fun(E, Acc) -> [E | Acc] end, State, Op);
 mapred(Tab, nil, Map, Reduce, _, _) ->
   p_mapred(Tab, Map, Reduce);
-mapred(Tab, Key, Map, Reduce, {PickNode, AutoEject}, Op) ->
-  case PickNode(Op, Key, get_nodes(Tab)) of
+mapred(Tab, Key, Map, Reduce, State, Op) ->
+  PickNodeFun = shards_state:pick_node_fun(State),
+  AutoEject = shards_state:auto_eject_nodes(State),
+  case PickNodeFun(Op, Key, get_nodes(Tab)) of
     any ->
       p_mapred(Tab, Map, Reduce);
     Node ->

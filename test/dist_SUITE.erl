@@ -56,6 +56,7 @@ init_per_suite(Config) ->
   [{nodes, Nodes} | Config].
 
 end_per_suite(Config) ->
+  shards:stop(),
   Config.
 
 init_per_testcase(_, Config) ->

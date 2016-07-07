@@ -27,13 +27,10 @@
   first/1,
   foldl/3,
   foldr/3,
-  from_dets/2,
-  fun2ms/1,
   give_away/3,
-  i/0, i/1,
+  i/0,
   info/1, info/2,
   info_shard/2, info_shard/3,
-  init_table/2,
   insert/2,
   insert_new/2,
   is_compiled_ms/1,
@@ -49,22 +46,17 @@
   new/2,
   next/2,
   prev/2,
-  rename/2,
-  repair_continuation/2,
-  safe_fixtable/2,
   select/2, select/3, select/1,
   select_count/2,
   select_delete/2,
   select_reverse/2, select_reverse/3, select_reverse/1,
   setopts/2,
-  slot/2,
   tab2file/2, tab2file/3,
   tab2list/1,
   tabfile_info/1,
   table/1, table/2,
   test_ms/2,
   take/2,
-  to_dets/2,
   update_counter/3, update_counter/4,
   update_element/3
 ]).
@@ -78,49 +70,18 @@
 ]).
 
 -export([
-  metadata/1,
-  state/1,
-  local_state/1,
-  dist_state/1,
-  module/1,
-  n_shards/1,
-  pick_shard_fun/1,
-  tab_type/1,
-  list/1
+  list/1,
+  state/1
 ]).
 
 %%%===================================================================
 %%% Types & Macros
 %%%===================================================================
 
-%% @type metadata() = shards_local:state().
--type metadata() :: {
-  module(),
-  shards_local:state(),
-  shards_dist:state()
-}.
-
-%% @type state() = {
-%%  LocalState :: shards_local:state(),
-%%  DistState  :: shards_dist:state()
-%% }.
-%%
-%% Defines the `shards' state:
-%% <ul>
-%% <li>`LocalState': Local state handled by `shards_local'.</li>
-%% <li>`DistState': Distributed state handled by `shards_dist'.</li>
-%% </ul>
--type state() :: {
-  LocalState :: shards_local:state(),
-  DistState  :: shards_dist:state()
-}.
-
 %% @type continuation() = shards_local:continuation().
 -type continuation() :: shards_local:continuation().
 
 -export_type([
-  metadata/0,
-  state/0,
   continuation/0
 ]).
 
@@ -165,7 +126,7 @@ all() ->
 %% @end
 -spec delete(Tab :: atom()) -> true.
 delete(Tab) ->
-  {Module, _, _} = metadata(Tab),
+  Module = shards_state:module(Tab),
   Module:delete(Tab).
 
 %% @doc
@@ -254,33 +215,6 @@ foldr(Function, Acc0, Tab) ->
   call(Tab, foldr, [Function, Acc0, Tab]).
 
 %% @doc
-%% Wrapper to `shards_local:from_dets/2' and `shards_dist:from_dets/2'.
-%%
-%% @see shards_local:from_dets/2.
-%% @see shards_dist:from_dets/2.
-%% @end
--spec from_dets(Tab, DetsTab) -> true when
-  Tab     :: atom(),
-  DetsTab :: dets:tab_name().
-from_dets(Tab, DetsTab) ->
-  {Module, _, _} = metadata(Tab),
-  Module:from_dets(Tab, DetsTab).
-
-%% @doc
-%% <p><font color="red"><b>WARNING:</b> Please use `shards_local:fun2ms/1'
-%% instead.</font></p>
-%%
-%% Since this function uses `parse_transform', it isn't possible
-%% to call `shards_local:fun2ms/1' from `shards'. Besides, it isn't
-%% necessary, the effect is the same as you call directly
-%% `shards_local:fun2ms/1' from you code.
-%%
-%% @see ets:fun2ms/1.
-%% @end
-fun2ms(_LiteralFun) ->
-  throw(unsupported_operation).
-
-%% @doc
 %% Wrapper to `shards_local:give_away/4' and `shards_dist:give_away/4'.
 %%
 %% @see shards_local:give_away/4.
@@ -296,17 +230,6 @@ give_away(Tab, Pid, GiftData) ->
 %% @equiv shards_local:i()
 i() ->
   ?SHARDS:i().
-
-%% @doc
-%% Wrapper to `shards_local:i/1' and `shards_dist:i/1'.
-%%
-%% @see shards_local:i/1.
-%% @see shards_dist:i/1.
-%% @end
--spec i(Tab :: atom()) -> ok.
-i(Tab) ->
-  {Module, _, _} = metadata(Tab),
-  Module:i(Tab).
 
 %% @doc
 %% Wrapper to `shards_local:info/2' and `shards_dist:info/2'.
@@ -349,7 +272,7 @@ info(Tab, Item) ->
   Shard  :: non_neg_integer(),
   Result :: [term()] | undefined.
 info_shard(Tab, Shard) ->
-  {Module, _, _} = metadata(Tab),
+  Module = shards_state:module(Tab),
   Module:info_shard(Tab, Shard).
 
 %% @doc
@@ -364,22 +287,8 @@ info_shard(Tab, Shard) ->
   Item   :: atom(),
   Result :: term() | undefined.
 info_shard(Tab, Shard, Item) ->
-  {Module, _, _} = metadata(Tab),
+  Module = shards_state:module(Tab),
   Module:info_shard(Tab, Shard, Item).
-
-%% @doc
-%% Wrapper to `shards_local:init_table/3' and `shards_dist:init_table/3'.
-%%
-%% @see shards_local:init_table/3.
-%% @see shards_dist:init_table/3.
-%% @end
--spec init_table(Tab, InitFun) -> true when
-  Tab     :: atom(),
-  InitFun :: fun((Arg) -> Res),
-  Arg     :: read | close,
-  Res     :: end_of_input | {Objects :: [term()], InitFun} | term().
-init_table(Tab, InitFun) ->
-  call(Tab, init_table, [Tab, InitFun]).
 
 %% @doc
 %% Wrapper to `shards_local:insert/3' and `shards_dist:insert/3'.
@@ -611,44 +520,6 @@ prev(Tab, Key1) ->
   call(Tab, prev, [Tab, Key1]).
 
 %% @doc
-%% Wrapper to `shards_local:rename/3' and `shards_dist:rename/3'.
-%%
-%% @see shards_local:rename/3.
-%% @see shards_dist:rename/3.
-%% @end
--spec rename(Tab, Name) -> Name when
-  Tab  :: atom(),
-  Name :: atom().
-rename(Tab, Name) ->
-  call(Tab, rename, [Tab, Name]).
-
-%% @doc
-%% Wrapper to `shards_local:repair_continuation/3' and
-%% `shards_dist:repair_continuation/3'.
-%%
-%% @see shards_local:repair_continuation/3.
-%% @see shards_dist:repair_continuation/3.
-%% @end
--spec repair_continuation(Continuation, MatchSpec) -> Continuation when
-  Continuation :: continuation(),
-  MatchSpec    :: ets:match_spec().
-repair_continuation(Continuation, MatchSpec) ->
-  [Tab | _] = tuple_to_list(Continuation),
-  call(Tab, repair_continuation, [Continuation, MatchSpec]).
-
-%% @doc
-%% Wrapper to `shards_local:i/1' and `shards_dist:i/1'.
-%%
-%% @see shards_local:i/1.
-%% @see shards_dist:i/1.
-%% @end
--spec safe_fixtable(Tab, Fix) -> true when
-  Tab :: atom(),
-  Fix :: boolean().
-safe_fixtable(Tab, Fix) ->
-  call(Tab, safe_fixtable, [Tab, Fix]).
-
-%% @doc
 %% Wrapper to `shards_local:select/3' and `shards_dist:select/3'.
 %%
 %% @see shards_local:select/3.
@@ -778,19 +649,6 @@ setopts(Tab, Opts) ->
   call(Tab, setopts, [Tab, Opts]).
 
 %% @doc
-%% Wrapper to `shards_local:slot/3' and `shards_dist:slot/3'.
-%%
-%% @see shards_local:slot/3.
-%% @see shards_dist:slot/3.
-%% @end
--spec slot(Tab, I) -> [Object] | '$end_of_table' when
-  Tab    :: atom(),
-  I      :: non_neg_integer(),
-  Object :: tuple().
-slot(Tab, I) ->
-  call(Tab, slot, [Tab, I]).
-
-%% @doc
 %% Wrapper to `shards_local:tab2file/3' and `shards_dist:tab2file/3'.
 %%
 %% @see shards_local:tab2file/3.
@@ -886,18 +744,6 @@ take(Tab, Key) ->
   call(Tab, take, [Tab, Key]).
 
 %% @doc
-%% Wrapper to `shards_local:to_dets/2' and `shards_dist:to_dets/2'.
-%%
-%% @see shards_local:to_dets/2.
-%% @see shards_dist:to_dets/2.
-%% @end
--spec to_dets(Tab, DetsTab) -> DetsTab when
-  Tab     :: atom(),
-  DetsTab :: dets:tab_name().
-to_dets(Tab, DetsTab) ->
-  call(Tab, to_dets, [Tab, DetsTab]).
-
-%% @doc
 %% Wrapper to `shards_local:update_counter/4' and
 %% `shards_dist:update_counter/4'.
 %%
@@ -980,115 +826,24 @@ pick_node(Key, Nodes) ->
 %%%===================================================================
 
 %% @doc
-%% Returns the stored table metadata.
-%% <ul>
-%% <li>`TabName': Table name.</li>
-%% </ul>
-%% @end
--spec metadata(TabName) -> Metadata when
-  TabName  :: atom(),
-  Metadata :: metadata().
-metadata(TabName) ->
-  ets:lookup_element(TabName, '$shards_meta', 2).
-
-%% @doc
-%% Returns the stored state information.
-%% <ul>
-%% <li>`TabName': Table name.</li>
-%% </ul>
-%% @end
--spec state(TabName) -> State when
-  TabName :: atom(),
-  State   :: state().
-state(TabName) ->
-  {_, Local, Dist} = metadata(TabName),
-  {Local, Dist}.
-
-%% @doc
-%% Returns the stored local state information.
-%% <ul>
-%% <li>`TabName': Table name.</li>
-%% </ul>
-%% @end
--spec local_state(TabName) -> State when
-  TabName :: atom(),
-  State   :: shards_local:state().
-local_state(TabName) ->
-  shards_local:state(TabName).
-
-%% @doc
-%% Returns the stored distributed state information.
-%% <ul>
-%% <li>`TabName': Table name.</li>
-%% </ul>
-%% @end
--spec dist_state(TabName) -> State when
-  TabName :: atom(),
-  State   :: shards_dist:state().
-dist_state(TabName) ->
-  shards_dist:state(TabName).
-
-%% @doc
-%% Returns the set module.
-%% <ul>
-%% <li>`TabName': Table name.</li>
-%% </ul>
-%% @end
--spec module(TabName) -> Module when
-  TabName :: atom(),
-  Module  :: module().
-module(TabName) when is_atom(TabName) ->
-  {Module, _, _} = metadata(TabName),
-  Module.
-
-%% @doc
-%% Returns the number of shards.
-%% <ul>
-%% <li>`TabNameOrState': Table name or State.</li>
-%% </ul>
-%% @end
--spec n_shards(TabNameOrState) -> NumShards when
-  TabNameOrState :: shards_local:state() | atom(),
-  NumShards      :: pos_integer().
-n_shards({NumShards, _, _}) -> NumShards;
-n_shards(TabName)           -> n_shards(local_state(TabName)).
-
-%% @doc
-%% Returns the function to pick/compute the shard.
-%% <ul>
-%% <li>`TabNameOrState': Table name or State.</li>
-%% </ul>
-%% @end
--spec pick_shard_fun(TabNameOrState) -> PickShardFun when
-  TabNameOrState :: shards_local:state() | atom(),
-  PickShardFun   :: shards_local:pick_shard_fun().
-pick_shard_fun({_, KeygenFun, _}) -> KeygenFun;
-pick_shard_fun(TabName)           -> tab_type(local_state(TabName)).
-
-%% @doc
-%% Returns the table type.
-%% <ul>
-%% <li>`TabNameOrState': Table name or State.</li>
-%% </ul>
-%% @end
--spec tab_type(TabNameOrState) -> Type when
-  TabNameOrState :: shards_local:state() | atom(),
-  Type           :: ets:type().
-tab_type({_, _, Type}) -> Type;
-tab_type(TabName)      -> tab_type(local_state(TabName)).
-
-%% @doc
 %% Returns the list of shard names associated to the given `TabName'.
 %% The shard names that were created in the `shards:new/2,3' fun.
 %% <ul>
-%% <li>`TabName': Table name.</li>
+%% <li>`Tab': Table name.</li>
 %% </ul>
 %% @end
--spec list(TabName) -> ShardTabNames when
-  TabName       :: atom(),
-  ShardTabNames :: [atom()].
-list(TabName) ->
-  shards_local:list(TabName, n_shards(TabName)).
+-spec list(Tab) -> Result when
+  Tab    :: atom(),
+  Result :: [atom()].
+list(Tab) ->
+  shards_local:list(Tab, shards_state:n_shards(Tab)).
+
+%% @doc
+%% Utility to get the `state' for the given table `Tab'.
+%% @end
+-spec state(Tab :: atom()) -> shards_state:state().
+state(Tab) ->
+  shards_state:get(Tab).
 
 %%%===================================================================
 %%% Internal functions
@@ -1096,9 +851,6 @@ list(TabName) ->
 
 %% @private
 call(Tab, Fun, Args) ->
-  case metadata(Tab) of
-    {shards_local, Local, _} ->
-      apply(shards_local, Fun, Args ++ [Local]);
-    {shards_dist, Local, Dist} ->
-      apply(shards_dist, Fun, Args ++ [{Local, Dist}])
-  end.
+  State = shards_state:get(Tab),
+  Module = shards_state:module(State),
+  apply(Module, Fun, Args ++ [State]).

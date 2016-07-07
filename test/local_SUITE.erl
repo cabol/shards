@@ -24,8 +24,7 @@
     t_fold_ops/1,
     t_info_ops/1,
     t_tab2list_tab2file_file2tab/1,
-    t_equivalent_ops/1,
-    t_unsupported_ops/1
+    t_equivalent_ops/1
   ]}
 ]).
 
@@ -86,7 +85,7 @@ t_shard_restarted_when_down(_Config) ->
   assert_values(tab1, [1, 2, 3], [1, 2, 3]),
   assert_values(tab2, [1, 2, 3], [1, 2, 3]),
 
-  NumShards = shards:n_shards(tab1),
+  NumShards = shards_state:n_shards(tab1),
   ShardToKill = shards_local:pick_shard(write, 1, NumShards),
   ShardToKillTab1 = shards_local:shard_name(tab1, ShardToKill),
   exit(whereis(ShardToKillTab1), kill),

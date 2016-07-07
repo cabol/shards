@@ -1,16 +1,8 @@
 REBAR = $(shell which rebar3)
 
-## Common variables
-DEFAULT_PATH = ./_build/default
-DEFAULT_BUILD_PATH = $(DEFAULT_PATH)/lib/*/ebin
+EPMD_PROC_NUM = $(shell ps -ef | grep epmd | grep -v "grep")
 
-## CT
-CT_PATH = ./_build/test
-CT_BUILD_PATH = $(CT_PATH)/lib/*/ebin
-CT_SUITES = task_SUITE local_SUITE dist_SUITE
-CT_OPTS = -cover test/cover.spec
-
-.PHONY: all check_rebar compile clean distclean dialyze tests shell doc
+.PHONY: all check_rebar compile clean distclean dialyzer tests shell edoc
 
 all: check_rebar compile
 
@@ -34,19 +26,32 @@ clean: check_rebar
 
 distclean: clean
 	$(REBAR) clean --all
-	rm -rf _build logs log edoc *.dump c_src/*.o priv/*.so
+	rm -rf _build logs log doc *.dump c_src/*.o priv/*.so *_plt *.crashdump
 
-dialyze: check_rebar
+dialyzer: check_rebar
 	$(REBAR) dialyzer
 
-tests: check_rebar
-	$(REBAR) as test compile
-	mkdir -p $(CT_PATH)/logs
-	ct_run -dir test -suite $(CT_SUITES) -pa $(CT_BUILD_PATH) -logdir $(CT_PATH)/logs $(CT_OPTS)
+check_epmd:
+ifeq ($(EPMD_PROC_NUM),)
+	epmd&
+	@echo " ---> Started epmd!"
+endif
+
+tests: check_rebar check_epmd
+	$(REBAR) ct --name ct@127.0.0.1
+	$(REBAR) cover
 	rm -rf test/*.beam
 
-shell:
+local_tests: check_rebar check_epmd
+	$(REBAR) ct --name ct@127.0.0.1 --suite=test/local_SUITE
+	rm -rf test/*.beam
+
+dist_tests: check_rebar check_epmd
+	$(REBAR) ct --name ct@127.0.0.1 --suite=test/dist_SUITE
+	rm -rf test/*.beam
+
+shell: check_rebar
 	$(REBAR) shell
 
-edoc:
+edoc: check_rebar
 	$(REBAR) edoc
