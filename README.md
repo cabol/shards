@@ -67,10 +67,10 @@ the options. With `shards` there are additional options:
    when it fails. – Default is `true`.
 
  * `{pick_shard_fun, pick_shard_fun()}`: Function to pick the **shard** on which the `key`
-   will be handled locally – used by `shards_local`. See the spec [HERE](https://github.com/cabol/shards/blob/master/src/shards_local.erl#L145).
+   will be handled locally – used by `shards_local`. See [shards_state](./src/shards_state.erl).
 
  * `{pick_node_fun, pick_node_fun()}`: Function to pick the **node** on which the `key`
-   will be handled globally/distributed – used by `shards_dist`. See the spec [HERE](https://github.com/cabol/shards/blob/master/src/shards_local.erl#L150).
+   will be handled globally/distributed – used by `shards_dist`. See [shards_state](./src/shards_state.erl).
 
 > **NOTE:** By default `shards` uses a built-in functions to pick the **shard** (local scope)
   and the **node** (distributed scope) on which the key will be handled. BUT you can override

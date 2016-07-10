@@ -65,8 +65,7 @@
 -export([
   join/2,
   leave/2,
-  get_nodes/1,
-  pick_node/2
+  get_nodes/1
 ]).
 
 -export([
@@ -93,7 +92,7 @@
 %%%===================================================================
 
 %% @doc Starts `shards' application.
--spec start() -> {ok, _} | {error, term()}.
+-spec start() -> {ok, [atom()]} | {error, term()}.
 start() ->
   application:ensure_all_started(shards).
 
@@ -114,7 +113,7 @@ stop(_State) ->
 %%% Shards/ETS API
 %%%===================================================================
 
-%% @equiv shards_local:all()
+%% @equiv shards_local:all/0
 all() ->
   ?SHARDS:all().
 
@@ -164,11 +163,11 @@ delete_all_objects(Tab) ->
 delete_object(Tab, Object) ->
   call(Tab, delete_object, [Tab, Object]).
 
-%% @equiv shards_local:file2tab(Filenames)
+%% @equiv shards_local:file2tab/1
 file2tab(Filenames) ->
   ?SHARDS:file2tab(Filenames).
 
-%% @equiv shards_local:file2tab(Filenames, Options)
+%% @equiv shards_local:file2tab/2
 file2tab(Filenames, Options) ->
   ?SHARDS:file2tab(Filenames, Options).
 
@@ -227,68 +226,31 @@ foldr(Function, Acc0, Tab) ->
 give_away(Tab, Pid, GiftData) ->
   call(Tab, give_away, [Tab, Pid, GiftData]).
 
-%% @equiv shards_local:i()
+%% @equiv shards_local:i/0
 i() ->
   ?SHARDS:i().
 
-%% @doc
-%% Wrapper to `shards_local:info/2' and `shards_dist:info/2'.
-%%
-%% @see shards_local:info/2.
-%% @see shards_dist:info/2.
-%% @end
--spec info(Tab) -> Result when
-  Tab      :: atom(),
-  Result   :: [InfoList],
-  InfoList :: [term() | undefined].
+%% @equiv shards_local:info/2
 info(Tab) ->
-  call(Tab, info, [Tab]).
+  case whereis(Tab) of
+    undefined -> undefined;
+    _         -> ?SHARDS:info(Tab, shards_state:get(Tab))
+  end.
 
-%% @doc
-%% Wrapper to `shards_local:info/3' and `shards_dist:info/3'.
-%%
-%% @see shards_local:info/3.
-%% @see shards_dist:info/3.
-%% @end
--spec info(Tab, Item) -> Result when
-  Tab    :: atom(),
-  Item   :: atom(),
-  Result :: [Value],
-  Value  :: [term() | undefined].
+%% @equiv shards_local:info/3
 info(Tab, Item) ->
   case whereis(Tab) of
     undefined -> undefined;
-    _         -> call(Tab, info, [Tab, Item])
+    _         -> ?SHARDS:info(Tab, Item, shards_state:get(Tab))
   end.
 
-%% @doc
-%% Wrapper to `shards_local:info_shard/2' and `shards_dist:info_shard/2'.
-%%
-%% @see shards_local:info_shard/2.
-%% @see shards_dist:info_shard/2.
-%% @end
--spec info_shard(Tab, Shard) -> Result when
-  Tab    :: atom(),
-  Shard  :: non_neg_integer(),
-  Result :: [term()] | undefined.
+%% @equiv shards_local:info_shard/2
 info_shard(Tab, Shard) ->
-  Module = shards_state:module(Tab),
-  Module:info_shard(Tab, Shard).
+  ?SHARDS:info_shard(Tab, Shard).
 
-%% @doc
-%% Wrapper to `shards_local:info_shard/3' and `shards_dist:info_shard/3'.
-%%
-%% @see shards_local:info_shard/3.
-%% @see shards_dist:info_shard/3.
-%% @end
--spec info_shard(Tab, Shard, Item) -> Result when
-  Tab    :: atom(),
-  Shard  :: non_neg_integer(),
-  Item   :: atom(),
-  Result :: term() | undefined.
+%% @equiv shards_local:info_shard/3
 info_shard(Tab, Shard, Item) ->
-  Module = shards_state:module(Tab),
-  Module:info_shard(Tab, Shard, Item).
+  ?SHARDS:info_shard(Tab, Shard, Item).
 
 %% @doc
 %% Wrapper to `shards_local:insert/3' and `shards_dist:insert/3'.
@@ -315,7 +277,7 @@ insert(Tab, ObjectOrObjects) ->
 insert_new(Tab, ObjectOrObjects) ->
   call(Tab, insert_new, [Tab, ObjectOrObjects]).
 
-%% @equiv shards_local:is_compiled_ms(Term)
+%% @equiv shards_local:is_compiled_ms/1
 is_compiled_ms(Term) ->
   ?SHARDS:is_compiled_ms(Term).
 
@@ -455,11 +417,11 @@ match_object(Continuation) ->
   [Tab | _] = tuple_to_list(Continuation),
   call(Tab, match_object, [Continuation]).
 
-%% @equiv shards_local:match_spec_compile(MatchSpec)
+%% @equiv shards_local:match_spec_compile/1
 match_spec_compile(MatchSpec) ->
   ?SHARDS:match_spec_compile(MatchSpec).
 
-%% @equiv shards_local:match_spec_run(List, CompiledMatchSpec)
+%% @equiv shards_local:match_spec_run/2
 match_spec_run(List, CompiledMatchSpec) ->
   ?SHARDS:match_spec_run(List, CompiledMatchSpec).
 
@@ -480,13 +442,10 @@ member(Tab, Key) ->
 %% @see shards_dist:new/2.
 %% @end
 -spec new(Name, Options) -> Result when
-  Name       :: atom(),
-  Options    :: [shards_local:option()],
-  LocalState :: shards_local:state(),
-  DistState  :: shards_dist:state(),
-  Local      :: {Name, LocalState},
-  Dist       :: {Name, {LocalState, DistState}},
-  Result     :: Local | Dist.
+  Name    :: atom(),
+  Options :: [shards_local:option()],
+  State   :: shards_state:state(),
+  Result  :: {Name, State}.
 new(Name, Options) ->
   case lists:keyfind(scope, 1, Options) of
     {scope, g} -> shards_dist:new(Name, Options);
@@ -693,7 +652,7 @@ tab2file(Tab, Filenames, Options) ->
 tab2list(Tab) ->
   call(Tab, tab2list, [Tab]).
 
-%% @equiv shards_local:tabfile_info(Filename)
+%% @equiv shards_local:tabfile_info/1
 tabfile_info(Filename) ->
   ?SHARDS:tabfile_info(Filename).
 
@@ -726,7 +685,7 @@ table(Tab) ->
 table(Tab, Options) ->
   call(Tab, table, [Tab, Options]).
 
-%% @equiv shards_local:test_ms(Tuple, MatchSpec)
+%% @equiv shards_local:test_ms/2
 test_ms(Tuple, MatchSpec) ->
   ?SHARDS:test_ms(Tuple, MatchSpec).
 
@@ -813,13 +772,6 @@ leave(Tab, Nodes) ->
   Nodes :: [node()].
 get_nodes(Tab) ->
   shards_dist:get_nodes(Tab).
-
--spec pick_node(Key, Nodes) -> Node when
-  Key   :: term(),
-  Nodes :: [node()],
-  Node  :: node().
-pick_node(Key, Nodes) ->
-  shards_dist:pick_node(read, Key, Nodes).
 
 %%%===================================================================
 %%% Extended API

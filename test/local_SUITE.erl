@@ -103,7 +103,6 @@ t_shard_restarted_when_down(_Config) ->
   true = shards:delete(tab1),
   true = shards:delete(tab2),
 
-  ct:print("\e[1;1m t_shard_restarted_when_down: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 %%%===================================================================

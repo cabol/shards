@@ -151,6 +151,27 @@
                 | {heir, none} | tweaks()
                 | shards_opt().
 
+% ETS Info Tuple
+-type info_tuple() :: {compressed, boolean()}
+                    | {heir, pid() | none}
+                    | {keypos, pos_integer()}
+                    | {memory, non_neg_integer()}
+                    | {name, atom()}
+                    | {named_table, boolean()}
+                    | {node, node()}
+                    | {owner, pid()}
+                    | {protection, ets:access()}
+                    | {size, non_neg_integer()}
+                    | {type, ets:type()}
+                    | {write_concurrency, boolean()}
+                    | {read_concurrency, boolean()}.
+
+% ETS Info Item
+-type info_item() :: compressed | fixed | heir | keypos | memory
+                   | name | named_table | node | owner | protection
+                   | safe_fixed | size | stats | type
+                   | write_concurrency | read_concurrency.
+
 %% @type continuation() = {
 %%  Tab          :: atom(),
 %%  MatchSpec    :: ets:match_spec(),
@@ -175,7 +196,13 @@
   Continuation :: ets:continuation()
 }.
 
--export_type([continuation/0]).
+% Exported Types
+-export_type([
+  option/0,
+  info_tuple/0,
+  info_item/0,
+  continuation/0
+]).
 
 %%%===================================================================
 %%% ETS API
@@ -205,7 +232,7 @@ delete(Tab) ->
   Key   :: term(),
   State :: shards_state:state().
 delete(Tab, Key, State) ->
-  mapred(Tab, Key, {fun ets:delete/2, [Key]}, nil, State, delete),
+  mapred(Tab, Key, {fun ets:delete/2, [Key]}, nil, State, d),
   true.
 
 %% @doc
@@ -231,7 +258,7 @@ delete_all_objects(Tab, State) ->
   State  :: shards_state:state().
 delete_object(Tab, Object, State) when is_tuple(Object) ->
   [Key | _] = tuple_to_list(Object),
-  mapred(Tab, Key, {fun ets:delete_object/2, [Object]}, nil, State, delete),
+  mapred(Tab, Key, {fun ets:delete_object/2, [Object]}, nil, State, d),
   true.
 
 %% @equiv file2tab(Filenames, [])
@@ -369,14 +396,18 @@ i() ->
 %% the information of each shard table.
 %%
 %% @see ets:info/1.
+%% @see shards:info_shard/2.
 %% @end
 -spec info(Tab, State) -> Result when
   Tab      :: atom(),
   State    :: shards_state:state(),
-  Result   :: [InfoList],
-  InfoList :: [term() | undefined].
+  InfoList :: [info_tuple()],
+  Result   :: [InfoList] | undefined.
 info(Tab, State) ->
-  mapred(Tab, fun ets:info/1, State).
+  case whereis(Tab) of
+    undefined -> undefined;
+    _         -> mapred(Tab, fun ets:info/1, State)
+  end.
 
 %% @doc
 %% This operation behaves like `ets:info/2', but instead of return
@@ -384,25 +415,28 @@ info(Tab, State) ->
 %% the information of each shard table.
 %%
 %% @see ets:info/2.
+%% @see shards:info_shard/3.
 %% @end
--spec info(Tab, Item, State) -> Result when
-  Tab    :: atom(),
-  State  :: shards_state:state(),
-  Item   :: atom(),
-  Result :: [Value],
-  Value  :: [term() | undefined].
+-spec info(Tab, Item, State) -> Value when
+  Tab   :: atom(),
+  State :: shards_state:state(),
+  Item  :: info_item(),
+  Value :: [term()] | undefined.
 info(Tab, Item, State) ->
-  mapred(Tab, {fun ets:info/2, [Item]}, State).
+  case whereis(Tab) of
+    undefined -> undefined;
+    _         -> mapred(Tab, {fun ets:info/2, [Item]}, State)
+  end.
 
 %% @doc
 %% This operation behaves like `ets:info/1'
 %%
 %% @see ets:info/1.
 %% @end
--spec info_shard(Tab, Shard) -> Result when
-  Tab    :: atom(),
-  Shard  :: non_neg_integer(),
-  Result :: [term()] | undefined.
+-spec info_shard(Tab, Shard) -> InfoList | undefined when
+  Tab      :: atom(),
+  Shard    :: non_neg_integer(),
+  InfoList :: [info_tuple()].
 info_shard(Tab, Shard) ->
   ShardName = shard_name(Tab, Shard),
   ets:info(ShardName).
@@ -412,11 +446,11 @@ info_shard(Tab, Shard) ->
 %%
 %% @see ets:info/2.
 %% @end
--spec info_shard(Tab, Shard, Item) -> Result when
-  Tab    :: atom(),
-  Shard  :: non_neg_integer(),
-  Item   :: atom(),
-  Result :: term() | undefined.
+-spec info_shard(Tab, Shard, Item) -> Value | undefined when
+  Tab   :: atom(),
+  Shard :: non_neg_integer(),
+  Item  :: info_item(),
+  Value :: term().
 info_shard(Tab, Shard, Item) ->
   ShardName = shard_name(Tab, Shard),
   ets:info(ShardName, Item).
@@ -441,7 +475,7 @@ insert(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
-  ShardName = shard_name(Tab, PickShardFun(write, Key, N)),
+  ShardName = shard_name(Tab, PickShardFun(w, Key, N)),
   ets:insert(ShardName, ObjOrObjL).
 
 %% @doc
@@ -466,19 +500,19 @@ insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
-  case PickShardFun(read, Key, N) of
+  case PickShardFun(r, Key, N) of
     any ->
       Map = {fun ets:lookup/2, [Key]},
       Reduce = fun lists:append/2,
       case mapred(Tab, Map, Reduce, State) of
         [] ->
-          ShardName = shard_name(Tab, PickShardFun(write, Key, N)),
+          ShardName = shard_name(Tab, PickShardFun(w, Key, N)),
           ets:insert_new(ShardName, ObjOrObjL);
         _ ->
           false
       end;
     _ ->
-      ShardName = shard_name(Tab, PickShardFun(write, Key, N)),
+      ShardName = shard_name(Tab, PickShardFun(w, Key, N)),
       ets:insert_new(ShardName, ObjOrObjL)
   end.
 
@@ -529,7 +563,7 @@ last(_, Key, _, _) ->
 lookup(Tab, Key, State) ->
   Map = {fun ets:lookup/2, [Key]},
   Reduce = fun lists:append/2,
-  mapred(Tab, Key, Map, Reduce, State, read).
+  mapred(Tab, Key, Map, Reduce, State, r).
 
 %% @doc
 %% This operation behaves like `ets:lookup_element/3'.
@@ -545,7 +579,7 @@ lookup(Tab, Key, State) ->
 lookup_element(Tab, Key, Pos, State) ->
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
-  case PickShardFun(read, Key, N) of
+  case PickShardFun(r, Key, N) of
     any ->
       LookupElem = fun(Tx, Kx, Px) ->
         catch ets:lookup_element(Tx, Kx, Px)
@@ -721,7 +755,7 @@ match_spec_run(List, CompiledMatchSpec) ->
   Key   :: term(),
   State :: shards_state:state().
 member(Tab, Key, State) ->
-  case mapred(Tab, Key, {fun ets:member/2, [Key]}, nil, State, read) of
+  case mapred(Tab, Key, {fun ets:member/2, [Key]}, nil, State, r) of
     R when is_list(R) -> lists:member(true, R);
     R                 -> R
   end.
@@ -773,7 +807,7 @@ new(Name, Options) ->
 next(Tab, Key1, State) ->
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
-  Shard = case PickShardFun(read, Key1, N) of
+  Shard = case PickShardFun(r, Key1, N) of
     any -> 0;
     Val -> Val
   end,
@@ -807,7 +841,7 @@ prev(Tab, Key1, State) ->
   PickShardFun = shards_state:pick_shard_fun(State),
   case shards_state:type(State) of
     ordered_set ->
-      Shard = case PickShardFun(read, Key1, N) of
+      Shard = case PickShardFun(r, Key1, N) of
         any -> 0;
         Val -> Val
       end,
@@ -1081,7 +1115,7 @@ test_ms(Tuple, MatchSpec) ->
 take(Tab, Key, State) ->
   Map = {fun ets:take/2, [Key]},
   Reduce = fun lists:append/2,
-  mapred(Tab, Key, Map, Reduce, State, read).
+  mapred(Tab, Key, Map, Reduce, State, r).
 
 %% @doc
 %% This operation behaves like `ets:update_counter/3'.
@@ -1096,7 +1130,7 @@ take(Tab, Key, State) ->
   Result   :: integer().
 update_counter(Tab, Key, UpdateOp, State) ->
   Map = {fun ets:update_counter/3, [Key, UpdateOp]},
-  mapred(Tab, Key, Map, nil, State, write).
+  mapred(Tab, Key, Map, nil, State, w).
 
 %% @doc
 %% This operation behaves like `ets:update_counter/4'.
@@ -1112,7 +1146,7 @@ update_counter(Tab, Key, UpdateOp, State) ->
   Result   :: integer().
 update_counter(Tab, Key, UpdateOp, Default, State) ->
   Map = {fun ets:update_counter/4, [Key, UpdateOp, Default]},
-  mapred(Tab, Key, Map, nil, State, write).
+  mapred(Tab, Key, Map, nil, State, w).
 
 %% @doc
 %% This operation behaves like `ets:update_element/3'.
@@ -1128,7 +1162,7 @@ update_counter(Tab, Key, UpdateOp, Default, State) ->
   State       :: shards_state:state().
 update_element(Tab, Key, ElementSpec, State) ->
   Map = {fun ets:update_element/3, [Key, ElementSpec]},
-  mapred(Tab, Key, Map, nil, State, write).
+  mapred(Tab, Key, Map, nil, State, w).
 
 %%%===================================================================
 %%% Extended API
@@ -1151,7 +1185,7 @@ shard_name(TabName, Shard) ->
 %% @doc
 %% Pick/computes the shard where the `Key' will be handled.
 %% <ul>
-%% <li>`Op': Operation type: `read | write | delete`.</li>
+%% <li>`Op': Operation type: `r | w | d`.</li>
 %% <li>`Key': The key to be hashed to calculate the shard.</li>
 %% <li>`NumShards': Number of shards.</li>
 %% </ul>
@@ -1190,7 +1224,7 @@ mapred(Tab, Map, State) ->
 
 %% @private
 mapred(Tab, Map, Reduce, State) ->
-  mapred(Tab, nil, Map, Reduce, State, read).
+  mapred(Tab, nil, Map, Reduce, State, r).
 
 %% @private
 mapred(Tab, Key, Map, nil, State, Op) ->

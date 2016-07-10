@@ -34,12 +34,12 @@
 %%% Tests Key Generator
 %%%===================================================================
 
-pick_shard(write, Key, N) ->
+pick_shard(w, Key, N) ->
   erlang:phash2({Key, os:timestamp()}, N);
 pick_shard(_, _, _) ->
   any.
 
-pick_node(write, Key, Nodes) ->
+pick_node(w, Key, Nodes) ->
   NewKey = {Key, os:timestamp()},
   Nth = jumping_hash:compute(erlang:phash2(NewKey), length(Nodes)) + 1,
   lists:nth(Nth, Nodes);
@@ -120,7 +120,7 @@ t_basic_ops_({Tab, EtsTab} = Args) ->
   [] = ets:lookup(EtsTab, k1),
   [] = shards:lookup(Tab, k1),
 
-  ct:print("\e[1;1m t_basic_ops(~p): \e[0m\e[32m[OK] \e[0m", [Args]),
+  ct:log(" ---> t_basic_ops(~p): [OK]", [Args]),
   ok.
 
 t_match_ops(_Config) ->
@@ -143,7 +143,6 @@ t_match_ops(_Config) ->
   R3 = lists:usort(shards:match_object(?SET, '$1')),
   1 = length(R3),
 
-  ct:print("\e[1;1m t_match_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_select_ops(_Config) ->
@@ -174,7 +173,6 @@ t_select_ops(_Config) ->
   R11 = lists:usort(shards:select(?SET, MS1)),
   1 = length(R11),
 
-  ct:print("\e[1;1m t_select_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_paginated_ops(_Config) ->
@@ -233,7 +231,7 @@ t_paginated_ops_({Tab, {Op, Q}} = Args) ->
   Calls3 = round(Len / 4),
   R2 = R44 ++ R4,
 
-  ct:print("\e[1;1m t_paginated_ops(~p): \e[0m\e[32m[OK] \e[0m", [Args]),
+  ct:log(" ---> t_paginated_ops(~p): [OK]", [Args]),
   ok.
 
 t_first_last_next_prev_ops(_Config) ->
@@ -284,7 +282,6 @@ t_first_last_next_prev_ops(_Config) ->
   {L44, _} = shards:select(?ORDERED_SET, MS, 10),
   L4 = [K || {K, _} <- lists:reverse(L44)],
 
-  ct:print("\e[1;1m t_first_last_next_prev_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_update_ops(_Config) ->
@@ -304,7 +301,6 @@ t_update_ops(_Config) ->
   R3 = ets:update_element(?ETS_SET, elem0, {2, 10}),
   R3 = shards:update_element(?SET, elem0, {2, 10}),
 
-  ct:print("\e[1;1m t_update_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_fold_ops(_Config) ->
@@ -322,7 +318,6 @@ t_fold_ops(_Config) ->
   R2 = lists:usort(shards:foldr(Foldr, [], ?SET)),
   R2 = lists:usort(ets:foldr(Foldr, [], ?ETS_SET)),
 
-  ct:print("\e[1;1m t_fold_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_info_ops(_Config) ->
@@ -362,10 +357,15 @@ t_info_ops(_Config) ->
   end, lists:zip(lists:seq(0, length(DupBagShards) - 1), DupBagShards)),
 
   % test invalid values
-  R2 = ets:info(undefined_tab, name),
-  R2 = shards:info(undefined_tab, name),
+  R2 = ets:info(undefined_tab),
+  R2 = shards:info(undefined_tab),
+  R2 = shards_local:info(undefined_tab, nil),
+  R2 = shards:info_shard(undefined_tab, 0),
+  R3 = ets:info(undefined_tab, name),
+  R3 = shards:info(undefined_tab, name),
+  R3 = shards_local:info(undefined_tab, name, nil),
+  R3 = shards:info_shard(undefined_tab, 0, name),
 
-  ct:print("\e[1;1m t_info_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_tab2list_tab2file_file2tab(_Config) ->
@@ -399,7 +399,6 @@ t_tab2list_tab2file_file2tab(_Config) ->
   [_, _, _, _, _, _, _, _] = shards:info(?SET),
   KVPairs = lookup_keys(shards, ?SET, [k1, k2, k3, k4]),
 
-  ct:print("\e[1;1m t_tab2list_tab2file_file2tab: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_equivalent_ops(_Config) ->
@@ -425,7 +424,6 @@ t_equivalent_ops(_Config) ->
 
   true = shards:give_away(?SET, self(), []),
 
-  ct:print("\e[1;1m t_equivalent_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 %%%===================================================================
@@ -456,6 +454,11 @@ init_shards_new(Scope) ->
   Mod = case Scope of
     g -> shards_dist;
     _ -> shards_local
+  end,
+
+  % test badarg
+  try shards:new(?SET, [{scope, Scope}, wrongarg])
+  catch _:badarg -> ok
   end,
 
   DefaultShards = ?N_SHARDS,

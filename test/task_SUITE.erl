@@ -90,7 +90,6 @@ t_async1(_Config) ->
   {Ref, done} = wait_for_msg(5000),
   {'DOWN', Ref, _, _, normal} = wait_for_msg(5000),
 
-  ct:print("\e[1;1m async/1 \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_async2(_Config) ->
@@ -120,7 +119,6 @@ t_async2(_Config) ->
   done = shards_task:await(Task),
   done = wait_for_msg(5000),
 
-  ct:print("\e[1;1m async/2 \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_async3(_Config) ->
@@ -147,7 +145,6 @@ t_async3(_Config) ->
   done = shards_task:await(Task),
   done = wait_for_msg(5000),
 
-  ct:print("\e[1;1m async/3 \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_start1(_Config) ->
@@ -166,7 +163,6 @@ t_start1(_Config) ->
   Pid ! true,
   done = wait_for_msg(5000),
 
-  ct:print("\e[1;1m start/1 \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_start2(_Config) ->
@@ -185,7 +181,6 @@ t_start2(_Config) ->
   Pid ! true,
   done = wait_for_msg(5000),
 
-  ct:print("\e[1;1m start/2 \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_start3(_Config) ->
@@ -204,7 +199,6 @@ t_start3(_Config) ->
   Pid ! true,
   done = wait_for_msg(5000),
 
-  ct:print("\e[1;1m start/3 \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_start_link1(_Config) ->
@@ -223,7 +217,6 @@ t_start_link1(_Config) ->
   Pid ! true,
   done = wait_for_msg(5000),
 
-  ct:print("\e[1;1m start_link/1 \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_start_link2(_Config) ->
@@ -242,7 +235,6 @@ t_start_link2(_Config) ->
   Pid ! true,
   done = wait_for_msg(5000),
 
-  ct:print("\e[1;1m start_link/2 \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_start_link3(_Config) ->
@@ -259,7 +251,6 @@ t_start_link3(_Config) ->
   Pid ! true,
   done = wait_for_msg(5000),
 
-  ct:print("\e[1;1m start_link/3 \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_await_timeout(_Config) ->
@@ -270,7 +261,6 @@ t_await_timeout(_Config) ->
     exit:{timeout, {shards_task, await, [Task, 0]}} -> ok
   end,
 
-  ct:print("\e[1;1m await/2 exits on timeout \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_await_normal(_Config) ->
@@ -281,7 +271,6 @@ t_await_normal(_Config) ->
     exit:{normal, {shards_task, await, [Task, 5000]}} -> ok
   end,
 
-  ct:print("\e[1;1m await/2 exits on normal exit \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_await_task_throw(_Config) ->
@@ -293,7 +282,6 @@ t_await_task_throw(_Config) ->
     exit:{{{nocatch, unknown}, _}, {shards_task, await, [Task, 5000]}} -> ok
   end,
 
-  ct:print("\e[1;1m await/2 exits on task throw \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_await_task_error(_Config) ->
@@ -307,7 +295,6 @@ t_await_task_error(_Config) ->
     exit:{{<<"oops">>, _}, {shards_task, await, [Task, 5000]}} -> ok
   end,
 
-  ct:print("\e[1;1m await/2 exits on task error \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_await_undef_module_error(_Config) ->
@@ -321,7 +308,6 @@ t_await_undef_module_error(_Config) ->
        {shards_task, await, [Task, 5000]}} = Ex
   end,
 
-  ct:print("\e[1;1m await/2 exits on task undef module error \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_await_undef_fun_error(_Config) ->
@@ -335,7 +321,6 @@ t_await_undef_fun_error(_Config) ->
        {shards_task, await, [Task, 5000]}} = Ex
   end,
 
-  ct:print("\e[1;1m await/2 exits on task undef function error \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_await_undef_mfa_error(_Config) ->
@@ -349,7 +334,6 @@ t_await_undef_mfa_error(_Config) ->
         {shards_task, await, [Task, 5000]}} = Ex
   end,
 
-  ct:print("\e[1;1m await/2 exits on task undef MFA error \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_await_task_exit(_Config) ->
@@ -361,7 +345,6 @@ t_await_task_exit(_Config) ->
     exit:{unknown, {shards_task, await, [Task, 5000]}} -> ok
   end,
 
-  ct:print("\e[1;1m await/2 exits on task exit \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_await_noconnection(_Config) ->
@@ -376,7 +359,6 @@ t_await_noconnection(_Config) ->
       {nodedown, Node} = element(1, Ex)
   end,
 
-  ct:print("\e[1;1m await/2 exits on noconnection \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_await_noconnection_from_named_monitor(_Config) ->
@@ -390,7 +372,6 @@ t_await_noconnection_from_named_monitor(_Config) ->
       {nodedown, node} = element(1, Ex)
   end,
 
-  ct:print("\e[1;1m await/2 exits on noconnection from named monitor \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_await_raises_from_non_owner_proc(_Config) ->
@@ -401,7 +382,6 @@ t_await_raises_from_non_owner_proc(_Config) ->
     throw:{invalid_owner_error, Task} -> ok
   end,
 
-  ct:print("\e[1;1m await/2 raises when invoked from a non-owner process \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 %%%===================================================================
