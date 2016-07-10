@@ -27,10 +27,13 @@
 %% Default number of shards
 -define(N_SHARDS, erlang:system_info(schedulers_online)).
 
-%% @type op() = read | write | delete.
+%% @type op() = r | w | d.
 %%
 %% Defines operation type.
--type op() :: read | write | delete.
+%% <li>`r': Read operations.</li>
+%% <li>`w': Write operation.</li>
+%% <li>`d': Delete operations.</li>
+-type op() :: r | w | d.
 
 %% @type key() = term().
 %%

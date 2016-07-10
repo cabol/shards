@@ -124,7 +124,6 @@ t_join_leave_ops(Config) ->
   6 = length(shards:get_nodes(?SET)),
   6 = length(shards:get_nodes(?DUPLICATE_BAG)),
 
-  ct:print("\e[1;1m t_join_leave_ops: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_eject_node_on_failure(Config) ->
@@ -157,7 +156,6 @@ t_eject_node_on_failure(Config) ->
   % stop failure node
   stop_slaves([z]),
 
-  ct:print("\e[1;1m t_eject_node_on_failure: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 t_delete_tabs(Config) ->
@@ -172,7 +170,6 @@ t_delete_tabs(Config) ->
   [A, B, C, CT, D, E] = get_remote_nodes(UpNodes, ?SET),
   [] = A = B = C = CT = D = E,
 
-  ct:print("\e[1;1m t_delete_tabs: \e[0m\e[32m[OK] \e[0m"),
   ok.
 
 %%%===================================================================

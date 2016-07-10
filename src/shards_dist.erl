@@ -96,7 +96,7 @@ pick_node(_, Key, Nodes) ->
 
 -spec delete(Tab :: atom()) -> true.
 delete(Tab) ->
-  mapred(Tab, {?SHARDS, delete, [Tab]}, nil, shards_state:get(Tab), delete),
+  mapred(Tab, {?SHARDS, delete, [Tab]}, nil, shards_state:get(Tab), d),
   true.
 
 -spec delete(Tab, Key, State) -> true when
@@ -105,7 +105,7 @@ delete(Tab) ->
   State :: shards_state:state().
 delete(Tab, Key, State) ->
   Map = {?SHARDS, delete, [Tab, Key, State]},
-  mapred(Tab, Key, Map, nil, State, delete),
+  mapred(Tab, Key, Map, nil, State, d),
   true.
 
 -spec delete_all_objects(Tab, State) -> true when
@@ -113,7 +113,7 @@ delete(Tab, Key, State) ->
   State :: shards_state:state().
 delete_all_objects(Tab, State) ->
   Map = {?SHARDS, delete_all_objects, [Tab, State]},
-  mapred(Tab, Map, nil, State, delete),
+  mapred(Tab, Map, nil, State, d),
   true.
 
 -spec delete_object(Tab, Object, State) -> true when
@@ -123,7 +123,7 @@ delete_all_objects(Tab, State) ->
 delete_object(Tab, Object, State) when is_tuple(Object) ->
   [Key | _] = tuple_to_list(Object),
   Map = {?SHARDS, delete_object, [Tab, Object, State]},
-  mapred(Tab, Key, Map, nil, State, delete),
+  mapred(Tab, Key, Map, nil, State, d),
   true.
 
 -spec insert(Tab, ObjOrObjL, State) -> true when
@@ -138,7 +138,7 @@ insert(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
   PickNodeFun = shards_state:pick_node_fun(State),
   AutoEject = shards_state:auto_eject_nodes(State),
-  Node = PickNodeFun(write, Key, get_nodes(Tab)),
+  Node = PickNodeFun(w, Key, get_nodes(Tab)),
   rpc_call(Node, {?SHARDS, insert, [Tab, ObjOrObjL, State]}, Tab, AutoEject).
 
 -spec insert_new(Tab, ObjOrObjL, State) -> Result when
@@ -155,19 +155,19 @@ insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   Nodes = get_nodes(Tab),
   PickNodeFun = shards_state:pick_node_fun(State),
   AutoEject = shards_state:auto_eject_nodes(State),
-  case PickNodeFun(read, Key, Nodes) of
+  case PickNodeFun(r, Key, Nodes) of
     any ->
       Map = {?SHARDS, lookup, [Tab, Key, State]},
       Reduce = fun lists:append/2,
-      case mapred(Tab, Map, Reduce, State, read) of
+      case mapred(Tab, Map, Reduce, State, r) of
         [] ->
-          Node = PickNodeFun(write, Key, Nodes),
+          Node = PickNodeFun(w, Key, Nodes),
           rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, State]}, Tab, AutoEject);
         _ ->
           false
       end;
     _ ->
-      Node = PickNodeFun(write, Key, Nodes),
+      Node = PickNodeFun(w, Key, Nodes),
       rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, State]}, Tab, AutoEject)
   end.
 
@@ -179,7 +179,7 @@ insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
 lookup(Tab, Key, State) ->
   Map = {?SHARDS, lookup, [Tab, Key, State]},
   Reduce = fun lists:append/2,
-  mapred(Tab, Key, Map, Reduce, State, read).
+  mapred(Tab, Key, Map, Reduce, State, r).
 
 -spec lookup_element(Tab, Key, Pos, State) -> Elem when
   Tab   :: atom(),
@@ -190,13 +190,13 @@ lookup(Tab, Key, State) ->
 lookup_element(Tab, Key, Pos, State) ->
   Nodes = get_nodes(Tab),
   PickNodeFun = shards_state:pick_node_fun(State),
-  case PickNodeFun(read, Key, Nodes) of
+  case PickNodeFun(r, Key, Nodes) of
     any ->
       Map = {?SHARDS, lookup_element, [Tab, Key, Pos, State]},
       Filter = lists:filter(fun
         ({badrpc, {'EXIT', _}}) -> false;
         (_)                     -> true
-      end, mapred(Tab, Map, nil, State, read)),
+      end, mapred(Tab, Map, nil, State, r)),
       case Filter of
         [] -> exit({badarg, erlang:get_stacktrace()});
         _  -> lists:append(Filter)
@@ -213,7 +213,7 @@ lookup_element(Tab, Key, Pos, State) ->
 match(Tab, Pattern, State) ->
   Map = {?SHARDS, match, [Tab, Pattern, State]},
   Reduce = fun lists:append/2,
-  mapred(Tab, Map, Reduce, State, read).
+  mapred(Tab, Map, Reduce, State, r).
 
 -spec match_delete(Tab, Pattern, State) -> true when
   Tab     :: atom(),
@@ -232,7 +232,7 @@ match_delete(Tab, Pattern, State) ->
 match_object(Tab, Pattern, State) ->
   Map = {?SHARDS, match_object, [Tab, Pattern, State]},
   Reduce = fun lists:append/2,
-  mapred(Tab, Map, Reduce, State, read).
+  mapred(Tab, Map, Reduce, State, r).
 
 -spec member(Tab, Key, State) -> boolean() when
   Tab   :: atom(),
@@ -240,7 +240,7 @@ match_object(Tab, Pattern, State) ->
   State :: shards_state:state().
 member(Tab, Key, State) ->
   Map = {?SHARDS, member, [Tab, Key, State]},
-  case mapred(Tab, Key, Map, nil, State, read) of
+  case mapred(Tab, Key, Map, nil, State, r) of
     R when is_list(R) -> lists:member(true, R);
     R                 -> R
   end.
@@ -261,7 +261,7 @@ new(Name, Options) ->
 select(Tab, MatchSpec, State) ->
   Map = {?SHARDS, select, [Tab, MatchSpec, State]},
   Reduce = fun lists:append/2,
-  mapred(Tab, Map, Reduce, State, read).
+  mapred(Tab, Map, Reduce, State, r).
 
 -spec select_count(Tab, MatchSpec, State) -> NumMatched when
   Tab        :: atom(),
@@ -271,7 +271,7 @@ select(Tab, MatchSpec, State) ->
 select_count(Tab, MatchSpec, State) ->
   Map = {?SHARDS, select_count, [Tab, MatchSpec, State]},
   Reduce = {fun(Res, Acc) -> Acc + Res end, 0},
-  mapred(Tab, Map, Reduce, State, read).
+  mapred(Tab, Map, Reduce, State, r).
 
 -spec select_delete(Tab, MatchSpec, State) -> NumDeleted when
   Tab        :: atom(),
@@ -291,7 +291,7 @@ select_delete(Tab, MatchSpec, State) ->
 select_reverse(Tab, MatchSpec, State) ->
   Map = {?SHARDS, select_reverse, [Tab, MatchSpec, State]},
   Reduce = fun lists:append/2,
-  mapred(Tab, Map, Reduce, State, read).
+  mapred(Tab, Map, Reduce, State, r).
 
 -spec take(Tab, Key, State) -> [Object] when
   Tab    :: atom(),
@@ -301,7 +301,7 @@ select_reverse(Tab, MatchSpec, State) ->
 take(Tab, Key, State) ->
   Map = {?SHARDS, take, [Tab, Key, State]},
   Reduce = fun lists:append/2,
-  mapred(Tab, Key, Map, Reduce, State, read).
+  mapred(Tab, Key, Map, Reduce, State, r).
 
 %%%===================================================================
 %%% Internal functions
