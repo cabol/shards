@@ -6,8 +6,9 @@
   {applications, [kernel, stdlib]},
   {env,[]},
   {modules, []},
-  {maintainers, ["Carlos Andres Bolanos R.A."]},
+  {maintainers, ["Carlos Andres Bolanos"]},
   {licenses, ["MIT"]},
+  {build_tools, ["rebar3", "make"]},
   {links, [
     {"GitHub", "https://github.com/cabol/shards"},
     {"Doc", "http://cabol.github.io/shards"},
