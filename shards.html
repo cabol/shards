@@ -26,20 +26,8 @@
 <p><tt>continuation() = <a href="shards_local.html#type-continuation">shards_local:continuation()</a></tt></p>
 
 
-<h3 class="typedecl"><a name="type-metadata">metadata()</a></h3>
-<p><tt>metadata() = <a href="shards_local.html#type-state">shards_local:state()</a></tt></p>
-
-
-<h3 class="typedecl"><a name="type-state">state()</a></h3>
-<p><tt>state() = {LocalState::<a href="shards_local.html#type-state">shards_local:state()</a>, DistState::<a href="shards_dist.html#type-state">shards_dist:state()</a>}</tt></p>
-<p>Defines the <code>shards</code> state:
-  <ul>
-  <li><code>LocalState</code>: Local state handled by <code>shards_local</code>.</li>
-  <li><code>DistState</code>: Distributed state handled by <code>shards_dist</code>.</li>
-  </ul></p>
-
 <h2><a name="index">Function Index</a></h2>
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#all-0">all/0</a></td><td>Equivalent to <a href="shards_local.html#all-0"><tt>shards_local:all()</tt></a>.
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#all-0">all/0</a></td><td>Equivalent to <tt>shards_local:all / 0</tt>.
 </td></tr>
 <tr><td valign="top"><a href="#delete-1">delete/1</a></td><td>
   Wrapper to <code>shards_local:delete/1</code> and <code>shards_dist:delete/1</code>.</td></tr>
@@ -50,11 +38,9 @@
   <code>shards_dist:delete_all_objects/2</code>.</td></tr>
 <tr><td valign="top"><a href="#delete_object-2">delete_object/2</a></td><td>
   Wrapper to <code>shards_local:delete_object/3</code> and <code>shards_dist:delete_object/3</code>.</td></tr>
-<tr><td valign="top"><a href="#dist_state-1">dist_state/1</a></td><td>
-  Returns the stored distributed state information.</td></tr>
-<tr><td valign="top"><a href="#file2tab-1">file2tab/1</a></td><td>Equivalent to <a href="shards_local.html#file2tab-1"><tt>shards_local:file2tab(Filenames)</tt></a>.
+<tr><td valign="top"><a href="#file2tab-1">file2tab/1</a></td><td>Equivalent to <tt>shards_local:file2tab / 1</tt>.
 </td></tr>
-<tr><td valign="top"><a href="#file2tab-2">file2tab/2</a></td><td>Equivalent to <a href="shards_local.html#file2tab-2"><tt>shards_local:file2tab(Filenames, Options)</tt></a>.
+<tr><td valign="top"><a href="#file2tab-2">file2tab/2</a></td><td>Equivalent to <tt>shards_local:file2tab / 2</tt>.
 </td></tr>
 <tr><td valign="top"><a href="#first-1">first/1</a></td><td>
   Wrapper to <code>shards_local:first/2</code> and <code>shards_dist:first/2</code>.</td></tr>
@@ -62,31 +48,24 @@
   Wrapper to <code>shards_local:foldl/4</code> and <code>shards_dist:foldl/4</code>.</td></tr>
 <tr><td valign="top"><a href="#foldr-3">foldr/3</a></td><td>
   Wrapper to <code>shards_local:foldr/4</code> and <code>shards_dist:foldr/4</code>.</td></tr>
-<tr><td valign="top"><a href="#from_dets-2">from_dets/2</a></td><td>
-  Wrapper to <code>shards_local:from_dets/2</code> and <code>shards_dist:from_dets/2</code>.</td></tr>
-<tr><td valign="top"><a href="#fun2ms-1">fun2ms/1</a></td><td>.</td></tr>
 <tr><td valign="top"><a href="#get_nodes-1">get_nodes/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#give_away-3">give_away/3</a></td><td>
   Wrapper to <code>shards_local:give_away/4</code> and <code>shards_dist:give_away/4</code>.</td></tr>
-<tr><td valign="top"><a href="#i-0">i/0</a></td><td>Equivalent to <a href="shards_local.html#i-0"><tt>shards_local:i()</tt></a>.
+<tr><td valign="top"><a href="#i-0">i/0</a></td><td>Equivalent to <tt>shards_local:i / 0</tt>.
 </td></tr>
-<tr><td valign="top"><a href="#i-1">i/1</a></td><td>
-  Wrapper to <code>shards_local:i/1</code> and <code>shards_dist:i/1</code>.</td></tr>
-<tr><td valign="top"><a href="#info-1">info/1</a></td><td>
-  Wrapper to <code>shards_local:info/2</code> and <code>shards_dist:info/2</code>.</td></tr>
-<tr><td valign="top"><a href="#info-2">info/2</a></td><td>
-  Wrapper to <code>shards_local:info/3</code> and <code>shards_dist:info/3</code>.</td></tr>
-<tr><td valign="top"><a href="#info_shard-2">info_shard/2</a></td><td>
-  Wrapper to <code>shards_local:info_shard/2</code> and <code>shards_dist:info_shard/2</code>.</td></tr>
-<tr><td valign="top"><a href="#info_shard-3">info_shard/3</a></td><td>
-  Wrapper to <code>shards_local:info_shard/3</code> and <code>shards_dist:info_shard/3</code>.</td></tr>
-<tr><td valign="top"><a href="#init_table-2">init_table/2</a></td><td>
-  Wrapper to <code>shards_local:init_table/3</code> and <code>shards_dist:init_table/3</code>.</td></tr>
+<tr><td valign="top"><a href="#info-1">info/1</a></td><td>Equivalent to <tt>shards_local:info / 2</tt>.
+</td></tr>
+<tr><td valign="top"><a href="#info-2">info/2</a></td><td>Equivalent to <tt>shards_local:info / 3</tt>.
+</td></tr>
+<tr><td valign="top"><a href="#info_shard-2">info_shard/2</a></td><td>Equivalent to <tt>shards_local:info_shard / 2</tt>.
+</td></tr>
+<tr><td valign="top"><a href="#info_shard-3">info_shard/3</a></td><td>Equivalent to <tt>shards_local:info_shard / 3</tt>.
+</td></tr>
 <tr><td valign="top"><a href="#insert-2">insert/2</a></td><td>
   Wrapper to <code>shards_local:insert/3</code> and <code>shards_dist:insert/3</code>.</td></tr>
 <tr><td valign="top"><a href="#insert_new-2">insert_new/2</a></td><td>
   Wrapper to <code>shards_local:insert_new/3</code> and <code>shards_dist:insert_new/3</code>.</td></tr>
-<tr><td valign="top"><a href="#is_compiled_ms-1">is_compiled_ms/1</a></td><td>Equivalent to <a href="shards_local.html#is_compiled_ms-1"><tt>shards_local:is_compiled_ms(Term)</tt></a>.
+<tr><td valign="top"><a href="#is_compiled_ms-1">is_compiled_ms/1</a></td><td>Equivalent to <tt>shards_local:is_compiled_ms / 1</tt>.
 </td></tr>
 <tr><td valign="top"><a href="#join-2">join/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#last-1">last/1</a></td><td>
@@ -94,8 +73,6 @@
 <tr><td valign="top"><a href="#leave-2">leave/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#list-1">list/1</a></td><td>
   Returns the list of shard names associated to the given <code>TabName</code>.</td></tr>
-<tr><td valign="top"><a href="#local_state-1">local_state/1</a></td><td>
-  Returns the stored local state information.</td></tr>
 <tr><td valign="top"><a href="#lookup-2">lookup/2</a></td><td>
   Wrapper to <code>shards_local:lookup/3</code> and <code>shards_dist:lookup/3</code>.</td></tr>
 <tr><td valign="top"><a href="#lookup_element-3">lookup_element/3</a></td><td>
@@ -115,34 +92,18 @@
   Wrapper to <code>shards_local:match_object/3</code> and <code>shards_dist:match_object/3</code>.</td></tr>
 <tr><td valign="top"><a href="#match_object-3">match_object/3</a></td><td>
   Wrapper to <code>shards_local:match_object/4</code> and <code>shards_dist:match_object/4</code>.</td></tr>
-<tr><td valign="top"><a href="#match_spec_compile-1">match_spec_compile/1</a></td><td>Equivalent to <a href="shards_local.html#match_spec_compile-1"><tt>shards_local:match_spec_compile(MatchSpec)</tt></a>.
+<tr><td valign="top"><a href="#match_spec_compile-1">match_spec_compile/1</a></td><td>Equivalent to <tt>shards_local:match_spec_compile / 1</tt>.
 </td></tr>
-<tr><td valign="top"><a href="#match_spec_run-2">match_spec_run/2</a></td><td>Equivalent to <a href="shards_local.html#match_spec_run-2"><tt>shards_local:match_spec_run(List, CompiledMatchSpec)</tt></a>.
+<tr><td valign="top"><a href="#match_spec_run-2">match_spec_run/2</a></td><td>Equivalent to <tt>shards_local:match_spec_run / 2</tt>.
 </td></tr>
 <tr><td valign="top"><a href="#member-2">member/2</a></td><td>
   Wrapper to <code>shards_local:member/3</code> and <code>shards_dist:member/3</code>.</td></tr>
-<tr><td valign="top"><a href="#metadata-1">metadata/1</a></td><td>
-  Returns the stored table metadata.</td></tr>
-<tr><td valign="top"><a href="#module-1">module/1</a></td><td>
-  Returns the set module.</td></tr>
-<tr><td valign="top"><a href="#n_shards-1">n_shards/1</a></td><td>
-  Returns the number of shards.</td></tr>
 <tr><td valign="top"><a href="#new-2">new/2</a></td><td>
   Wrapper to <code>shards_local:new/2</code> and <code>shards_dist:new/2</code>.</td></tr>
 <tr><td valign="top"><a href="#next-2">next/2</a></td><td>
   Wrapper to <code>shards_local:next/3</code> and <code>shards_dist:next/3</code>.</td></tr>
-<tr><td valign="top"><a href="#pick_node-2">pick_node/2</a></td><td></td></tr>
-<tr><td valign="top"><a href="#pick_shard_fun-1">pick_shard_fun/1</a></td><td>
-  Returns the function to pick/compute the shard.</td></tr>
 <tr><td valign="top"><a href="#prev-2">prev/2</a></td><td>
   Wrapper to <code>shards_local:prev/3</code> and <code>shards_dist:prev/3</code>.</td></tr>
-<tr><td valign="top"><a href="#rename-2">rename/2</a></td><td>
-  Wrapper to <code>shards_local:rename/3</code> and <code>shards_dist:rename/3</code>.</td></tr>
-<tr><td valign="top"><a href="#repair_continuation-2">repair_continuation/2</a></td><td>
-  Wrapper to <code>shards_local:repair_continuation/3</code> and
-  <code>shards_dist:repair_continuation/3</code>.</td></tr>
-<tr><td valign="top"><a href="#safe_fixtable-2">safe_fixtable/2</a></td><td>
-  Wrapper to <code>shards_local:i/1</code> and <code>shards_dist:i/1</code>.</td></tr>
 <tr><td valign="top"><a href="#select-1">select/1</a></td><td>
   Wrapper to <code>shards_local:select/2</code> and <code>shards_dist:select/2</code>.</td></tr>
 <tr><td valign="top"><a href="#select-2">select/2</a></td><td>
@@ -164,11 +125,9 @@
   <code>shards_dist:select_reverse/4</code>.</td></tr>
 <tr><td valign="top"><a href="#setopts-2">setopts/2</a></td><td>
   Wrapper to <code>shards_local:setopts/3</code> and <code>shards_dist:setopts/3</code>.</td></tr>
-<tr><td valign="top"><a href="#slot-2">slot/2</a></td><td>
-  Wrapper to <code>shards_local:slot/3</code> and <code>shards_dist:slot/3</code>.</td></tr>
 <tr><td valign="top"><a href="#start-0">start/0</a></td><td>Starts <code>shards</code> application.</td></tr>
 <tr><td valign="top"><a href="#state-1">state/1</a></td><td>
-  Returns the stored state information.</td></tr>
+  Utility to get the <code>state</code> for the given table <code>Tab</code>.</td></tr>
 <tr><td valign="top"><a href="#stop-0">stop/0</a></td><td>Stops <code>shards</code> application.</td></tr>
 <tr><td valign="top"><a href="#tab2file-2">tab2file/2</a></td><td>
   Wrapper to <code>shards_local:tab2file/3</code> and <code>shards_dist:tab2file/3</code>.</td></tr>
@@ -176,9 +135,7 @@
   Wrapper to <code>shards_local:tab2file/4</code> and <code>shards_dist:tab2file/4</code>.</td></tr>
 <tr><td valign="top"><a href="#tab2list-1">tab2list/1</a></td><td>
   Wrapper to <code>shards_local:tab2list/2</code> and <code>shards_dist:tab2list/2</code>.</td></tr>
-<tr><td valign="top"><a href="#tab_type-1">tab_type/1</a></td><td>
-  Returns the table type.</td></tr>
-<tr><td valign="top"><a href="#tabfile_info-1">tabfile_info/1</a></td><td>Equivalent to <a href="shards_local.html#tabfile_info-1"><tt>shards_local:tabfile_info(Filename)</tt></a>.
+<tr><td valign="top"><a href="#tabfile_info-1">tabfile_info/1</a></td><td>Equivalent to <tt>shards_local:tabfile_info / 1</tt>.
 </td></tr>
 <tr><td valign="top"><a href="#table-1">table/1</a></td><td>
   Wrapper to <code>shards_local:table/2</code> and <code>shards_dist:table/2</code>.</td></tr>
@@ -186,10 +143,8 @@
   Wrapper to <code>shards_local:table/3</code> and <code>shards_dist:table/3</code>.</td></tr>
 <tr><td valign="top"><a href="#take-2">take/2</a></td><td>
   Wrapper to <code>shards_local:take/3</code> and <code>shards_dist:take/3</code>.</td></tr>
-<tr><td valign="top"><a href="#test_ms-2">test_ms/2</a></td><td>Equivalent to <a href="shards_local.html#test_ms-2"><tt>shards_local:test_ms(Tuple, MatchSpec)</tt></a>.
+<tr><td valign="top"><a href="#test_ms-2">test_ms/2</a></td><td>Equivalent to <tt>shards_local:test_ms / 2</tt>.
 </td></tr>
-<tr><td valign="top"><a href="#to_dets-2">to_dets/2</a></td><td>
-  Wrapper to <code>shards_local:to_dets/2</code> and <code>shards_dist:to_dets/2</code>.</td></tr>
 <tr><td valign="top"><a href="#update_counter-3">update_counter/3</a></td><td>
   Wrapper to <code>shards_local:update_counter/4</code> and
   <code>shards_dist:update_counter/4</code>.</td></tr>
@@ -206,7 +161,7 @@
 <h3 class="function"><a name="all-0">all/0</a></h3>
 <div class="spec">
 <p><tt>all() -&gt; any()</tt></p>
-</div><p>Equivalent to <a href="shards_local.html#all-0"><tt>shards_local:all()</tt></a>.</p>
+</div><p>Equivalent to <tt>shards_local:all / 0</tt>.</p>
 
 
 <h3 class="function"><a name="delete-1">delete/1</a></h3>
@@ -244,26 +199,16 @@
  </p>
 <p><b>See also:</b> <a href="shards_dist.html#delete_object-3">shards_dist:delete_object/3</a>, <a href="shards_local.html#delete_object-3">shards_local:delete_object/3</a>.</p>
 
-<h3 class="function"><a name="dist_state-1">dist_state/1</a></h3>
-<div class="spec">
-<p><tt>dist_state(TabName) -&gt; State</tt>
-<ul class="definitions"><li><tt>TabName = atom()</tt></li><li><tt>State = <a href="shards_dist.html#type-state">shards_dist:state()</a></tt></li></ul></p>
-</div><p>
-  Returns the stored distributed state information.
-  <ul>
-  <li><code>TabName</code>: Table name.</li>
-  </ul></p>
-
 <h3 class="function"><a name="file2tab-1">file2tab/1</a></h3>
 <div class="spec">
 <p><tt>file2tab(Filenames) -&gt; any()</tt></p>
-</div><p>Equivalent to <a href="shards_local.html#file2tab-1"><tt>shards_local:file2tab(Filenames)</tt></a>.</p>
+</div><p>Equivalent to <tt>shards_local:file2tab / 1</tt>.</p>
 
 
 <h3 class="function"><a name="file2tab-2">file2tab/2</a></h3>
 <div class="spec">
 <p><tt>file2tab(Filenames, Options) -&gt; any()</tt></p>
-</div><p>Equivalent to <a href="shards_local.html#file2tab-2"><tt>shards_local:file2tab(Filenames, Options)</tt></a>.</p>
+</div><p>Equivalent to <tt>shards_local:file2tab / 2</tt>.</p>
 
 
 <h3 class="function"><a name="first-1">first/1</a></h3>
@@ -292,29 +237,6 @@
  </p>
 <p><b>See also:</b> <a href="shards_dist.html#foldr-4">shards_dist:foldr/4</a>, <a href="shards_local.html#foldr-4">shards_local:foldr/4</a>.</p>
 
-<h3 class="function"><a name="from_dets-2">from_dets/2</a></h3>
-<div class="spec">
-<p><tt>from_dets(Tab, DetsTab) -&gt; true</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>DetsTab = <a href="dets.html#type-tab_name">dets:tab_name()</a></tt></li></ul></p>
-</div><p>
-  Wrapper to <code>shards_local:from_dets/2</code> and <code>shards_dist:from_dets/2</code>.
- </p>
-<p><b>See also:</b> <a href="shards_dist.html#from_dets-2">shards_dist:from_dets/2</a>, <a href="shards_local.html#from_dets-2">shards_local:from_dets/2</a>.</p>
-
-<h3 class="function"><a name="fun2ms-1">fun2ms/1</a></h3>
-<div class="spec">
-<p><tt>fun2ms(LiteralFun) -&gt; any()</tt></p>
-</div><p>
-  <p><font color="red"><b>WARNING:</b> Please use <code>shards_local:fun2ms/1</code>
-  instead.</font></p>
- 
-  Since this function uses <code>parse_transform</code>, it isn't possible
-  to call <code>shards_local:fun2ms/1</code> from <code>shards</code>. Besides, it isn't
-  necessary, the effect is the same as you call directly
-  <code>shards_local:fun2ms/1</code> from you code.
- </p>
-<p><b>See also:</b> <a href="ets.html#fun2ms-1">ets:fun2ms/1</a>.</p>
-
 <h3 class="function"><a name="get_nodes-1">get_nodes/1</a></h3>
 <div class="spec">
 <p><tt>get_nodes(Tab) -&gt; Nodes</tt>
@@ -333,61 +255,32 @@
 <h3 class="function"><a name="i-0">i/0</a></h3>
 <div class="spec">
 <p><tt>i() -&gt; any()</tt></p>
-</div><p>Equivalent to <a href="shards_local.html#i-0"><tt>shards_local:i()</tt></a>.</p>
+</div><p>Equivalent to <tt>shards_local:i / 0</tt>.</p>
 
-
-<h3 class="function"><a name="i-1">i/1</a></h3>
-<div class="spec">
-<p><tt>i(Tab::atom()) -&gt; ok</tt><br></p>
-</div><p>
-  Wrapper to <code>shards_local:i/1</code> and <code>shards_dist:i/1</code>.
- </p>
-<p><b>See also:</b> <a href="shards_dist.html#i-1">shards_dist:i/1</a>, <a href="shards_local.html#i-1">shards_local:i/1</a>.</p>
 
 <h3 class="function"><a name="info-1">info/1</a></h3>
 <div class="spec">
-<p><tt>info(Tab) -&gt; Result</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Result = [InfoList]</tt></li><li><tt>InfoList = [term() | undefined]</tt></li></ul></p>
-</div><p>
-  Wrapper to <code>shards_local:info/2</code> and <code>shards_dist:info/2</code>.
- </p>
-<p><b>See also:</b> <a href="shards_dist.html#info-2">shards_dist:info/2</a>, <a href="shards_local.html#info-2">shards_local:info/2</a>.</p>
+<p><tt>info(Tab) -&gt; any()</tt></p>
+</div><p>Equivalent to <tt>shards_local:info / 2</tt>.</p>
+
 
 <h3 class="function"><a name="info-2">info/2</a></h3>
 <div class="spec">
-<p><tt>info(Tab, Item) -&gt; Result</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Item = atom()</tt></li><li><tt>Result = [Value]</tt></li><li><tt>Value = [term() | undefined]</tt></li></ul></p>
-</div><p>
-  Wrapper to <code>shards_local:info/3</code> and <code>shards_dist:info/3</code>.
- </p>
-<p><b>See also:</b> <a href="shards_dist.html#info-3">shards_dist:info/3</a>, <a href="shards_local.html#info-3">shards_local:info/3</a>.</p>
+<p><tt>info(Tab, Item) -&gt; any()</tt></p>
+</div><p>Equivalent to <tt>shards_local:info / 3</tt>.</p>
+
 
 <h3 class="function"><a name="info_shard-2">info_shard/2</a></h3>
 <div class="spec">
-<p><tt>info_shard(Tab, Shard) -&gt; Result</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Shard = non_neg_integer()</tt></li><li><tt>Result = [term()] | undefined</tt></li></ul></p>
-</div><p>
-  Wrapper to <code>shards_local:info_shard/2</code> and <code>shards_dist:info_shard/2</code>.
- </p>
-<p><b>See also:</b> <a href="shards_dist.html#info_shard-2">shards_dist:info_shard/2</a>, <a href="shards_local.html#info_shard-2">shards_local:info_shard/2</a>.</p>
+<p><tt>info_shard(Tab, Shard) -&gt; any()</tt></p>
+</div><p>Equivalent to <tt>shards_local:info_shard / 2</tt>.</p>
+
 
 <h3 class="function"><a name="info_shard-3">info_shard/3</a></h3>
 <div class="spec">
-<p><tt>info_shard(Tab, Shard, Item) -&gt; Result</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Shard = non_neg_integer()</tt></li><li><tt>Item = atom()</tt></li><li><tt>Result = term() | undefined</tt></li></ul></p>
-</div><p>
-  Wrapper to <code>shards_local:info_shard/3</code> and <code>shards_dist:info_shard/3</code>.
- </p>
-<p><b>See also:</b> <a href="shards_dist.html#info_shard-3">shards_dist:info_shard/3</a>, <a href="shards_local.html#info_shard-3">shards_local:info_shard/3</a>.</p>
+<p><tt>info_shard(Tab, Shard, Item) -&gt; any()</tt></p>
+</div><p>Equivalent to <tt>shards_local:info_shard / 3</tt>.</p>
 
-<h3 class="function"><a name="init_table-2">init_table/2</a></h3>
-<div class="spec">
-<p><tt>init_table(Tab, InitFun) -&gt; true</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>InitFun = fun((Arg) -&gt; Res)</tt></li><li><tt>Arg = read | close</tt></li><li><tt>Res = end_of_input | {Objects::[term()], InitFun} | term()</tt></li></ul></p>
-</div><p>
-  Wrapper to <code>shards_local:init_table/3</code> and <code>shards_dist:init_table/3</code>.
- </p>
-<p><b>See also:</b> <a href="shards_dist.html#init_table-3">shards_dist:init_table/3</a>, <a href="shards_local.html#init_table-3">shards_local:init_table/3</a>.</p>
 
 <h3 class="function"><a name="insert-2">insert/2</a></h3>
 <div class="spec">
@@ -410,7 +303,7 @@
 <h3 class="function"><a name="is_compiled_ms-1">is_compiled_ms/1</a></h3>
 <div class="spec">
 <p><tt>is_compiled_ms(Term) -&gt; any()</tt></p>
-</div><p>Equivalent to <a href="shards_local.html#is_compiled_ms-1"><tt>shards_local:is_compiled_ms(Term)</tt></a>.</p>
+</div><p>Equivalent to <tt>shards_local:is_compiled_ms / 1</tt>.</p>
 
 
 <h3 class="function"><a name="join-2">join/2</a></h3>
@@ -435,23 +328,13 @@
 
 <h3 class="function"><a name="list-1">list/1</a></h3>
 <div class="spec">
-<p><tt>list(TabName) -&gt; ShardTabNames</tt>
-<ul class="definitions"><li><tt>TabName = atom()</tt></li><li><tt>ShardTabNames = [atom()]</tt></li></ul></p>
+<p><tt>list(Tab) -&gt; Result</tt>
+<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Result = [atom()]</tt></li></ul></p>
 </div><p>
   Returns the list of shard names associated to the given <code>TabName</code>.
   The shard names that were created in the <code>shards:new/2,3</code> fun.
   <ul>
-  <li><code>TabName</code>: Table name.</li>
-  </ul></p>
-
-<h3 class="function"><a name="local_state-1">local_state/1</a></h3>
-<div class="spec">
-<p><tt>local_state(TabName) -&gt; State</tt>
-<ul class="definitions"><li><tt>TabName = atom()</tt></li><li><tt>State = <a href="shards_local.html#type-state">shards_local:state()</a></tt></li></ul></p>
-</div><p>
-  Returns the stored local state information.
-  <ul>
-  <li><code>TabName</code>: Table name.</li>
+  <li><code>Tab</code>: Table name.</li>
   </ul></p>
 
 <h3 class="function"><a name="lookup-2">lookup/2</a></h3>
@@ -539,13 +422,13 @@
 <h3 class="function"><a name="match_spec_compile-1">match_spec_compile/1</a></h3>
 <div class="spec">
 <p><tt>match_spec_compile(MatchSpec) -&gt; any()</tt></p>
-</div><p>Equivalent to <a href="shards_local.html#match_spec_compile-1"><tt>shards_local:match_spec_compile(MatchSpec)</tt></a>.</p>
+</div><p>Equivalent to <tt>shards_local:match_spec_compile / 1</tt>.</p>
 
 
 <h3 class="function"><a name="match_spec_run-2">match_spec_run/2</a></h3>
 <div class="spec">
 <p><tt>match_spec_run(List, CompiledMatchSpec) -&gt; any()</tt></p>
-</div><p>Equivalent to <a href="shards_local.html#match_spec_run-2"><tt>shards_local:match_spec_run(List, CompiledMatchSpec)</tt></a>.</p>
+</div><p>Equivalent to <tt>shards_local:match_spec_run / 2</tt>.</p>
 
 
 <h3 class="function"><a name="member-2">member/2</a></h3>
@@ -556,40 +439,10 @@
  </p>
 <p><b>See also:</b> <a href="shards_dist.html#member-3">shards_dist:member/3</a>, <a href="shards_local.html#member-3">shards_local:member/3</a>.</p>
 
-<h3 class="function"><a name="metadata-1">metadata/1</a></h3>
-<div class="spec">
-<p><tt>metadata(TabName) -&gt; Metadata</tt>
-<ul class="definitions"><li><tt>TabName = atom()</tt></li><li><tt>Metadata = <a href="#type-metadata">metadata()</a></tt></li></ul></p>
-</div><p>
-  Returns the stored table metadata.
-  <ul>
-  <li><code>TabName</code>: Table name.</li>
-  </ul></p>
-
-<h3 class="function"><a name="module-1">module/1</a></h3>
-<div class="spec">
-<p><tt>module(TabName) -&gt; Module</tt>
-<ul class="definitions"><li><tt>TabName = atom()</tt></li><li><tt>Module = module()</tt></li></ul></p>
-</div><p>
-  Returns the set module.
-  <ul>
-  <li><code>TabName</code>: Table name.</li>
-  </ul></p>
-
-<h3 class="function"><a name="n_shards-1">n_shards/1</a></h3>
-<div class="spec">
-<p><tt>n_shards(TabNameOrState) -&gt; NumShards</tt>
-<ul class="definitions"><li><tt>TabNameOrState = <a href="shards_local.html#type-state">shards_local:state()</a> | atom()</tt></li><li><tt>NumShards = pos_integer()</tt></li></ul></p>
-</div><p>
-  Returns the number of shards.
-  <ul>
-  <li><code>TabNameOrState</code>: Table name or State.</li>
-  </ul></p>
-
 <h3 class="function"><a name="new-2">new/2</a></h3>
 <div class="spec">
 <p><tt>new(Name, Options) -&gt; Result</tt>
-<ul class="definitions"><li><tt>Name = atom()</tt></li><li><tt>Options = [<a href="shards_local.html#type-option">shards_local:option()</a>]</tt></li><li><tt>LocalState = <a href="shards_local.html#type-state">shards_local:state()</a></tt></li><li><tt>DistState = <a href="shards_dist.html#type-state">shards_dist:state()</a></tt></li><li><tt>Local = {Name, LocalState}</tt></li><li><tt>Dist = {Name, {LocalState, DistState}}</tt></li><li><tt>Result = Local | Dist</tt></li></ul></p>
+<ul class="definitions"><li><tt>Name = atom()</tt></li><li><tt>Options = [<a href="shards_local.html#type-option">shards_local:option()</a>]</tt></li><li><tt>State = <a href="shards_state.html#type-state">shards_state:state()</a></tt></li><li><tt>Result = {Name, State}</tt></li></ul></p>
 </div><p>
   Wrapper to <code>shards_local:new/2</code> and <code>shards_dist:new/2</code>.
  </p>
@@ -604,22 +457,6 @@
  </p>
 <p><b>See also:</b> <a href="shards_dist.html#next-3">shards_dist:next/3</a>, <a href="shards_local.html#next-3">shards_local:next/3</a>.</p>
 
-<h3 class="function"><a name="pick_node-2">pick_node/2</a></h3>
-<div class="spec">
-<p><tt>pick_node(Key, Nodes) -&gt; Node</tt>
-<ul class="definitions"><li><tt>Key = term()</tt></li><li><tt>Nodes = [node()]</tt></li><li><tt>Node = node()</tt></li></ul></p>
-</div>
-
-<h3 class="function"><a name="pick_shard_fun-1">pick_shard_fun/1</a></h3>
-<div class="spec">
-<p><tt>pick_shard_fun(TabNameOrState) -&gt; PickShardFun</tt>
-<ul class="definitions"><li><tt>TabNameOrState = <a href="shards_local.html#type-state">shards_local:state()</a> | atom()</tt></li><li><tt>PickShardFun = <a href="shards_local.html#type-pick_shard_fun">shards_local:pick_shard_fun()</a></tt></li></ul></p>
-</div><p>
-  Returns the function to pick/compute the shard.
-  <ul>
-  <li><code>TabNameOrState</code>: Table name or State.</li>
-  </ul></p>
-
 <h3 class="function"><a name="prev-2">prev/2</a></h3>
 <div class="spec">
 <p><tt>prev(Tab, Key1) -&gt; Key2 | '$end_of_table'</tt>
@@ -628,34 +465,6 @@
   Wrapper to <code>shards_local:prev/3</code> and <code>shards_dist:prev/3</code>.
  </p>
 <p><b>See also:</b> <a href="shards_dist.html#prev-3">shards_dist:prev/3</a>, <a href="shards_local.html#prev-3">shards_local:prev/3</a>.</p>
-
-<h3 class="function"><a name="rename-2">rename/2</a></h3>
-<div class="spec">
-<p><tt>rename(Tab, Name) -&gt; Name</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Name = atom()</tt></li></ul></p>
-</div><p>
-  Wrapper to <code>shards_local:rename/3</code> and <code>shards_dist:rename/3</code>.
- </p>
-<p><b>See also:</b> <a href="shards_dist.html#rename-3">shards_dist:rename/3</a>, <a href="shards_local.html#rename-3">shards_local:rename/3</a>.</p>
-
-<h3 class="function"><a name="repair_continuation-2">repair_continuation/2</a></h3>
-<div class="spec">
-<p><tt>repair_continuation(Continuation, MatchSpec) -&gt; Continuation</tt>
-<ul class="definitions"><li><tt>Continuation = <a href="#type-continuation">continuation()</a></tt></li><li><tt>MatchSpec = <a href="ets.html#type-match_spec">ets:match_spec()</a></tt></li></ul></p>
-</div><p>
-  Wrapper to <code>shards_local:repair_continuation/3</code> and
-  <code>shards_dist:repair_continuation/3</code>.
- </p>
-<p><b>See also:</b> <a href="shards_dist.html#repair_continuation-3">shards_dist:repair_continuation/3</a>, <a href="shards_local.html#repair_continuation-3">shards_local:repair_continuation/3</a>.</p>
-
-<h3 class="function"><a name="safe_fixtable-2">safe_fixtable/2</a></h3>
-<div class="spec">
-<p><tt>safe_fixtable(Tab, Fix) -&gt; true</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>Fix = boolean()</tt></li></ul></p>
-</div><p>
-  Wrapper to <code>shards_local:i/1</code> and <code>shards_dist:i/1</code>.
- </p>
-<p><b>See also:</b> <a href="shards_dist.html#i-1">shards_dist:i/1</a>, <a href="shards_local.html#i-1">shards_local:i/1</a>.</p>
 
 <h3 class="function"><a name="select-1">select/1</a></h3>
 <div class="spec">
@@ -741,29 +550,16 @@
  </p>
 <p><b>See also:</b> <a href="shards_dist.html#setopts-3">shards_dist:setopts/3</a>, <a href="shards_local.html#setopts-3">shards_local:setopts/3</a>.</p>
 
-<h3 class="function"><a name="slot-2">slot/2</a></h3>
-<div class="spec">
-<p><tt>slot(Tab, I) -&gt; [Object] | '$end_of_table'</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>I = non_neg_integer()</tt></li><li><tt>Object = tuple()</tt></li></ul></p>
-</div><p>
-  Wrapper to <code>shards_local:slot/3</code> and <code>shards_dist:slot/3</code>.
- </p>
-<p><b>See also:</b> <a href="shards_dist.html#slot-3">shards_dist:slot/3</a>, <a href="shards_local.html#slot-3">shards_local:slot/3</a>.</p>
-
 <h3 class="function"><a name="start-0">start/0</a></h3>
 <div class="spec">
-<p><tt>start() -&gt; {ok, term()} | {error, term()}</tt><br></p>
+<p><tt>start() -&gt; {ok, [atom()]} | {error, term()}</tt><br></p>
 </div><p>Starts <code>shards</code> application.</p>
 
 <h3 class="function"><a name="state-1">state/1</a></h3>
 <div class="spec">
-<p><tt>state(TabName) -&gt; State</tt>
-<ul class="definitions"><li><tt>TabName = atom()</tt></li><li><tt>State = <a href="#type-state">state()</a></tt></li></ul></p>
+<p><tt>state(Tab::atom()) -&gt; <a href="shards_state.html#type-state">shards_state:state()</a></tt><br></p>
 </div><p>
-  Returns the stored state information.
-  <ul>
-  <li><code>TabName</code>: Table name.</li>
-  </ul></p>
+  Utility to get the <code>state</code> for the given table <code>Tab</code>.</p>
 
 <h3 class="function"><a name="stop-0">stop/0</a></h3>
 <div class="spec">
@@ -797,20 +593,10 @@
  </p>
 <p><b>See also:</b> <a href="shards_dist.html#tab2list-2">shards_dist:tab2list/2</a>, <a href="shards_local.html#tab2list-2">shards_local:tab2list/2</a>.</p>
 
-<h3 class="function"><a name="tab_type-1">tab_type/1</a></h3>
-<div class="spec">
-<p><tt>tab_type(TabNameOrState) -&gt; Type</tt>
-<ul class="definitions"><li><tt>TabNameOrState = <a href="shards_local.html#type-state">shards_local:state()</a> | atom()</tt></li><li><tt>Type = <a href="ets.html#type-type">ets:type()</a></tt></li></ul></p>
-</div><p>
-  Returns the table type.
-  <ul>
-  <li><code>TabNameOrState</code>: Table name or State.</li>
-  </ul></p>
-
 <h3 class="function"><a name="tabfile_info-1">tabfile_info/1</a></h3>
 <div class="spec">
 <p><tt>tabfile_info(Filename) -&gt; any()</tt></p>
-</div><p>Equivalent to <a href="shards_local.html#tabfile_info-1"><tt>shards_local:tabfile_info(Filename)</tt></a>.</p>
+</div><p>Equivalent to <tt>shards_local:tabfile_info / 1</tt>.</p>
 
 
 <h3 class="function"><a name="table-1">table/1</a></h3>
@@ -843,17 +629,8 @@
 <h3 class="function"><a name="test_ms-2">test_ms/2</a></h3>
 <div class="spec">
 <p><tt>test_ms(Tuple, MatchSpec) -&gt; any()</tt></p>
-</div><p>Equivalent to <a href="shards_local.html#test_ms-2"><tt>shards_local:test_ms(Tuple, MatchSpec)</tt></a>.</p>
+</div><p>Equivalent to <tt>shards_local:test_ms / 2</tt>.</p>
 
-
-<h3 class="function"><a name="to_dets-2">to_dets/2</a></h3>
-<div class="spec">
-<p><tt>to_dets(Tab, DetsTab) -&gt; DetsTab</tt>
-<ul class="definitions"><li><tt>Tab = atom()</tt></li><li><tt>DetsTab = <a href="dets.html#type-tab_name">dets:tab_name()</a></tt></li></ul></p>
-</div><p>
-  Wrapper to <code>shards_local:to_dets/2</code> and <code>shards_dist:to_dets/2</code>.
- </p>
-<p><b>See also:</b> <a href="shards_dist.html#to_dets-2">shards_dist:to_dets/2</a>, <a href="shards_local.html#to_dets-2">shards_local:to_dets/2</a>.</p>
 
 <h3 class="function"><a name="update_counter-3">update_counter/3</a></h3>
 <div class="spec">
@@ -887,6 +664,6 @@
 <hr>
 
 <div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
-<p><i>Generated by EDoc, Jun 8 2016, 13:43:17.</i></p>
+<p><i>Generated by EDoc, Jul 11 2016, 14:00:18.</i></p>
 </body>
 </html>
