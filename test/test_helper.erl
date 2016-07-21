@@ -24,7 +24,8 @@
 %% Pick Callbacks
 -export([
   pick_shard/3,
-  pick_node/3
+  pick_node/3,
+  pick_node_dist/3
 ]).
 
 -include_lib("stdlib/include/ms_transform.hrl").
@@ -39,11 +40,15 @@ pick_shard(w, Key, N) ->
 pick_shard(_, _, _) ->
   any.
 
-pick_node(w, Key, Nodes) ->
+pick_node(_, Key, Nodes) ->
+  Nth = jchash:compute(erlang:phash2(Key), length(Nodes)) + 1,
+  lists:nth(Nth, Nodes).
+
+pick_node_dist(w, Key, Nodes) ->
   NewKey = {Key, os:timestamp()},
-  Nth = jumping_hash:compute(erlang:phash2(NewKey), length(Nodes)) + 1,
+  Nth = jchash:compute(erlang:phash2(NewKey), length(Nodes)) + 1,
   lists:nth(Nth, Nodes);
-pick_node(_, _, _) ->
+pick_node_dist(_, _, _) ->
   any.
 
 %%%===================================================================
@@ -462,21 +467,25 @@ init_shards_new(Scope) ->
   end,
 
   DefaultShards = ?N_SHARDS,
-  {_, StateSet} = shards:new(?SET, [{scope, Scope}]),
+  {_, StateSet} = shards:new(?SET, [
+    {scope, Scope},
+    {pick_node_fun, fun ?MODULE:pick_node/3}
+  ]),
   StateSet = shards:state(?SET),
   Mod = shards_state:module(?SET),
   DefaultShards = shards_state:n_shards(?SET),
   set = shards_state:type(?SET),
   Fun1 = fun shards_local:pick_shard/3,
   Fun1 = shards_state:pick_shard_fun(?SET),
-  Fun2 = fun shards_dist:pick_node/3,
+  Fun2 = fun ?MODULE:pick_node/3,
   Fun2 = shards_state:pick_node_fun(?SET),
   true = shards_state:auto_eject_nodes(?SET),
 
   {_, StateDupBag} = shards:new(?DUPLICATE_BAG, [
     {n_shards, 5},
     {scope, Scope},
-    duplicate_bag
+    duplicate_bag,
+    {pick_node_fun, fun ?MODULE:pick_node/3}
   ]),
   StateDupBag = shards:state(?DUPLICATE_BAG),
   #{module := Mod,
@@ -498,8 +507,8 @@ init_shards_new(Scope) ->
     {n_shards, 5},
     {scope, Scope},
     duplicate_bag,
-    {pick_shard_fun, fun pick_shard/3},
-    {pick_node_fun, fun pick_node/3}
+    {pick_shard_fun, fun ?MODULE:pick_shard/3},
+    {pick_node_fun, fun ?MODULE:pick_node_dist/3}
   ]),
   StateShardedDupBag = shards:state(?SHARDED_DUPLICATE_BAG),
   #{module := Mod,

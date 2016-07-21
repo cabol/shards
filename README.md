@@ -14,10 +14,11 @@ ETS totally transparent and out-of-box. **Shards** might be probably the **simpl
 
 ## Introduction
 
-Why we might need **Sharding** on ETS tables? Well, the main reason is to scale-out ETS tables
-(linear scalability), and support high levels of concurrency without write-locks issues, which
-most of the cases might cause significant performance degradation. Therefore, one of the most
-common and proven strategies to deal with these problems is [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database))
+Why we might need **Sharding** on ETS tables? Well, the main reason is to keep the lock contention under control,
+in order to scale-out ETS tables (linearly) and support higher levels of concurrency without lock issues
+(specially write-locks) – which most of the cases might cause significant performance degradation.
+
+Therefore, one of the most common and proven strategies to deal with these problems is [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database))
 – the principle is pretty similar to [DHTs](https://en.wikipedia.org/wiki/Distributed_hash_table).
 
 Here is where **Shards** comes in. **Shards** makes extremely easy achieve all this, with **zero** effort.
@@ -209,7 +210,7 @@ to call it. You can check how `shards` module is implemented [HERE](./src/shards
 If any microsecond matters to you, you can skip the call to the control ETS table by calling
 `shards_local` directly. Now the question is: how to get the **State**? Well, it's extremely
 easy, you can get the `state` when you call `shards:new/2` by first time, or you can call
-`shards:state/1`/`shards_state:get/1` at any time you want, and then it might be store it
+`shards:state/1` or `shards_state:get/1` at any time you want, and then it might be stored
 within the calling process, or wherever you want. E.g.:
 
 ```erlang

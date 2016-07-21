@@ -87,7 +87,7 @@ get_nodes(Tab) ->
   Nodes :: [node()],
   Node  :: node().
 pick_node(_, Key, Nodes) ->
-  Nth = jumping_hash:compute(erlang:phash2(Key), length(Nodes)) + 1,
+  Nth = erlang:phash2(Key, length(Nodes)) + 1,
   lists:nth(Nth, Nodes).
 
 %%%===================================================================

@@ -140,7 +140,7 @@ t_eject_node_on_failure(Config) ->
 
   % insert some data on that node
   Z = lists:last(UpNodes1),
-  Z = shards_dist:pick_node(read, 2, UpNodes1),
+  Z = test_helper:pick_node(read, 2, UpNodes1),
   true = shards:insert(?SET, {2, 2}),
 
   % cause an error
