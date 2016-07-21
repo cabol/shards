@@ -86,7 +86,7 @@ t_shard_restarted_when_down(_Config) ->
   assert_values(tab2, [1, 2, 3], [1, 2, 3]),
 
   NumShards = shards_state:n_shards(tab1),
-  ShardToKill = shards_local:pick_shard(write, 1, NumShards),
+  ShardToKill = shards_local:pick(1, NumShards, w),
   ShardToKillTab1 = shards_local:shard_name(tab1, ShardToKill),
   exit(whereis(ShardToKillTab1), kill),
   timer:sleep(500),

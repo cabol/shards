@@ -26,30 +26,52 @@ It provides an API compatible with [ETS](http://erlang.org/doc/man/ets.html) –
 You can find the list of compatible ETS functions that **Shards** provides [HERE](https://github.com/cabol/shards/issues/1).
 
 
-## Build
+## Installation
+
+### Erlang
+
+In your `rebar.config`:
+
+```erlang
+{deps, [
+  {shards, "0.2.0"}
+]}.
+```
+
+### Elixir
+
+In your `mix.exs`:
+
+```elixir
+def deps do
+  [{:shards, "~> 0.2.0"}]
+end
+```
+
+
+## Getting Started!
+
+### Build
 
     $ git clone https://github.com/cabol/shards.git
     $ cd shards
     $ make
 
-
  > **NOTE:** `shards` comes with a helper **Makefile** but it's a simple wrapper on top of `rebar3`,
    therefore, you can do everything using `rebar3` directly as well.
 
-## Getting Started!
-
-Start an Erlang console with `shards` running:
+Now you can start an Erlang console with `shards` running:
 
     $ make shell
 
-Once into the Erlang console:
+### Creating shards
 
 ```erlang
 % let's create a table, such as you would create it with ETS, with 4 shards
 > shards:new(mytab1, [{n_shards, 4}]).
 {mytab1,{state,shards_local,4,set,
-               #Fun<shards_local.pick_shard.3>,
-               #Fun<shards_dist.pick_node.3>,true}}
+               #Fun<shards_local.pick.3>,
+               #Fun<shards_local.pick.3>,true}}
 ```
 
 Exactly as ETS, `shards:new/2` function receives 2 arguments, the name of the table and
@@ -67,10 +89,10 @@ the options. With `shards` there are additional options:
  * `{auto_eject_nodes, boolean()}`: A boolean value that controls if node should be ejected
    when it fails. – Default is `true`.
 
- * `{pick_shard_fun, pick_shard_fun()}`: Function to pick the **shard** on which the `key`
+ * `{pick_shard_fun, pick_fun()}`: Function to pick the **shard** on which the `key`
    will be handled locally – used by `shards_local`. See [shards_state](./src/shards_state.erl).
 
- * `{pick_node_fun, pick_node_fun()}`: Function to pick the **node** on which the `key`
+ * `{pick_node_fun, pick_fun()}`: Function to pick the **node** on which the `key`
    will be handled globally/distributed – used by `shards_dist`. See [shards_state](./src/shards_state.erl).
 
 > **NOTE:** By default `shards` uses a built-in functions to pick the **shard** (local scope)
@@ -82,10 +104,10 @@ Furthermore, the `shards:new/2` function returns a tuple of two elements:
 
 ```erlang
 {mytab1, {state,shards_local,4,set,
-               #Fun<shards_local.pick_shard.3>,
-               #Fun<shards_dist.pick_node.3>,true}}
- ^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  1st                     2nd
+                #Fun<shards_local.pick.3>,
+                #Fun<shards_local.pick.3>,true}}
+ ^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  1st                      2nd
 ```
 
 The first element is the name of the created table; `mytab1`. And the second one is the
@@ -101,8 +123,8 @@ Let's continue:
 % This value is calculated calling: erlang:system_info(schedulers_online)
 > shards:new(mytab2, []).
 {mytab2,{state,shards_local,8,set,
-               #Fun<shards_local.pick_shard.3>,
-               #Fun<shards_dist.pick_node.3>,true}}
+               #Fun<shards_local.pick.3>,
+               #Fun<shards_local.pick.3>,true}}
 
 % now open the observer so you can see what happened
 > observer:start().
@@ -113,6 +135,8 @@ You will see the process tree of `shards` application. When you create a new "ta
 is: `shards` creates a supervision tree dedicated only to that group of shards that will represent
 your logical table in multiple physical ETS tables, and everything is handled auto-magically by `shards`,
 you only have to use the API like if you were working with a common ETS table.
+
+### Playing with shards
 
 Now let's execute some write/read operations against the created `shards`:
 
@@ -147,6 +171,8 @@ true
 As you may have noticed, it's extremely easy, because almost all ETS functions are
 implemented by shards, it's only matters of replace `ets` module by `shards`.
 
+### Deleting shards
+
 **Shards** behaves in elastic way, as you saw, more shards can be added/removed dynamically:
 
 ```erlang
@@ -179,12 +205,12 @@ The `shards` state is defined as:
 
 ```erlang
 -record(state, {
-  module           = shards_local                  :: module(),
-  n_shards         = ?N_SHARDS                     :: pos_integer(),
-  type             = set                           :: ets:type(),
-  pick_shard_fun   = fun shards_local:pick_shard/3 :: pick_shard_fun(),
-  pick_node_fun    = fun shards_dist:pick_node/3   :: pick_node_fun(),
-  auto_eject_nodes = true                          :: boolean()
+  module           = shards_local            :: module(),
+  n_shards         = ?N_SHARDS               :: pos_integer(),
+  type             = set                     :: ets:type(),
+  pick_shard_fun   = fun shards_local:pick/3 :: pick_fun(),
+  pick_node_fun    = fun shards_local:pick/3 :: pick_fun(),
+  auto_eject_nodes = true                    :: boolean()
 }).
 ```
 
@@ -217,14 +243,14 @@ within the calling process, or wherever you want. E.g.:
 % take a look at the 2nd element of the returned tuple, that is the state
 > shards:new(mytab, [{n_shards, 4}]).
 {mytab,{state,shards_local,4,set,
-              #Fun<shards_local.pick_shard.3>,
-              #Fun<shards_dist.pick_node.3>,true}}
-       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              #Fun<shards_local.pick.3>,
+              #Fun<shards_local.pick.3>,true}}
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 % you can also get the state at any time you want
 > State = shards:state(mytab).
-{state,shards_local,4,set,#Fun<shards_local.pick_shard.3>,
-       #Fun<shards_dist.pick_node.3>,true}
+{state,shards_local,4,set,#Fun<shards_local.pick.3>,
+       #Fun<shards_local.pick.3>,true}
 
 % now you can call shards_local directly
 > shards_local:insert(mytab, {1, 1}, State).
@@ -269,9 +295,8 @@ $ erl -sname c@localhost -pa _build/default/lib/*/ebin -s shards
 % when a tables is created with {scope, g}, the module shards_dist is used
 % internally by shards
 > shards:new(mytab, [{n_shards, 4}, {scope, g}]).
-{mytab,{state,shards_dist,4,set,
-              #Fun<shards_local.pick_shard.3>,
-              #Fun<shards_dist.pick_node.3>,true}}
+{mytab,{state,shards_dist,4,set,#Fun<shards_local.pick.3>,
+              #Fun<shards_local.pick.3>,true}}
 ```
 
 **3.** Setup the `shards` cluster.

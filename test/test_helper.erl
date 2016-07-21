@@ -35,19 +35,17 @@
 %%% Tests Key Generator
 %%%===================================================================
 
-pick_shard(w, Key, N) ->
+pick_shard(Key, N, w) ->
   erlang:phash2({Key, os:timestamp()}, N);
 pick_shard(_, _, _) ->
   any.
 
-pick_node(_, Key, Nodes) ->
-  Nth = jchash:compute(erlang:phash2(Key), length(Nodes)) + 1,
-  lists:nth(Nth, Nodes).
+pick_node(Key, Nodes, _) ->
+  jchash:compute(erlang:phash2(Key), Nodes).
 
-pick_node_dist(w, Key, Nodes) ->
+pick_node_dist(Key, Nodes, w) ->
   NewKey = {Key, os:timestamp()},
-  Nth = jchash:compute(erlang:phash2(NewKey), length(Nodes)) + 1,
-  lists:nth(Nth, Nodes);
+  jchash:compute(erlang:phash2(NewKey), Nodes);
 pick_node_dist(_, _, _) ->
   any.
 
@@ -475,7 +473,7 @@ init_shards_new(Scope) ->
   Mod = shards_state:module(?SET),
   DefaultShards = shards_state:n_shards(?SET),
   set = shards_state:type(?SET),
-  Fun1 = fun shards_local:pick_shard/3,
+  Fun1 = fun shards_local:pick/3,
   Fun1 = shards_state:pick_shard_fun(?SET),
   Fun2 = fun ?MODULE:pick_node/3,
   Fun2 = shards_state:pick_node_fun(?SET),

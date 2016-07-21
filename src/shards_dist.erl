@@ -9,8 +9,7 @@
 -export([
   join/2,
   leave/2,
-  get_nodes/1,
-  pick_node/3
+  get_nodes/1
 ]).
 
 %% Shards API
@@ -81,15 +80,6 @@ leave(Tab, Nodes) ->
 get_nodes(Tab) ->
   lists:usort([node(Pid) || Pid <- pg2:get_members(Tab)]).
 
--spec pick_node(Op, Key, Nodes) -> Node when
-  Op    :: shards_state:op(),
-  Key   :: term(),
-  Nodes :: [node()],
-  Node  :: node().
-pick_node(_, Key, Nodes) ->
-  Nth = erlang:phash2(Key, length(Nodes)) + 1,
-  lists:nth(Nth, Nodes).
-
 %%%===================================================================
 %%% Shards API
 %%%===================================================================
@@ -138,7 +128,7 @@ insert(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
   PickNodeFun = shards_state:pick_node_fun(State),
   AutoEject = shards_state:auto_eject_nodes(State),
-  Node = PickNodeFun(w, Key, get_nodes(Tab)),
+  Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
   rpc_call(Node, {?SHARDS, insert, [Tab, ObjOrObjL, State]}, Tab, AutoEject).
 
 -spec insert_new(Tab, ObjOrObjL, State) -> Result when
@@ -155,19 +145,19 @@ insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   Nodes = get_nodes(Tab),
   PickNodeFun = shards_state:pick_node_fun(State),
   AutoEject = shards_state:auto_eject_nodes(State),
-  case PickNodeFun(r, Key, Nodes) of
+  case pick_node(PickNodeFun, Key, Nodes, r) of
     any ->
       Map = {?SHARDS, lookup, [Tab, Key, State]},
       Reduce = fun lists:append/2,
       case mapred(Tab, Map, Reduce, State, r) of
         [] ->
-          Node = PickNodeFun(w, Key, Nodes),
+          Node = pick_node(PickNodeFun, Key, Nodes, w),
           rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, State]}, Tab, AutoEject);
         _ ->
           false
       end;
     _ ->
-      Node = PickNodeFun(w, Key, Nodes),
+      Node = pick_node(PickNodeFun, Key, Nodes, w),
       rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, State]}, Tab, AutoEject)
   end.
 
@@ -190,7 +180,7 @@ lookup(Tab, Key, State) ->
 lookup_element(Tab, Key, Pos, State) ->
   Nodes = get_nodes(Tab),
   PickNodeFun = shards_state:pick_node_fun(State),
-  case PickNodeFun(r, Key, Nodes) of
+  case pick_node(PickNodeFun, Key, Nodes, r) of
     any ->
       Map = {?SHARDS, lookup_element, [Tab, Key, Pos, State]},
       Filter = lists:filter(fun
@@ -308,6 +298,15 @@ take(Tab, Key, State) ->
 %%%===================================================================
 
 %% @private
+pick_node(Fun, Key, Nodes, Op) ->
+  case Fun(Key, length(Nodes), Op) of
+    Nth when is_integer(Nth) ->
+      lists:nth(Nth + 1, Nodes);
+    Nth ->
+      Nth
+  end.
+
+%% @private
 rpc_call(Node, {Module, Function, Args}, Tab, AutoEject) ->
   case rpc:call(Node, Module, Function, Args) of
     {badrpc, _} ->
@@ -337,7 +336,7 @@ mapred(Tab, nil, Map, Reduce, _, _) ->
 mapred(Tab, Key, Map, Reduce, State, Op) ->
   PickNodeFun = shards_state:pick_node_fun(State),
   AutoEject = shards_state:auto_eject_nodes(State),
-  case PickNodeFun(Op, Key, get_nodes(Tab)) of
+  case pick_node(PickNodeFun, Key, get_nodes(Tab), Op) of
     any ->
       p_mapred(Tab, Map, Reduce);
     Node ->

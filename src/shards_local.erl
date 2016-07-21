@@ -106,7 +106,7 @@
 %% Extended API
 -export([
   shard_name/2,
-  pick_shard/3,
+  pick/3,
   list/2
 ]).
 
@@ -125,16 +125,16 @@
 
 %% @type shards_opt() = {scope, l | g}
 %%                    | {n_shards, pos_integer()}
-%%                    | {pick_shard_fun, pick_shard_fun()}
-%%                    | {pick_node_fun, pick_node_fun()}
+%%                    | {pick_shard_fun, pick_fun()}
+%%                    | {pick_node_fun, pick_fun()}
 %%                    | {restart_strategy, one_for_one | one_for_all}
 %%                    | {eject_nodes_on_failure, boolean()}.
 %%
 %% Shards extended options.
 -type shards_opt() :: {scope, l | g}
                     | {n_shards, pos_integer()}
-                    | {pick_shard_fun, shards_state:pick_shard_fun()}
-                    | {pick_node_fun, shards_state:pick_node_fun()}
+                    | {pick_shard_fun, shards_state:pick_fun()}
+                    | {pick_node_fun, shards_state:pick_fun()}
                     | {restart_strategy, one_for_one | one_for_all}
                     | {auto_eject_nodes, boolean()}.
 
@@ -475,7 +475,7 @@ insert(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
-  ShardName = shard_name(Tab, PickShardFun(w, Key, N)),
+  ShardName = shard_name(Tab, PickShardFun(Key, N, w)),
   ets:insert(ShardName, ObjOrObjL).
 
 %% @doc
@@ -500,19 +500,19 @@ insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
-  case PickShardFun(r, Key, N) of
+  case PickShardFun(Key, N, r) of
     any ->
       Map = {fun ets:lookup/2, [Key]},
       Reduce = fun lists:append/2,
       case mapred(Tab, Map, Reduce, State) of
         [] ->
-          ShardName = shard_name(Tab, PickShardFun(w, Key, N)),
+          ShardName = shard_name(Tab, PickShardFun(Key, N, w)),
           ets:insert_new(ShardName, ObjOrObjL);
         _ ->
           false
       end;
     _ ->
-      ShardName = shard_name(Tab, PickShardFun(w, Key, N)),
+      ShardName = shard_name(Tab, PickShardFun(Key, N, w)),
       ets:insert_new(ShardName, ObjOrObjL)
   end.
 
@@ -579,7 +579,7 @@ lookup(Tab, Key, State) ->
 lookup_element(Tab, Key, Pos, State) ->
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
-  case PickShardFun(r, Key, N) of
+  case PickShardFun(Key, N, r) of
     any ->
       LookupElem = fun(Tx, Kx, Px) ->
         catch ets:lookup_element(Tx, Kx, Px)
@@ -807,7 +807,7 @@ new(Name, Options) ->
 next(Tab, Key1, State) ->
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
-  Shard = case PickShardFun(r, Key1, N) of
+  Shard = case PickShardFun(Key1, N, r) of
     any -> 0;
     Val -> Val
   end,
@@ -841,7 +841,7 @@ prev(Tab, Key1, State) ->
   PickShardFun = shards_state:pick_shard_fun(State),
   case shards_state:type(State) of
     ordered_set ->
-      Shard = case PickShardFun(r, Key1, N) of
+      Shard = case PickShardFun(Key1, N, r) of
         any -> 0;
         Val -> Val
       end,
@@ -1185,17 +1185,17 @@ shard_name(TabName, Shard) ->
 %% @doc
 %% Pick/computes the shard where the `Key' will be handled.
 %% <ul>
-%% <li>`Op': Operation type: `r | w | d`.</li>
 %% <li>`Key': The key to be hashed to calculate the shard.</li>
-%% <li>`NumShards': Number of shards.</li>
+%% <li>`Range': Range/set – number of shards/nodes.</li>
+%% <li>`Op': Operation type: `r | w | d`.</li>
 %% </ul>
 %% @end
--spec pick_shard(Op, Key, NumShards) -> ShardNum when
-  Op        :: shards_state:op(),
-  Key       :: term(),
-  NumShards :: pos_integer(),
-  ShardNum  :: non_neg_integer().
-pick_shard(_, Key, NumShards) ->
+-spec pick(Key, Range, Op) -> Result when
+  Key    :: shards_state:key(),
+  Range  :: shards_state:range(),
+  Op     :: shards_state:op(),
+  Result :: non_neg_integer().
+pick(Key, NumShards, _) ->
   erlang:phash2(Key, NumShards).
 
 %% @doc
@@ -1235,7 +1235,7 @@ mapred(Tab, nil, Map, Reduce, State, _) ->
 mapred(Tab, Key, {MapFun, Args} = Map, Reduce, State, Op) ->
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
-  case PickShardFun(Op, Key, N) of
+  case PickShardFun(Key, N, Op) of
     any ->
       s_mapred(Tab, N, Map, Reduce);
     Shard ->
