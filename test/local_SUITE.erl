@@ -15,10 +15,12 @@
 -include_lib("mixer/include/mixer.hrl").
 -mixin([
   {test_helper, [
+    t_state/1,
     t_basic_ops/1,
     t_match_ops/1,
     t_select_ops/1,
     t_paginated_ops/1,
+    t_paginated_ops_ordered_set/1,
     t_first_last_next_prev_ops/1,
     t_update_ops/1,
     t_fold_ops/1,

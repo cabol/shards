@@ -43,11 +43,13 @@ tests: check_rebar check_epmd
 	rm -rf test/*.beam
 
 local_tests: check_rebar check_epmd
-	$(REBAR) ct --name ct@127.0.0.1 --suite=test/local_SUITE
+	$(REBAR) ct --suite=test/local_SUITE
+	$(REBAR) cover
 	rm -rf test/*.beam
 
 dist_tests: check_rebar check_epmd
 	$(REBAR) ct --name ct@127.0.0.1 --suite=test/dist_SUITE
+	$(REBAR) cover
 	rm -rf test/*.beam
 
 shell: check_rebar

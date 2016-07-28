@@ -115,7 +115,11 @@ parse_opts(Opts) ->
     opts             => [],
     restart_strategy => one_for_one
   },
-  parse_opts(Opts, AccIn).
+  AccOut = parse_opts(Opts, AccIn),
+  case maps:get(type, AccOut, set) of
+    ordered_set -> AccOut#{n_shards := 1};
+    _           -> AccOut
+  end.
 
 %% @private
 parse_opts([], Acc) ->
@@ -135,7 +139,7 @@ parse_opts([{auto_eject_nodes, Val} | Opts], Acc) when is_boolean(Val) ->
 parse_opts([{restart_strategy, Val} | Opts], Acc) when ?is_restart_strategy(Val) ->
   parse_opts(Opts, Acc#{restart_strategy := Val});
 parse_opts([Opt | Opts], #{opts := NOpts} = Acc) when ?is_ets_type(Opt) ->
-  parse_opts(Opts, Acc#{type := Opt, opts := [Opt | NOpts]});
+  parse_opts(Opts, Acc#{type => Opt, opts := [Opt | NOpts]});
 parse_opts([Opt | Opts], #{opts := NOpts} = Acc) ->
   parse_opts(Opts, Acc#{opts := [Opt | NOpts]}).
 

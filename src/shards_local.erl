@@ -79,19 +79,19 @@
   last/2,
   lookup/3,
   lookup_element/4,
-  match/3, match/4, match/2,
+  match/3, match/4, match/1,
   match_delete/3,
-  match_object/3, match_object/4, match_object/2,
+  match_object/3, match_object/4, match_object/1,
   match_spec_compile/1,
   match_spec_run/2,
   member/3,
   new/2,
   next/3,
   prev/3,
-  select/3, select/4, select/2,
+  select/3, select/4, select/1,
   select_count/3,
   select_delete/3,
-  select_reverse/3, select_reverse/4, select_reverse/2,
+  select_reverse/3, select_reverse/4, select_reverse/1,
   setopts/3,
   tab2file/3, tab2file/4,
   tab2list/2,
@@ -533,22 +533,12 @@ is_compiled_ms(Term) ->
   State :: shards_state:state(),
   Key   :: term().
 last(Tab, State) ->
-  N = shards_state:n_shards(State),
-  case shards_state:type(State) of
+  case ets:info(shard_name(Tab, 0), type) of
     ordered_set ->
-      last(Tab, ets:last(shard_name(Tab, 0)), 0, N - 1);
+      ets:last(shard_name(Tab, 0));
     _ ->
       first(Tab, State)
   end.
-
-%% @private
-last(Tab, '$end_of_table', Shard, N) when Shard < N ->
-  NextShard = Shard + 1,
-  last(Tab, ets:last(shard_name(Tab, NextShard)), NextShard, N);
-last(_, '$end_of_table', _, _) ->
-  '$end_of_table';
-last(_, Key, _, _) ->
-  Key.
 
 %% @doc
 %% This operation behaves like `ets:lookup/2'.
@@ -633,15 +623,7 @@ match(Tab, Pattern, State) ->
   Response     :: {[Match], Continuation} | '$end_of_table'.
 match(Tab, Pattern, Limit, State) ->
   N = shards_state:n_shards(State),
-  Type = shards_state:type(State),
-  q(match,
-    Tab,
-    Pattern,
-    Limit,
-    q_fun(Type),
-    Limit,
-    N - 1,
-    {[], nil}).
+  q(match, Tab, Pattern, Limit, q_fun(), Limit, N - 1, {[], nil}).
 
 %% @doc
 %% This operation behaves similar to `ets:match/1'.
@@ -651,14 +633,12 @@ match(Tab, Pattern, Limit, State) ->
 %%
 %% @see ets:match/1.
 %% @end
--spec match(Continuation, State) -> Response when
+-spec match(Continuation) -> Response when
   Match        :: term(),
   Continuation :: continuation(),
-  State        :: shards_state:state(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-match({_, _, Limit, _, _} = Continuation, State) ->
-  Type = shards_state:type(State),
-  q(match, Continuation, q_fun(Type), Limit, []).
+match({_, _, Limit, _, _} = Continuation) ->
+  q(match, Continuation, q_fun(), Limit, []).
 
 %% @doc
 %% This operation behaves like `ets:match_delete/2'.
@@ -710,15 +690,7 @@ match_object(Tab, Pattern, State) ->
   Response     :: {[Match], Continuation} | '$end_of_table'.
 match_object(Tab, Pattern, Limit, State) ->
   N = shards_state:n_shards(State),
-  Type = shards_state:type(State),
-  q(match_object,
-    Tab,
-    Pattern,
-    Limit,
-    q_fun(Type),
-    Limit,
-    N - 1,
-    {[], nil}).
+  q(match_object, Tab, Pattern, Limit, q_fun(), Limit, N - 1, {[], nil}).
 
 %% @doc
 %% This operation behaves similar to `ets:match_object/1'.
@@ -728,14 +700,12 @@ match_object(Tab, Pattern, Limit, State) ->
 %%
 %% @see ets:match_object/1.
 %% @end
--spec match_object(Continuation, State) -> Response when
+-spec match_object(Continuation) -> Response when
   Match        :: term(),
   Continuation :: continuation(),
-  State        :: shards_state:state(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-match_object({_, _, Limit, _, _} = Continuation, State) ->
-  Type = shards_state:type(State),
-  q(match_object, Continuation, q_fun(Type), Limit, []).
+match_object({_, _, Limit, _, _} = Continuation) ->
+  q(match_object, Continuation, q_fun(), Limit, []).
 
 %% @equiv ets:match_spec_compile(MatchSpec)
 match_spec_compile(MatchSpec) ->
@@ -795,7 +765,8 @@ new(Name, Options) ->
 %% This operation behaves similar to `ets:next/2'.
 %% The order in which results are returned, might be not the same
 %% as the original ETS function. Remember shards architecture
-%% described at the beginning.
+%% described at the beginning. It raises a `bad_pick_fun_ret'
+%% exception in case of pick fun returns `any'.
 %%
 %% @see ets:next/2.
 %% @end
@@ -807,12 +778,13 @@ new(Name, Options) ->
 next(Tab, Key1, State) ->
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
-  Shard = case PickShardFun(Key1, N, r) of
-    any -> 0;
-    Val -> Val
-  end,
-  ShardName = shard_name(Tab, Shard),
-  next_(Tab, ets:next(ShardName, Key1), Shard).
+  case PickShardFun(Key1, N, r) of
+    any ->
+      throw(bad_pick_fun_ret);
+    Shard ->
+      ShardName = shard_name(Tab, Shard),
+      next_(Tab, ets:next(ShardName, Key1), Shard)
+  end.
 
 %% @private
 next_(Tab, '$end_of_table', Shard) when Shard > 0 ->
@@ -837,28 +809,12 @@ next_(_, Key2, _) ->
   State :: shards_state:state(),
   Key2  :: term().
 prev(Tab, Key1, State) ->
-  N = shards_state:n_shards(State),
-  PickShardFun = shards_state:pick_shard_fun(State),
-  case shards_state:type(State) of
+  case ets:info(shard_name(Tab, 0), type) of
     ordered_set ->
-      Shard = case PickShardFun(Key1, N, r) of
-        any -> 0;
-        Val -> Val
-      end,
-      ShardName = shard_name(Tab, Shard),
-      prev(Tab, ets:prev(ShardName, Key1), Shard, N - 1);
+      ets:prev(shard_name(Tab, 0), Key1);
     _ ->
       next(Tab, Key1, State)
   end.
-
-%% @private
-prev(Tab, '$end_of_table', Shard, N) when Shard < N ->
-  NextShard = Shard + 1,
-  prev(Tab, ets:last(shard_name(Tab, NextShard)), NextShard, N);
-prev(_, '$end_of_table', _, _) ->
-  '$end_of_table';
-prev(_, Key2, _, _) ->
-  Key2.
 
 %% @doc
 %% This operation behaves similar to `ets:select/2'.
@@ -896,15 +852,7 @@ select(Tab, MatchSpec, State) ->
   Response     :: {[Match], Continuation} | '$end_of_table'.
 select(Tab, MatchSpec, Limit, State) ->
   N = shards_state:n_shards(State),
-  Type = shards_state:type(State),
-  q(select,
-    Tab,
-    MatchSpec,
-    Limit,
-    q_fun(Type),
-    Limit,
-    N - 1,
-    {[], nil}).
+  q(select, Tab, MatchSpec, Limit, q_fun(), Limit, N - 1, {[], nil}).
 
 %% @doc
 %% This operation behaves similar to `ets:select/1'.
@@ -914,14 +862,12 @@ select(Tab, MatchSpec, Limit, State) ->
 %%
 %% @see ets:select/1.
 %% @end
--spec select(Continuation, State) -> Response when
+-spec select(Continuation) -> Response when
   Match        :: term(),
   Continuation :: continuation(),
-  State        :: shards_state:state(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-select({_, _, Limit, _, _} = Continuation, State) ->
-  Type = shards_state:type(State),
-  q(select, Continuation, q_fun(Type), Limit, []).
+select({_, _, Limit, _, _} = Continuation) ->
+  q(select, Continuation, q_fun(), Limit, []).
 
 %% @doc
 %% This operation behaves like `ets:select_count/2'.
@@ -989,14 +935,7 @@ select_reverse(Tab, MatchSpec, State) ->
   Response     :: {[Match], Continuation} | '$end_of_table'.
 select_reverse(Tab, MatchSpec, Limit, State) ->
   N = shards_state:n_shards(State),
-  Type = shards_state:type(State),
-  q(select_reverse,
-    Tab, MatchSpec,
-    Limit,
-    q_fun(Type),
-    Limit,
-    N - 1,
-    {[], nil}).
+  q(select_reverse, Tab, MatchSpec, Limit, q_fun(), Limit, N - 1, {[], nil}).
 
 %% @doc
 %% This operation behaves similar to `ets:select_reverse/1'.
@@ -1006,14 +945,12 @@ select_reverse(Tab, MatchSpec, Limit, State) ->
 %%
 %% @see ets:select_reverse/1.
 %% @end
--spec select_reverse(Continuation, State) -> Response when
+-spec select_reverse(Continuation) -> Response when
   Match        :: term(),
   Continuation :: continuation(),
-  State        :: shards_state:state(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
-select_reverse({_, _, Limit, _, _} = Continuation, State) ->
-  Type = shards_state:type(State),
-  q(select_reverse, Continuation, q_fun(Type), Limit, []).
+select_reverse({_, _, Limit, _, _} = Continuation) ->
+  q(select_reverse, Continuation, q_fun(), Limit, []).
 
 %% @doc
 %% Equivalent to `ets:setopts/2' for each shard table. It returns
@@ -1230,8 +1167,12 @@ mapred(Tab, Map, Reduce, State) ->
 mapred(Tab, Key, Map, nil, State, Op) ->
   mapred(Tab, Key, Map, fun(E, Acc) -> [E | Acc] end, State, Op);
 mapred(Tab, nil, Map, Reduce, State, _) ->
-  N = shards_state:n_shards(State),
-  p_mapred(Tab, N, Map, Reduce);
+  case shards_state:n_shards(State) of
+    N when N =< 1 ->
+      s_mapred(Tab, N, Map, Reduce);
+    N ->
+      p_mapred(Tab, N, Map, Reduce)
+  end;
 mapred(Tab, Key, {MapFun, Args} = Map, Reduce, State, Op) ->
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
@@ -1273,10 +1214,7 @@ mapred_funs(MapFun, ReduceFun) ->
     true -> {MapFun, []};
     _    -> MapFun
   end,
-  Reduce = case is_function(ReduceFun) of
-   true -> {ReduceFun, []};
-   _    -> ReduceFun
-  end,
+  Reduce = {ReduceFun, []},
   {Map, Reduce}.
 
 %% @private
@@ -1332,7 +1270,5 @@ q(F, {Tab, MatchSpec, Limit, Shard, Continuation}, QFun, I, Acc) ->
   end.
 
 %% @private
-q_fun(ordered_set) ->
-  fun(L1, L0) -> lists:foldl(fun(E, Acc) -> [E | Acc] end, L0, L1) end;
-q_fun(_) ->
+q_fun() ->
   fun(L1, L0) -> L1 ++ L0 end.

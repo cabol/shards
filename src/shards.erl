@@ -360,7 +360,8 @@ match(Tab, Pattern, Limit) ->
   Response     :: {[Match], Continuation} | '$end_of_table'.
 match(Continuation) ->
   [Tab | _] = tuple_to_list(Continuation),
-  call(Tab, match, [Continuation]).
+  Module = shards_state:module(Tab),
+  Module:match(Continuation).
 
 %% @doc
 %% Wrapper to `shards_local:match_delete/3' and `shards_dist:match_delete/3'.
@@ -415,7 +416,8 @@ match_object(Tab, Pattern, Limit) ->
   Response     :: {[Match], Continuation} | '$end_of_table'.
 match_object(Continuation) ->
   [Tab | _] = tuple_to_list(Continuation),
-  call(Tab, match_object, [Continuation]).
+  Module = shards_state:module(Tab),
+  Module:match_object(Continuation).
 
 %% @equiv shards_local:match_spec_compile/1
 match_spec_compile(MatchSpec) ->
@@ -519,7 +521,8 @@ select(Tab, MatchSpec, Limit) ->
   Response     :: {[Match], Continuation} | '$end_of_table'.
 select(Continuation) ->
   [Tab | _] = tuple_to_list(Continuation),
-  call(Tab, select, [Continuation]).
+  Module = shards_state:module(Tab),
+  Module:select(Continuation).
 
 %% @doc
 %% Wrapper to `shards_local:select_count/3' and `shards_dist:select_count/3'.
@@ -591,7 +594,8 @@ select_reverse(Tab, MatchSpec, Limit) ->
   Response     :: {[Match], Continuation} | '$end_of_table'.
 select_reverse(Continuation) ->
   [Tab | _] = tuple_to_list(Continuation),
-  call(Tab, select_reverse, [Continuation]).
+  Module = shards_state:module(Tab),
+  Module:select_reverse(Continuation).
 
 %% @doc
 %% Wrapper to `shards_local:setopts/3' and `shards_dist:setopts/3'.

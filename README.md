@@ -384,7 +384,6 @@ And again, let's check it out from any node:
 
     $ make tests
 
-
 ## Building Edoc
 
     $ make edoc

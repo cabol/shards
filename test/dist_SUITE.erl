@@ -16,15 +16,16 @@
 -include_lib("mixer/include/mixer.hrl").
 -mixin([
   {test_helper, [
-    t_basic_ops/1,
-    t_match_ops/1,
-    t_select_ops/1
+    t_state/1,
+    t_basic_ops/1
   ]}
 ]).
 
 %% Tests Cases
 -export([
   t_join_leave_ops/1,
+  t_match_ops/1,
+  t_select_ops/1,
   t_eject_node_on_failure/1,
   t_delete_tabs/1
 ]).
@@ -43,6 +44,7 @@ all() ->
 groups() ->
   [{dist_test_group, [sequence], [
     t_join_leave_ops,
+    t_state,
     t_basic_ops,
     t_match_ops,
     t_select_ops,
@@ -81,10 +83,11 @@ t_join_leave_ops(Config) ->
   timer:sleep(500),
 
   % join and check nodes
+  Tabs = ?SHARDS_TABS -- [?ORDERED_SET],
   lists:foreach(fun(Tab) ->
     AllNodes = shards:join(Tab, AllNodes),
     7 = length(shards:get_nodes(Tab))
-  end, ?SHARDS_TABS),
+  end, Tabs),
 
   % check no duplicate members
   Members = pg2:get_members(?SET),
@@ -125,6 +128,24 @@ t_join_leave_ops(Config) ->
   6 = length(shards:get_nodes(?DUPLICATE_BAG)),
 
   ok.
+
+t_match_ops(_Config) ->
+  Tabs = ?SHARDS_TABS -- [?ORDERED_SET],
+  EtsTabs = ?ETS_TABS -- [?ETS_ORDERED_SET],
+  Tables = lists:zip(Tabs, EtsTabs),
+  lists:foreach(fun(X) ->
+    true = test_helper:cleanup_shards(),
+    test_helper:t_match_ops_(X)
+  end, Tables).
+
+t_select_ops(_Config) ->
+  Tabs = ?SHARDS_TABS -- [?ORDERED_SET],
+  EtsTabs = ?ETS_TABS -- [?ETS_ORDERED_SET],
+  Tables = lists:zip(Tabs, EtsTabs),
+  lists:foreach(fun(X) ->
+    true = test_helper:cleanup_shards(),
+    test_helper:t_select_ops_(X)
+  end, Tables).
 
 t_eject_node_on_failure(Config) ->
   ok = cleanup_tabs(Config),
