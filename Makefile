@@ -26,7 +26,7 @@ clean: check_rebar
 
 distclean: clean
 	$(REBAR) clean --all
-	rm -rf _build logs log doc *.dump c_src/*.o priv/*.so *_plt *.crashdump
+	rm -rf _build logs log doc *.dump *_plt *.crashdump priv
 
 dialyzer: check_rebar
 	$(REBAR) dialyzer

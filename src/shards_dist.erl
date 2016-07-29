@@ -69,7 +69,7 @@ leave(Tab, Nodes) ->
   lists:foreach(fun(Node) ->
     case lists:keyfind(Node, 1, Members) of
       {Node, Pid} -> pg2:leave(Tab, Pid);
-      _           -> ok
+      _           -> noop
     end
   end, Nodes),
   get_nodes(Tab).
@@ -127,9 +127,8 @@ insert(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
 insert(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
   PickNodeFun = shards_state:pick_node_fun(State),
-  AutoEject = shards_state:auto_eject_nodes(State),
   Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
-  rpc_call(Node, {?SHARDS, insert, [Tab, ObjOrObjL, State]}, Tab, AutoEject).
+  rpc_call(Node, {?SHARDS, insert, [Tab, ObjOrObjL, State]}, Tab).
 
 -spec insert_new(Tab, ObjOrObjL, State) -> Result when
   Tab       :: atom(),
@@ -144,7 +143,6 @@ insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   [Key | _] = tuple_to_list(ObjOrObjL),
   Nodes = get_nodes(Tab),
   PickNodeFun = shards_state:pick_node_fun(State),
-  AutoEject = shards_state:auto_eject_nodes(State),
   case pick_node(PickNodeFun, Key, Nodes, r) of
     any ->
       Map = {?SHARDS, lookup, [Tab, Key, State]},
@@ -152,13 +150,13 @@ insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
       case mapred(Tab, Map, Reduce, State, r) of
         [] ->
           Node = pick_node(PickNodeFun, Key, Nodes, w),
-          rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, State]}, Tab, AutoEject);
+          rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, State]}, Tab);
         _ ->
           false
       end;
     _ ->
       Node = pick_node(PickNodeFun, Key, Nodes, w),
-      rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, State]}, Tab, AutoEject)
+      rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, State]}, Tab)
   end.
 
 -spec lookup(Tab, Key, State) -> Result when
@@ -307,22 +305,15 @@ pick_node(Fun, Key, Nodes, Op) ->
   end.
 
 %% @private
-rpc_call(Node, {Module, Function, Args}, Tab, AutoEject) ->
+rpc_call(Node, {Module, Function, Args}, Tab) ->
   case rpc:call(Node, Module, Function, Args) of
     {badrpc, _} ->
       % unexpected to get here
-      maybe_eject_node(Node, Tab, AutoEject),
+      _ = leave(Tab, [Node]),
       throw({unexpected_error, {badrpc, Node}});
     Response ->
       Response
   end.
-
-%% @private
-maybe_eject_node(Node, Tab, true) ->
-  _ = leave(Tab, [Node]),
-  ok;
-maybe_eject_node(_, _, _) ->
-  ok.
 
 %% @private
 mapred(Tab, Map, Reduce, State, Op) ->
@@ -335,12 +326,11 @@ mapred(Tab, nil, Map, Reduce, _, _) ->
   p_mapred(Tab, Map, Reduce);
 mapred(Tab, Key, Map, Reduce, State, Op) ->
   PickNodeFun = shards_state:pick_node_fun(State),
-  AutoEject = shards_state:auto_eject_nodes(State),
   case pick_node(PickNodeFun, Key, get_nodes(Tab), Op) of
     any ->
       p_mapred(Tab, Map, Reduce);
     Node ->
-      rpc_call(Node, Map, Tab, AutoEject)
+      rpc_call(Node, Map, Tab)
   end.
 
 %% @private

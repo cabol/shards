@@ -78,7 +78,6 @@ t_state(_Config) ->
   Fun1 = shards_state:pick_shard_fun(?SET),
   Fun2 = fun ?MODULE:pick_node/3,
   Fun2 = shards_state:pick_node_fun(?SET),
-  true = shards_state:auto_eject_nodes(?SET),
 
   State0 = shards_state:new(),
   State1 = shards_state:module(shards_dist, State0),
@@ -86,14 +85,12 @@ t_state(_Config) ->
   Fun = fun(X, Y, Z) -> (X + Y + Z) rem Y end,
   State3 = shards_state:pick_shard_fun(Fun, State2),
   State4 = shards_state:pick_node_fun(Fun, State3),
-  State5 = shards_state:auto_eject_nodes(false, State4),
 
   #{module           := shards_dist,
     n_shards         := 100,
     pick_shard_fun   := Fun,
-    pick_node_fun    := Fun,
-    auto_eject_nodes := false
-  } = shards_state:to_map(State5),
+    pick_node_fun    := Fun
+  } = shards_state:to_map(State4),
 
   ok.
 

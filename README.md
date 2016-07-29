@@ -69,31 +69,20 @@ Now you can start an Erlang console with `shards` running:
 ```erlang
 % let's create a table, such as you would create it with ETS, with 4 shards
 > shards:new(mytab1, [{n_shards, 4}]).
-{mytab1,{state,shards_local,4,set,
-               #Fun<shards_local.pick.3>,
-               #Fun<shards_local.pick.3>,true}}
+{mytab1,{state,shards_local,4,#Fun<shards_local.pick.3>,
+               #Fun<shards_local.pick.3>}}
 ```
 
 Exactly as ETS, `shards:new/2` function receives 2 arguments, the name of the table and
 the options. With `shards` there are additional options:
 
- * `{n_shards, pos_integer()}`: allows to set the desired number of shards. By default,
-   the number of shards is calculated from the total online schedulers.
-
- * `{scope, l | g}`: defines `shards` scope, in other words, if sharding will be applied
-   locally (`l`) or global/distributed (`g`) – default is `l`.
-
- * `{restart_strategy, one_for_one | one_for_all}`: allows to configure the restart strategy for
-   `shards_owner_sup`. Default is `one_for_one`.
-
- * `{auto_eject_nodes, boolean()}`: A boolean value that controls if node should be ejected
-   when it fails. – Default is `true`.
-
- * `{pick_shard_fun, pick_fun()}`: Function to pick the **shard** on which the `key`
-   will be handled locally – used by `shards_local`. See [shards_state](./src/shards_state.erl).
-
- * `{pick_node_fun, pick_fun()}`: Function to pick the **node** on which the `key`
-   will be handled globally/distributed – used by `shards_dist`. See [shards_state](./src/shards_state.erl).
+Option | Description | Default
+-------|-------------|--------
+`{n_shards, pos_integer()}` | Allows to set the desired number of shards. | By default, the number of shards is calculated from the total online schedulers – `erlang:system_info(schedulers_online)`
+`{scope, l \| g}` | Defines `shards` scope, in other words, if sharding will be applied locally (`l`) or global/distributed (`g`) | `l`
+`{restart_strategy, one_for_one \| one_for_all}` | Allows to configure the restart strategy for `shards_owner_sup`. | `one_for_one`
+`{pick_shard_fun, pick_fun()}` | Function to pick the **shard** on which the `key` will be handled locally – used by `shards_local`. See [shards_state](./src/shards_state.erl). | `shards_local:pick/3`
+`{pick_node_fun, pick_fun()}` | Function to pick the **node** on which the `key` will be handled globally/distributed – used by `shards_dist`. See [shards_state](./src/shards_state.erl). | `shards_local:pick/3`
 
 > **NOTE:** By default `shards` uses a built-in functions to pick the **shard** (local scope)
   and the **node** (distributed scope) on which the key will be handled. BUT you can override
@@ -103,11 +92,11 @@ the options. With `shards` there are additional options:
 Furthermore, the `shards:new/2` function returns a tuple of two elements:
 
 ```erlang
-{mytab1, {state,shards_local,4,set,
-                #Fun<shards_local.pick.3>,
-                #Fun<shards_local.pick.3>,true}}
- ^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  1st                      2nd
+{mytab1, {state,shards_local,4,
+               #Fun<shards_local.pick.3>,
+               #Fun<shards_local.pick.3>}}
+ ^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  1st                 2nd
 ```
 
 The first element is the name of the created table; `mytab1`. And the second one is the
@@ -122,9 +111,8 @@ Let's continue:
 % schedulers; in my case is 8 (4 cores, 2 threads each).
 % This value is calculated calling: erlang:system_info(schedulers_online)
 > shards:new(mytab2, []).
-{mytab2,{state,shards_local,8,set,
-               #Fun<shards_local.pick.3>,
-               #Fun<shards_local.pick.3>,true}}
+{mytab2,{state,shards_local,8,#Fun<shards_local.pick.3>,
+               #Fun<shards_local.pick.3>}}
 
 % now open the observer so you can see what happened
 > observer:start().
@@ -205,12 +193,10 @@ The `shards` state is defined as:
 
 ```erlang
 -record(state, {
-  module           = shards_local            :: module(),
-  n_shards         = ?N_SHARDS               :: pos_integer(),
-  type             = set                     :: ets:type(),
-  pick_shard_fun   = fun shards_local:pick/3 :: pick_fun(),
-  pick_node_fun    = fun shards_local:pick/3 :: pick_fun(),
-  auto_eject_nodes = true                    :: boolean()
+  module         = shards_local            :: module(),
+  n_shards       = ?N_SHARDS               :: pos_integer(),
+  pick_shard_fun = fun shards_local:pick/3 :: pick_fun(),
+  pick_node_fun  = fun shards_local:pick/3 :: pick_fun()
 }).
 ```
 
@@ -242,20 +228,19 @@ within the calling process, or wherever you want. E.g.:
 ```erlang
 % take a look at the 2nd element of the returned tuple, that is the state
 > shards:new(mytab, [{n_shards, 4}]).
-{mytab,{state,shards_local,4,set,
-              #Fun<shards_local.pick.3>,
-              #Fun<shards_local.pick.3>,true}}
-       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+{mytab,{state,shards_local,4,#Fun<shards_local.pick.3>,
+              #Fun<shards_local.pick.3>}}
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 % you can also get the state at any time you want
 > State = shards:state(mytab).
-{state,shards_local,4,set,#Fun<shards_local.pick.3>,
-       #Fun<shards_local.pick.3>,true}
+{state,shards_local,4,#Fun<shards_local.pick.3>,
+       #Fun<shards_local.pick.3>}
 
 % now you can call shards_local directly
 > shards_local:insert(mytab, {1, 1}, State).
 true
-> shards_local:lookup(mytab, 1, State).     
+> shards_local:lookup(mytab, 1, State).
 [{1,1}]
 ```
 
@@ -295,8 +280,8 @@ $ erl -sname c@localhost -pa _build/default/lib/*/ebin -s shards
 % when a tables is created with {scope, g}, the module shards_dist is used
 % internally by shards
 > shards:new(mytab, [{n_shards, 4}, {scope, g}]).
-{mytab,{state,shards_dist,4,set,#Fun<shards_local.pick.3>,
-              #Fun<shards_local.pick.3>,true}}
+{mytab,{state,shards_dist,4,#Fun<shards_local.pick.3>,
+              #Fun<shards_local.pick.3>}}
 ```
 
 **3.** Setup the `shards` cluster.
@@ -383,6 +368,11 @@ And again, let's check it out from any node:
 ## Running Tests
 
     $ make tests
+
+You can find tests results in `_build/test/logs`, and coverage in `_build/test/cover`.
+
+ > **NOTE:** You can find some performance tests in this [BLOG POST](http://cabol.github.io/posts/2016/04/14/sharding-support-for-ets.html).
+
 
 ## Building Edoc
 

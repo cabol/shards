@@ -125,18 +125,16 @@
 
 %% @type shards_opt() = {scope, l | g}
 %%                    | {n_shards, pos_integer()}
-%%                    | {pick_shard_fun, pick_fun()}
-%%                    | {pick_node_fun, pick_fun()}
-%%                    | {restart_strategy, one_for_one | one_for_all}
-%%                    | {eject_nodes_on_failure, boolean()}.
+%%                    | {pick_shard_fun, shards_state:pick_fun()}
+%%                    | {pick_node_fun, shards_state:pick_fun()}
+%%                    | {restart_strategy, one_for_one | one_for_all}.
 %%
 %% Shards extended options.
 -type shards_opt() :: {scope, l | g}
                     | {n_shards, pos_integer()}
                     | {pick_shard_fun, shards_state:pick_fun()}
                     | {pick_node_fun, shards_state:pick_fun()}
-                    | {restart_strategy, one_for_one | one_for_all}
-                    | {auto_eject_nodes, boolean()}.
+                    | {restart_strategy, one_for_one | one_for_all}.
 
 %% @type option() = ets:type() | ets:access() | named_table
 %%                | {keypos, pos_integer()}

@@ -134,8 +134,6 @@ parse_opts([{pick_shard_fun, Val} | Opts], Acc) when is_function(Val) ->
   parse_opts(Opts, Acc#{pick_shard_fun := Val});
 parse_opts([{pick_node_fun, Val} | Opts], Acc) when is_function(Val) ->
   parse_opts(Opts, Acc#{pick_node_fun := Val});
-parse_opts([{auto_eject_nodes, Val} | Opts], Acc) when is_boolean(Val) ->
-  parse_opts(Opts, Acc#{auto_eject_nodes := Val});
 parse_opts([{restart_strategy, Val} | Opts], Acc) when ?is_restart_strategy(Val) ->
   parse_opts(Opts, Acc#{restart_strategy := Val});
 parse_opts([Opt | Opts], #{opts := NOpts} = Acc) when ?is_ets_type(Opt) ->

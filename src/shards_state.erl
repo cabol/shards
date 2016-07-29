@@ -23,9 +23,7 @@
   pick_shard_fun/1,
   pick_shard_fun/2,
   pick_node_fun/1,
-  pick_node_fun/2,
-  auto_eject_nodes/1,
-  auto_eject_nodes/2
+  pick_node_fun/2
 ]).
 
 %%%===================================================================
@@ -66,11 +64,10 @@
 
 %% State definition
 -record(state, {
-  module           = shards_local            :: module(),
-  n_shards         = ?N_SHARDS               :: pos_integer(),
-  pick_shard_fun   = fun shards_local:pick/3 :: pick_fun(),
-  pick_node_fun    = fun shards_local:pick/3 :: pick_fun(),
-  auto_eject_nodes = true                    :: boolean()
+  module         = shards_local            :: module(),
+  n_shards       = ?N_SHARDS               :: pos_integer(),
+  pick_shard_fun = fun shards_local:pick/3 :: pick_fun(),
+  pick_node_fun  = fun shards_local:pick/3 :: pick_fun()
 }).
 
 %% @type state() = #state{}.
@@ -79,11 +76,10 @@
 -type state() :: #state{}.
 
 %% @type state_map() = #{
-%%   module           => module(),
-%%   n_shards         => pos_integer(),
-%%   pick_shard_fun   => pick_fun(),
-%%   pick_node_fun    => pick_fun(),
-%%   auto_eject_nodes => boolean()
+%%   module         => module(),
+%%   n_shards       => pos_integer(),
+%%   pick_shard_fun => pick_fun(),
+%%   pick_node_fun  => pick_fun()
 %% }.
 %%
 %% Defines the map representation of the `shards' state:
@@ -93,15 +89,12 @@
 %% <li>`n_shards': Number of ETS shards/fragments.</li>
 %% <li>`pick_shard_fun': Function callback to pick/compute the shard.</li>
 %% <li>`pick_node_fun': Function callback to pick/compute the node.</li>
-%% <li>`auto_eject_nodes': A boolean value that controls if node should be
-%% ejected when it fails.</li>
 %% </ul>
 -type state_map() :: #{
-  module           => module(),
-  n_shards         => pos_integer(),
-  pick_shard_fun   => pick_fun(),
-  pick_node_fun    => pick_fun(),
-  auto_eject_nodes => boolean()
+  module         => module(),
+  n_shards       => pos_integer(),
+  pick_shard_fun => pick_fun(),
+  pick_node_fun  => pick_fun()
 }.
 
 %% Exported types
@@ -141,11 +134,10 @@ new() ->
 %% @end
 -spec to_map(state()) -> state_map().
 to_map(State) ->
-  #{module           => State#state.module,
-    n_shards         => State#state.n_shards,
-    pick_shard_fun   => State#state.pick_shard_fun,
-    pick_node_fun    => State#state.pick_node_fun,
-    auto_eject_nodes => State#state.auto_eject_nodes}.
+  #{module         => State#state.module,
+    n_shards       => State#state.n_shards,
+    pick_shard_fun => State#state.pick_shard_fun,
+    pick_node_fun  => State#state.pick_node_fun}.
 
 %% @doc
 %% Builds a new `state' from the given `Map'.
@@ -153,11 +145,10 @@ to_map(State) ->
 -spec from_map(state_map()) -> state().
 from_map(Map) ->
   #state{
-    module           = maps:get(module, Map, shards_local),
-    n_shards         = maps:get(n_shards, Map, ?N_SHARDS),
-    pick_shard_fun   = maps:get(pick_shard_fun, Map, fun shards_local:pick/3),
-    pick_node_fun    = maps:get(pick_node_fun, Map, fun shards_local:pick/3),
-    auto_eject_nodes = maps:get(auto_eject_nodes, Map, true)}.
+    module         = maps:get(module, Map, shards_local),
+    n_shards       = maps:get(n_shards, Map, ?N_SHARDS),
+    pick_shard_fun = maps:get(pick_shard_fun, Map, fun shards_local:pick/3),
+    pick_node_fun  = maps:get(pick_node_fun, Map, fun shards_local:pick/3)}.
 
 %%%===================================================================
 %%% API – Getters & Setters
@@ -202,13 +193,3 @@ pick_node_fun(Tab) when is_atom(Tab) ->
 -spec pick_node_fun(pick_fun(), state()) -> state().
 pick_node_fun(Fun, #state{} = State) when is_function(Fun, 3) ->
   State#state{pick_node_fun = Fun}.
-
--spec auto_eject_nodes(state() | atom()) -> boolean().
-auto_eject_nodes(#state{auto_eject_nodes = AutoEjectNodes}) ->
-  AutoEjectNodes;
-auto_eject_nodes(Tab) when is_atom(Tab) ->
-  auto_eject_nodes(?MODULE:get(Tab)).
-
--spec auto_eject_nodes(boolean(), state()) -> state().
-auto_eject_nodes(Flag, #state{} = State) when is_boolean(Flag) ->
-  State#state{auto_eject_nodes = Flag}.

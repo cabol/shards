@@ -107,6 +107,9 @@ t_join_leave_ops(Config) ->
   R1 = get_remote_nodes(AllNodes, ?DUPLICATE_BAG),
   OkNodes1 = A = B = C = CT = D = E,
 
+  % leave an invalid node
+  OkNodes1 = shards:leave(?SET, [wrongnode]),
+
   % leave node E from SET
   OkNodes2 = lists:usort([node() | lists:droplast(OkNodes1)]),
   OkNodes2 = shards:leave(?SET, [ENode]),
