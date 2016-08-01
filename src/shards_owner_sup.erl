@@ -116,6 +116,7 @@ parse_opts(Opts) ->
     restart_strategy => one_for_one
   },
   AccOut = parse_opts(Opts, AccIn),
+  %% @TODO: this workaround must be fixed when a better strategy to support ordered_set be ready
   case maps:get(type, AccOut, set) of
     ordered_set -> AccOut#{n_shards := 1};
     _           -> AccOut

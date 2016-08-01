@@ -55,7 +55,7 @@ groups() ->
 init_per_suite(Config) ->
   _ = shards:start(),
   Nodes = start_slaves(?SLAVES),
-  [{nodes, Nodes} | Config].
+  [{nodes, Nodes}, {scope, g} | Config].
 
 end_per_suite(Config) ->
   shards:stop(),
@@ -132,23 +132,25 @@ t_join_leave_ops(Config) ->
 
   ok.
 
-t_match_ops(_Config) ->
+t_match_ops(Config) ->
   Tabs = ?SHARDS_TABS -- [?ORDERED_SET],
   EtsTabs = ?ETS_TABS -- [?ETS_ORDERED_SET],
   Tables = lists:zip(Tabs, EtsTabs),
+  Args = test_helper:build_args(Tables, Config),
   lists:foreach(fun(X) ->
     true = test_helper:cleanup_shards(),
     test_helper:t_match_ops_(X)
-  end, Tables).
+  end, Args).
 
-t_select_ops(_Config) ->
+t_select_ops(Config) ->
   Tabs = ?SHARDS_TABS -- [?ORDERED_SET],
   EtsTabs = ?ETS_TABS -- [?ETS_ORDERED_SET],
   Tables = lists:zip(Tabs, EtsTabs),
+  Args = test_helper:build_args(Tables, Config),
   lists:foreach(fun(X) ->
     true = test_helper:cleanup_shards(),
     test_helper:t_select_ops_(X)
-  end, Tables).
+  end, Args).
 
 t_eject_node_on_failure(Config) ->
   ok = cleanup_tabs(Config),

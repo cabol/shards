@@ -25,7 +25,9 @@
 -export([
   init_shards/1,
   cleanup_shards/0,
-  delete_shards/0
+  delete_shards/0,
+  build_args/2,
+  get_module/2
 ]).
 
 %% Pick Callbacks
@@ -94,14 +96,17 @@ t_state(_Config) ->
 
   ok.
 
-t_basic_ops(_Config) ->
+t_basic_ops(Config) ->
   Tables = lists:zip(?SHARDS_TABS, ?ETS_TABS),
+  Args = build_args(Tables, Config),
   lists:foreach(fun(X) ->
     true = cleanup_shards(),
     t_basic_ops_(X)
-  end, Tables).
+  end, Args).
 
-t_basic_ops_({Tab, EtsTab} = Args) ->
+t_basic_ops_({Scope, Tab, EtsTab} = Args) ->
+  Mod = get_module(Scope, Tab),
+
   % insert some K/V pairs
   Obj1 = {kx, 1, a, "hi"},
   KVPairs = [
@@ -111,135 +116,144 @@ t_basic_ops_({Tab, EtsTab} = Args) ->
     {k22, 22},
     Obj1
   ],
-  true = shards:insert(Tab, KVPairs),
-  true = shards:insert(Tab, Obj1),
+  true = Mod:insert(Tab, KVPairs),
+  true = Mod:insert(Tab, Obj1),
   true = ets:insert(EtsTab, KVPairs),
   true = ets:insert(EtsTab, Obj1),
 
   % insert new
   false = ets:insert_new(EtsTab, [Obj1, {k3, <<"V3">>}]),
-  [false, true] = shards:insert_new(Tab, [Obj1, {k3, <<"V3">>}]),
+  [false, true] = Mod:insert_new(Tab, [Obj1, {k3, <<"V3">>}]),
   true = ets:insert_new(EtsTab, {k3, <<"V3">>}),
-  false = shards:insert_new(Tab, {k3, <<"V3">>}),
+  false = Mod:insert_new(Tab, {k3, <<"V3">>}),
 
   % lookup element
   case Tab of
     ?SHARDED_DUPLICATE_BAG ->
       R0 = ets:lookup_element(EtsTab, k1, 2),
       LenR3 = length(R0),
-      R01 = shards:lookup_element(Tab, k1, 2),
+      R01 = Mod:lookup_element(Tab, k1, 2),
       LenR3 = length(R01),
       SortR3 = lists:usort(R0),
       SortR3 = lists:usort(R01),
 
-      try shards:lookup_element(Tab, wrong, 2)
+      try Mod:lookup_element(Tab, wrong, 2)
       catch _:{badarg, _} -> ok
       end;
     _ ->
       R0 = ets:lookup_element(EtsTab, k1, 2),
-      R0 = shards:lookup_element(Tab, k1, 2)
+      R0 = Mod:lookup_element(Tab, k1, 2)
   end,
 
   % lookup
   R1 = lists:sort(lookup_keys(ets, EtsTab, [k1, k2, k3, kx])),
-  R1 = lists:sort(lookup_keys(shards, Tab, [k1, k2, k3, kx])),
+  R1 = lists:sort(lookup_keys(Mod, Tab, [k1, k2, k3, kx])),
 
   % delete
   true = ets:delete_object(EtsTab, Obj1),
   true = ets:delete(EtsTab, k2),
-  true = shards:delete_object(Tab, Obj1),
-  true = shards:delete(Tab, k2),
+  true = Mod:delete_object(Tab, Obj1),
+  true = Mod:delete(Tab, k2),
   R2 = lists:sort(lookup_keys(ets, EtsTab, [k1, k2, kx])),
-  R2 = lists:sort(lookup_keys(shards, Tab, [k1, k2, kx])),
+  R2 = lists:sort(lookup_keys(Mod, Tab, [k1, k2, kx])),
 
   % member
-  true = shards:member(Tab, k1),
+  true = Mod:member(Tab, k1),
   true = ets:member(EtsTab, k1),
-  false = shards:member(Tab, kx),
+  false = Mod:member(Tab, kx),
   false = ets:member(EtsTab, kx),
 
   % take
   R3 = lists:sort(ets:take(EtsTab, k1)),
-  R3 = lists:sort(shards:take(Tab, k1)),
+  R3 = lists:sort(Mod:take(Tab, k1)),
   [] = ets:lookup(EtsTab, k1),
-  [] = shards:lookup(Tab, k1),
+  [] = Mod:lookup(Tab, k1),
+
+  % delete all
+  true = Mod:delete_all_objects(Tab),
 
   ct:log(" ---> t_basic_ops(~p): [OK]", [Args]),
   ok.
 
-t_match_ops(_Config) ->
+t_match_ops(Config) ->
   Tables = lists:zip(?SHARDS_TABS, ?ETS_TABS),
+  Args = build_args(Tables, Config),
   lists:foreach(fun(X) ->
     true = cleanup_shards(),
     t_match_ops_(X)
-  end, Tables).
+  end, Args).
 
-t_match_ops_({Tab, EtsTab} = Args) ->
+t_match_ops_({Scope, Tab, EtsTab} = Args) ->
+  Mod = get_module(Scope, Tab),
+
   % insert some values
   KV = [
     {k1, 1}, {k2, 2}, {k3, 2}, {k1, 1}, {k4, 22}, {k5, 33},
     {k11, 1}, {k22, 2}, {k33, 2}, {k44, 11}, {k55, 22}, {k55, 33}
   ],
   true = ets:insert(EtsTab, KV),
-  true = shards:insert(Tab, KV),
+  true = Mod:insert(Tab, KV),
 
   % match/2
   R1 = maybe_sort(EtsTab, ets:match(EtsTab, '$1')),
-  R1 = maybe_sort(Tab, shards:match(Tab, '$1')),
+  R1 = maybe_sort(Tab, Mod:match(Tab, '$1')),
 
   % match_object/2
   R2 = maybe_sort(EtsTab, ets:match_object(EtsTab, '$1')),
-  R2 = maybe_sort(Tab, shards:match_object(Tab, '$1')),
+  R2 = maybe_sort(Tab, Mod:match_object(Tab, '$1')),
 
   % match_delete/2
   true = ets:match_delete(EtsTab, {'$1', 2}),
-  true = shards:match_delete(Tab, {'$1', 2}),
+  true = Mod:match_delete(Tab, {'$1', 2}),
   R3 = maybe_sort(EtsTab, ets:match_object(EtsTab, '$1')),
-  R3 = maybe_sort(Tab, shards:match_object(Tab, '$1')),
+  R3 = maybe_sort(Tab, Mod:match_object(Tab, '$1')),
 
   ct:log(" ---> t_match_ops(~p): [OK]", [Args]),
   ok.
 
-t_select_ops(_Config) ->
+t_select_ops(Config) ->
   Tables = lists:zip(?SHARDS_TABS, ?ETS_TABS),
+  Args = build_args(Tables, Config),
   lists:foreach(fun(X) ->
     true = cleanup_shards(),
     t_select_ops_(X)
-  end, Tables).
+  end, Args).
 
-t_select_ops_({Tab, EtsTab} = Args) ->
+t_select_ops_({Scope, Tab, EtsTab} = Args) ->
+  Mod = get_module(Scope, Tab),
+
   % insert some values
   KV = [
     {k1, 1}, {k2, 2}, {k3, 2}, {k1, 1}, {k4, 22}, {k5, 33},
     {k11, 1}, {k22, 2}, {k33, 2}, {k44, 11}, {k55, 22}, {k55, 33}
   ],
   true = ets:insert(EtsTab, KV),
-  true = shards:insert(Tab, KV),
+  true = Mod:insert(Tab, KV),
 
   % select/2
   MS1 = ets:fun2ms(fun({K, V}) -> {K, V} end),
   R1 = maybe_sort(EtsTab, ets:select(EtsTab, MS1)),
-  R1 = maybe_sort(Tab, shards:select(Tab, MS1)),
+  R1 = maybe_sort(Tab, Mod:select(Tab, MS1)),
 
   % select_reverse/2
   R2 = maybe_sort(EtsTab, ets:select_reverse(EtsTab, MS1)),
-  R2 = maybe_sort(Tab, shards:select_reverse(Tab, MS1)),
+  R2 = maybe_sort(Tab, Mod:select_reverse(Tab, MS1)),
 
   % select_count/2
   MS2 = ets:fun2ms(fun({_K, V}) when V rem 2 == 0 -> true end),
   L1 = ets:select_count(EtsTab, MS2),
-  L1 = shards:select_count(Tab, MS2),
+  L1 = Mod:select_count(Tab, MS2),
 
   % select_delete/2
   L2 = ets:select_delete(EtsTab, MS2),
-  L2 = shards:select_delete(Tab, MS2),
+  L2 = Mod:select_delete(Tab, MS2),
   R11 = maybe_sort(EtsTab, ets:select(EtsTab, MS1)),
-  R11 = maybe_sort(Tab, shards:select(Tab, MS1)),
+  R11 = maybe_sort(Tab, Mod:select(Tab, MS1)),
 
   ct:log(" ---> t_select_ops(~p): [OK]", [Args]),
   ok.
 
-t_paginated_ops(_Config) ->
+t_paginated_ops(Config) ->
   MS = ets:fun2ms(fun({K, V}) -> {K, V} end),
   Ops = [
     {select, MS},
@@ -248,22 +262,25 @@ t_paginated_ops(_Config) ->
     {match_object, '$1'}
   ],
   Tabs = ?SHARDS_TABS -- [?ORDERED_SET],
-  Args = [{Tab, Op} || Tab <- Tabs, Op <- Ops],
+  {_, Scope} = lists:keyfind(scope, 1, Config),
+  Args = [{Scope, Tab, Op} || Tab <- Tabs, Op <- Ops],
   lists:foreach(fun(X) ->
     true = cleanup_shards(),
     t_paginated_ops_(X)
   end, Args).
 
-t_paginated_ops_({Tab, {Op, Q}} = Args) ->
+t_paginated_ops_({Scope, Tab, {Op, Q}} = Args) ->
+  Mod = get_module(Scope, Tab),
+
   % test empty
-  '$end_of_table' = shards:Op(Tab, Q, 10),
+  '$end_of_table' = Mod:Op(Tab, Q, 10),
 
   % insert some values
   KVPairs = [
     {k1, 1}, {k2, 2}, {k3, 2}, {k1, 1}, {k4, 22}, {k5, 33},
     {k11, 1}, {k22, 2}, {k33, 2}, {k44, 11}, {k55, 22}, {k55, 33}
   ],
-  true = shards:insert(Tab, KVPairs),
+  true = Mod:insert(Tab, KVPairs),
 
   %% length
   Len = case Tab of
@@ -272,27 +289,27 @@ t_paginated_ops_({Tab, {Op, Q}} = Args) ->
   end,
 
   % select/3
-  {R1, C1} = shards:Op(Tab, Q, 1),
+  {R1, C1} = Mod:Op(Tab, Q, 1),
   1 = length(R1),
-  {R2, _} = shards:Op(Tab, Q, 20),
+  {R2, _} = Mod:Op(Tab, Q, 20),
   Len = length(R2),
 
   % select/1 - by 1
-  {R11, Calls1} = select_by({shards, Op}, C1, 1),
+  {R11, Calls1} = select_by({Mod, Op}, C1, 1),
   Calls1 = Len,
   R2 = R11 ++ R1,
 
   % select/1 - by 2
-  {R3, C2} = shards:Op(Tab, Q, 2),
+  {R3, C2} = Mod:Op(Tab, Q, 2),
   2 = length(R3),
-  {R22, Calls2} = select_by({shards, Op}, C2, 2),
+  {R22, Calls2} = select_by({Mod, Op}, C2, 2),
   Calls2 = round(Len / 2),
   R2 = R22 ++ R3,
 
   % select/1 - by 4
-  {R4, C3} = shards:Op(Tab, Q, 4),
+  {R4, C3} = Mod:Op(Tab, Q, 4),
   4 = length(R4),
-  {R44, Calls3} = select_by({shards, Op}, C3, 4),
+  {R44, Calls3} = select_by({Mod, Op}, C3, 4),
   Calls3 = round(Len / 4),
   R2 = R44 ++ R4,
 
@@ -352,13 +369,14 @@ t_paginated_ops_ordered_set_({Op, Q} = Args) ->
   ct:log(" ---> t_paginated_ops_ordered_set(~p): [OK]", [Args]),
   ok.
 
-t_first_last_next_prev_ops(_Config) ->
-  lists:foreach(fun(X) ->
+t_first_last_next_prev_ops(Config) ->
+  {_, Scope} = lists:keyfind(scope, 1, Config),
+  lists:foreach(fun(Tab) ->
     true = cleanup_shards(),
-    t_first_last_next_prev_ops_(X)
+    t_first_last_next_prev_ops_({Scope, Tab})
   end, ?SHARDS_TABS).
 
-t_first_last_next_prev_ops_(?SHARDED_DUPLICATE_BAG) ->
+t_first_last_next_prev_ops_({_, ?SHARDED_DUPLICATE_BAG}) ->
   '$end_of_table' = shards:first(?SHARDED_DUPLICATE_BAG),
   '$end_of_table' = shards:last(?SHARDED_DUPLICATE_BAG),
 
@@ -380,7 +398,7 @@ t_first_last_next_prev_ops_(?SHARDED_DUPLICATE_BAG) ->
 
   ct:log(" ---> t_first_last_next_prev_ops(~p): [OK]", [?SHARDED_DUPLICATE_BAG]),
   ok;
-t_first_last_next_prev_ops_(?ORDERED_SET) ->
+t_first_last_next_prev_ops_({_, ?ORDERED_SET}) ->
   '$end_of_table' = shards:first(?ORDERED_SET),
   '$end_of_table' = shards:last(?ORDERED_SET),
 
@@ -410,45 +428,50 @@ t_first_last_next_prev_ops_(?ORDERED_SET) ->
 
   ct:log(" ---> t_first_last_next_prev_ops(~p): [OK]", [?ORDERED_SET]),
   ok;
-t_first_last_next_prev_ops_(Tab) ->
-  '$end_of_table' = shards:first(Tab),
-  '$end_of_table' = shards:last(Tab),
+t_first_last_next_prev_ops_({Scope, Tab}) ->
+  Mod = get_module(Scope, Tab),
 
-  true = shards:insert(Tab, {k1, 1}),
-  F1 = shards:first(Tab),
-  F1 = shards:last(Tab),
+  '$end_of_table' = Mod:first(Tab),
+  '$end_of_table' = Mod:last(Tab),
+
+  true = Mod:insert(Tab, {k1, 1}),
+  F1 = Mod:first(Tab),
+  F1 = Mod:last(Tab),
 
   % insert some values
   KVPairs = [
     {k2, 2}, {k3, 2}, {k4, 22}, {k5, 33},
     {k11, 1}, {k22, 2}, {k33, 2}, {k44, 11}, {k55, 22}
   ],
-  true = shards:insert(Tab, KVPairs),
+  true = Mod:insert(Tab, KVPairs),
 
   % match spec
   MS = ets:fun2ms(fun({K, V}) -> {K, V} end),
 
   % check first-next against select
-  L1 = [Last | _] = first_next_traversal(shards, Tab, 10, []),
-  '$end_of_table' = shards:next(Tab, Last),
-  {L11, _} = shards:select(Tab, MS, 10),
+  L1 = [Last | _] = first_next_traversal(Mod, Tab, 10, []),
+  '$end_of_table' = Mod:next(Tab, Last),
+  {L11, _} = Mod:select(Tab, MS, 10),
   L1 = [K || {K, _} <- L11],
 
   % check last-prev against select
-  L3 = [Last3 | _] = last_prev_traversal(shards, Tab, 10, []),
-  '$end_of_table' = shards:prev(Tab, Last3),
-  {L33, _} = shards:select(Tab, MS, 10),
+  L3 = [Last3 | _] = last_prev_traversal(Mod, Tab, 10, []),
+  '$end_of_table' = Mod:prev(Tab, Last3),
+  {L33, _} = Mod:select(Tab, MS, 10),
   L3 = L1 = [K || {K, _} <- L33],
 
   ct:log(" ---> t_first_last_next_prev_ops(~p): [OK]", [Tab]),
   ok.
 
-t_update_ops(_Config) ->
+t_update_ops(Config) ->
+  {_, Scope} = lists:keyfind(scope, 1, Config),
+  Mod = get_module(Scope, ?SET),
+
   % update counter
   ets:insert(?ETS_SET, {counter1, 0}),
-  shards:insert(?SET, {counter1, 0}),
+  Mod:insert(?SET, {counter1, 0}),
   R1 = ets:update_counter(?ETS_SET, counter1, 1),
-  R1 = shards:update_counter(?SET, counter1, 1),
+  R1 = Mod:update_counter(?SET, counter1, 1),
 
   % update with default
   R2 = ets:update_counter(?ETS_SET, counter2, 1, {counter2, 0}),
@@ -456,40 +479,46 @@ t_update_ops(_Config) ->
 
   % update element
   ets:insert(?ETS_SET, {elem0, 0}),
-  shards:insert(?SET, {elem0, 0}),
+  Mod:insert(?SET, {elem0, 0}),
   R3 = ets:update_element(?ETS_SET, elem0, {2, 10}),
-  R3 = shards:update_element(?SET, elem0, {2, 10}),
+  R3 = Mod:update_element(?SET, elem0, {2, 10}),
 
   ok.
 
-t_fold_ops(_Config) ->
+t_fold_ops(Config) ->
+  {_, Scope} = lists:keyfind(scope, 1, Config),
+  Mod = get_module(Scope, ?SET),
+
   % insert some values
   true = ets:insert(?ETS_SET, [{k1, 1}, {k2, 2}, {k3, 3}]),
-  true = shards:insert(?SET, [{k1, 1}, {k2, 2}, {k3, 3}]),
+  true = Mod:insert(?SET, [{k1, 1}, {k2, 2}, {k3, 3}]),
 
   % foldl
   Foldl = fun({_, V}, Acc) -> [V | Acc] end,
-  R1 = lists:usort(shards:foldl(Foldl, [], ?SET)),
+  R1 = lists:usort(Mod:foldl(Foldl, [], ?SET)),
   R1 = lists:usort(ets:foldl(Foldl, [], ?ETS_SET)),
 
   % foldr
   Foldr = fun({_, V}, Acc) -> [V | Acc] end,
-  R2 = lists:usort(shards:foldr(Foldr, [], ?SET)),
+  R2 = lists:usort(Mod:foldr(Foldr, [], ?SET)),
   R2 = lists:usort(ets:foldr(Foldr, [], ?ETS_SET)),
 
   ok.
 
-t_info_ops(_Config) ->
+t_info_ops(Config) ->
+  {_, Scope} = lists:keyfind(scope, 1, Config),
+  Mod = get_module(Scope, ?SET),
+
   % test i/0
   R0 = shards:i(),
   R0 = ets:i(),
 
   % test info/1,2
   DefaultShards = ?N_SHARDS,
-  DefaultShards = length(shards:info(?SET)),
+  DefaultShards = length(Mod:info(?SET)),
   5 = length(shards:info(?DUPLICATE_BAG)),
   L1 = lists:duplicate(DefaultShards, public),
-  L1 = shards:info(?SET, protection),
+  L1 = Mod:info(?SET, protection),
   L2 = lists:duplicate(5, public),
   L2 = shards:info(?DUPLICATE_BAG, protection),
 
@@ -517,7 +546,7 @@ t_info_ops(_Config) ->
 
   % test invalid values
   R2 = ets:info(undefined_tab),
-  R2 = shards:info(undefined_tab),
+  R2 = Mod:info(undefined_tab),
   R2 = shards_local:info(undefined_tab, nil),
   R2 = shards:info_shard(undefined_tab, 0),
   R3 = ets:info(undefined_tab, name),
@@ -527,14 +556,17 @@ t_info_ops(_Config) ->
 
   ok.
 
-t_tab2list_tab2file_file2tab(_Config) ->
+t_tab2list_tab2file_file2tab(Config) ->
+  {_, Scope} = lists:keyfind(scope, 1, Config),
+  Mod = get_module(Scope, ?SET),
+
   % insert some values
   KVPairs = [{k1, 1}, {k2, 2}, {k3, 3}, {k4, 4}],
   true = ets:insert(?ETS_SET, KVPairs),
-  true = shards:insert(?SET, KVPairs),
+  true = Mod:insert(?SET, KVPairs),
 
   % check tab2list/1
-  R1 = lists:usort(shards:tab2list(?SET)),
+  R1 = lists:usort(Mod:tab2list(?SET)),
   R1 = lists:usort(ets:tab2list(?ETS_SET)),
   4 = length(R1),
 
@@ -545,22 +577,26 @@ t_tab2list_tab2file_file2tab(_Config) ->
     "myfile0", "myfile1", "myfile2", "myfile3",
     "myfile4", "myfile5", "myfile6", "myfile7"
   ],
-  L = shards:tab2file(?SET, FileL),
+  L = Mod:tab2file(?SET, FileL),
+  L = Mod:tab2file(?SET, FileL, []),
 
   % delete table
-  shards:delete(?SET),
+  Mod:delete(?SET),
 
   % restore table from files
   {error, _} = shards:file2tab(["myfile0", "wrong_file"]),
   {ok, ?SET} = shards:file2tab(FileL),
 
   % check
-  [_, _, _, _, _, _, _, _] = shards:info(?SET),
-  KVPairs = lookup_keys(shards, ?SET, [k1, k2, k3, k4]),
+  [_, _, _, _, _, _, _, _] = Mod:info(?SET),
+  KVPairs = lookup_keys(Mod, ?SET, [k1, k2, k3, k4]),
 
   ok.
 
-t_equivalent_ops(_Config) ->
+t_equivalent_ops(Config) ->
+  {_, Scope} = lists:keyfind(scope, 1, Config),
+  Mod = get_module(Scope, ?SET),
+
   MS = ets:fun2ms(fun({K, V}) -> {K, V} end),
 
   R1 = ets:is_compiled_ms(MS),
@@ -577,11 +613,12 @@ t_equivalent_ops(_Config) ->
 
   Shards = shards:list(?SET),
   R5 = [ets:table(T) || T <- Shards],
-  R5 = shards:table(?SET),
+  R5 = Mod:table(?SET),
+  R5 = Mod:table(?SET, []),
 
-  true = shards:setopts(?SET, [{heir, none}]),
+  true = Mod:setopts(?SET, [{heir, none}]),
 
-  true = shards:give_away(?SET, self(), []),
+  true = Mod:give_away(?SET, self(), []),
 
   ok.
 
@@ -678,6 +715,15 @@ delete_shards() ->
   {_, 0} = lists:keyfind(supervisors, 1, Count),
   {_, 0} = lists:keyfind(active, 1, Count),
   ok.
+
+build_args(Args, Config) ->
+  {_, Scope} = lists:keyfind(scope, 1, Config),
+  [{Scope, X, Y} || {X, Y} <- Args].
+
+get_module(l, Tab) when ?has_default_opts(Tab) ->
+  shards_local;
+get_module(_, _) ->
+  shards.
 
 %%%===================================================================
 %%% Internal functions

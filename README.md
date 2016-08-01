@@ -34,7 +34,7 @@ In your `rebar.config`:
 
 ```erlang
 {deps, [
-  {shards, "0.2.0"}
+  {shards, "0.3.0"}
 ]}.
 ```
 
@@ -44,7 +44,7 @@ In your `mix.exs`:
 
 ```elixir
 def deps do
-  [{:shards, "~> 0.2.0"}]
+  [{:shards, "~> 0.3.0"}]
 end
 ```
 
@@ -78,9 +78,9 @@ the options. With `shards` there are additional options:
 
 Option | Description | Default
 -------|-------------|--------
-`{n_shards, pos_integer()}` | Allows to set the desired number of shards. | By default, the number of shards is calculated from the total online schedulers – `erlang:system_info(schedulers_online)`
-`{scope, l \| g}` | Defines `shards` scope, in other words, if sharding will be applied locally (`l`) or global/distributed (`g`) | `l`
-`{restart_strategy, one_for_one \| one_for_all}` | Allows to configure the restart strategy for `shards_owner_sup`. | `one_for_one`
+`{n_shards, pos_integer()}` | Allows to set the desired number of shards. | By default, the number of shards is calculated from the total online schedulers: `erlang:system_info(schedulers_online)`
+`{scope, l | g}` | Defines `shards` scope, in other words, if sharding will be applied locally (`l`) or global/distributed (`g`) | `l`
+`{restart_strategy, one_for_one | one_for_all}` | Allows to configure the restart strategy for `shards_owner_sup`. | `one_for_one`
 `{pick_shard_fun, pick_fun()}` | Function to pick the **shard** on which the `key` will be handled locally – used by `shards_local`. See [shards_state](./src/shards_state.erl). | `shards_local:pick/3`
 `{pick_node_fun, pick_fun()}` | Function to pick the **node** on which the `key` will be handled globally/distributed – used by `shards_dist`. See [shards_state](./src/shards_state.erl). | `shards_local:pick/3`
 
@@ -220,29 +220,52 @@ Most of the `shards_local` functions receives the **State** as parameter, so it 
 to call it. You can check how `shards` module is implemented [HERE](./src/shards.erl).
 
 If any microsecond matters to you, you can skip the call to the control ETS table by calling
-`shards_local` directly. Now the question is: how to get the **State**? Well, it's extremely
-easy, you can get the `state` when you call `shards:new/2` by first time, or you can call
-`shards:state/1` or `shards_state:get/1` at any time you want, and then it might be stored
-within the calling process, or wherever you want. E.g.:
+`shards_local` directly. We have two options:
 
-```erlang
-% take a look at the 2nd element of the returned tuple, that is the state
-> shards:new(mytab, [{n_shards, 4}]).
-{mytab,{state,shards_local,4,#Fun<shards_local.pick.3>,
-              #Fun<shards_local.pick.3>}}
-       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 1. The first option is getting the `state`, and passing it as argument. Now the question is:
+    how to get the **State**? Well, it's extremely easy, you can get the `state` when you call
+    `shards:new/2` by first time, or you can call `shards:state/1` or `shards_state:get/1`
+    at any time you want, and then it might be stored within the calling process, or wherever
+    you want. E.g.:
+    
+    ```erlang
+    % take a look at the 2nd element of the returned tuple, that is the state
+    > shards:new(mytab, [{n_shards, 4}]).
+    {mytab,{state,shards_local,4,#Fun<shards_local.pick.3>,
+                  #Fun<shards_local.pick.3>}}
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    
+    % you can also get the state at any time you want
+    > State = shards:state(mytab).
+    {state,shards_local,4,#Fun<shards_local.pick.3>,
+           #Fun<shards_local.pick.3>}
+    
+    % now you can call shards_local directly
+    > shards_local:insert(mytab, {1, 1}, State).
+    true
+    > shards_local:lookup(mytab, 1, State).
+    [{1,1}]
+    ```
 
-% you can also get the state at any time you want
-> State = shards:state(mytab).
-{state,shards_local,4,#Fun<shards_local.pick.3>,
-       #Fun<shards_local.pick.3>}
-
-% now you can call shards_local directly
-> shards_local:insert(mytab, {1, 1}, State).
-true
-> shards_local:lookup(mytab, 1, State).
-[{1,1}]
-```
+ 2. The 2nd option is to call `shards_local` directly without the `state`, but this is only
+    possible if you have created a table with default `shards` options – such as `n_shards`,
+    `pick_shard_fun` and `pick_node_fun`. If you can take this option it might be significantly
+    better, since in this case no additional calls are needed, not even to recover the `state`
+    (like in the previous option), because a new `state` is created with default values.
+    Therefore, the call is mapped directly to an **ETS** function. E.g.:
+    
+    ```erlang
+    % create a table without set n_shards, pick_shard_fun or pick_node_fun
+    > shards:new(mytab, []).
+    {mytab,{state,shards_local,8,#Fun<shards_local.pick.3>,
+                  #Fun<shards_local.pick.3>}}
+    
+    % call shards_local without the state
+    > shards_local:insert(mytab, {1, 1}).
+    true
+    > shards_local:lookup(mytab, 1).     
+    [{1,1}]
+    ```
 
 Most of the cases this is not necessary, `shards` wrapper is more than enough, it adds only a
 few microseconds of latency. In conclusion, **Shards** gives you the flexibility to do it,
@@ -378,7 +401,7 @@ You can find tests results in `_build/test/logs`, and coverage in `_build/test/c
 
     $ make edoc
 
-> **Note:** Once you run previous command, a new folder `edoc` is created, and you'll have a pretty nice HTML documentation.
+> **Note:** Once you run previous command, a new folder `doc` is created, and you'll have a pretty nice HTML documentation.
 
 
 ## Copyright and License

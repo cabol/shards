@@ -56,7 +56,7 @@ all() ->
 
 init_per_suite(Config) ->
   shards:start(),
-  Config.
+  [{scope, l} | Config].
 
 end_per_suite(Config) ->
   shards:stop(),

@@ -62,45 +62,45 @@
 %% ETS API
 -export([
   all/0,
-  delete/1, delete/3,
-  delete_object/3,
-  delete_all_objects/2,
+  delete/1, delete/2, delete/3,
+  delete_all_objects/1, delete_all_objects/2,
+  delete_object/2, delete_object/3,
   file2tab/1, file2tab/2,
-  first/2,
-  foldl/4,
-  foldr/4,
-  give_away/4,
+  first/1, first/2,
+  foldl/3, foldl/4,
+  foldr/3, foldr/4,
+  give_away/3, give_away/4,
   i/0,
-  info/2, info/3,
+  info/1, info/2, info/3,
   info_shard/2, info_shard/3,
-  insert/3,
-  insert_new/3,
+  insert/2, insert/3,
+  insert_new/2, insert_new/3,
   is_compiled_ms/1,
-  last/2,
-  lookup/3,
-  lookup_element/4,
-  match/3, match/4, match/1,
-  match_delete/3,
-  match_object/3, match_object/4, match_object/1,
+  last/1, last/2,
+  lookup/2, lookup/3,
+  lookup_element/3, lookup_element/4,
+  match/2, match/3, match/4, match/1,
+  match_delete/2, match_delete/3,
+  match_object/2, match_object/3, match_object/4, match_object/1,
   match_spec_compile/1,
   match_spec_run/2,
-  member/3,
+  member/2, member/3,
   new/2,
-  next/3,
-  prev/3,
-  select/3, select/4, select/1,
-  select_count/3,
-  select_delete/3,
-  select_reverse/3, select_reverse/4, select_reverse/1,
-  setopts/3,
-  tab2file/3, tab2file/4,
-  tab2list/2,
+  next/2, next/3,
+  prev/2, prev/3,
+  select/2, select/3, select/4, select/1,
+  select_count/2, select_count/3,
+  select_delete/2, select_delete/3,
+  select_reverse/2, select_reverse/3, select_reverse/4, select_reverse/1,
+  setopts/2, setopts/3,
+  tab2file/2, tab2file/3, tab2file/4,
+  tab2list/1, tab2list/2,
   tabfile_info/1,
-  table/2, table/3,
+  table/1, table/2, table/3,
   test_ms/2,
-  take/3,
-  update_counter/4, update_counter/5,
-  update_element/4
+  take/2, take/3,
+  update_counter/3, update_counter/4, update_counter/5,
+  update_element/3, update_element/4
 ]).
 
 %% Extended API
@@ -220,6 +220,10 @@ delete(Tab) ->
   ok = shards_sup:terminate_child(shards_sup, whereis(Tab)),
   true.
 
+%% @equiv delete(Tab, Key, shards_state:new())
+delete(Tab, Key) ->
+  delete(Tab, Key, shards_state:new()).
+
 %% @doc
 %% This operation behaves like `ets:delete/2'.
 %%
@@ -233,6 +237,10 @@ delete(Tab, Key, State) ->
   mapred(Tab, Key, {fun ets:delete/2, [Key]}, nil, State, d),
   true.
 
+%% @equiv delete_all_objects(Tab, shards_state:new())
+delete_all_objects(Tab) ->
+  delete_all_objects(Tab, shards_state:new()).
+
 %% @doc
 %% This operation behaves like `ets:delete_all_objects/1'.
 %%
@@ -244,6 +252,10 @@ delete(Tab, Key, State) ->
 delete_all_objects(Tab, State) ->
   mapred(Tab, fun ets:delete_all_objects/1, State),
   true.
+
+%% @equiv delete_object(Tab, Object, shards_state:new())
+delete_object(Tab, Object) ->
+  delete_object(Tab, Object, shards_state:new()).
 
 %% @doc
 %% This operation behaves like `ets:delete_object/2'.
@@ -298,6 +310,10 @@ file2tab(Filenames, Options) ->
     _:Error -> Error
   end.
 
+%% @equiv first(Tab, shards_state:new())
+first(Tab) ->
+  first(Tab, shards_state:new()).
+
 %% @doc
 %% This operation behaves similar to `ets:first/1'.
 %% The order in which results are returned, might be not the same
@@ -324,6 +340,10 @@ first(_, '$end_of_table', _) ->
 first(_, Key, _) ->
   Key.
 
+%% @equiv foldl(Function, Acc0, Tab, shards_state:new())
+foldl(Function, Acc0, Tab) ->
+  foldl(Function, Acc0, Tab, shards_state:new()).
+
 %% @doc
 %% This operation behaves like `ets:foldl/3'.
 %%
@@ -341,6 +361,10 @@ foldl(Function, Acc0, Tab, State) ->
   N = shards_state:n_shards(State),
   fold(Tab, N, foldl, [Function, Acc0]).
 
+%% @equiv foldr(Function, Acc0, Tab, shards_state:new())
+foldr(Function, Acc0, Tab) ->
+  foldr(Function, Acc0, Tab, shards_state:new()).
+
 %% @doc
 %% This operation behaves like `ets:foldr/3'.
 %%
@@ -357,6 +381,10 @@ foldl(Function, Acc0, Tab, State) ->
 foldr(Function, Acc0, Tab, State) ->
   N = shards_state:n_shards(State),
   fold(Tab, N, foldr, [Function, Acc0]).
+
+%% @equiv give_away(Tab, Pid, GiftData, shards_state:new())
+give_away(Tab, Pid, GiftData) ->
+  give_away(Tab, Pid, GiftData, shards_state:new()).
 
 %% @doc
 %% Equivalent to `ets:give_away/3' for each shard table. It returns
@@ -388,19 +416,31 @@ give_away(Tab, Pid, GiftData, State) ->
 i() ->
   ets:i().
 
+%% @equiv info(Tab, shards_state:new())
+info(Tab) ->
+  info(Tab, shards_state:new()).
+
 %% @doc
-%% This operation behaves like `ets:info/1', but instead of return
-%% the information about one single table, it returns a list with
+%% If 2nd argument is `info_tuple()' this function behaves like
+%% `ets:info/2', but if it is the `shards_state:state()',
+%% it behaves like `ets:info/1', but instead of return the
+%% information about one single table, it returns a list with
 %% the information of each shard table.
 %%
 %% @see ets:info/1.
+%% @see ets:info/2.
 %% @see shards:info_shard/2.
+%% @see shards:info_shard/3.
 %% @end
--spec info(Tab, State) -> Result when
-  Tab      :: atom(),
-  State    :: shards_state:state(),
-  InfoList :: [info_tuple()],
-  Result   :: [InfoList] | undefined.
+-spec info(Tab, StateOrItem) -> Result when
+  Tab         :: atom(),
+  StateOrItem :: shards_state:state() | info_item(),
+  InfoList    :: [info_tuple()],
+  Result1     :: [InfoList] | undefined,
+  Value       :: [term()] | undefined,
+  Result      :: Result1 | Value.
+info(Tab, Item) when is_atom(Item) ->
+  info(Tab, Item, shards_state:new());
 info(Tab, State) ->
   case whereis(Tab) of
     undefined -> undefined;
@@ -453,6 +493,10 @@ info_shard(Tab, Shard, Item) ->
   ShardName = shard_name(Tab, Shard),
   ets:info(ShardName, Item).
 
+%% @equiv insert(Tab, ObjOrObjL, shards_state:new())
+insert(Tab, ObjOrObjL) ->
+  insert(Tab, ObjOrObjL, shards_state:new()).
+
 %% @doc
 %% This operation behaves similar to `ets:insert/2', with a big
 %% difference, <b>it is not atomic</b>. This means if it fails
@@ -475,6 +519,10 @@ insert(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   PickShardFun = shards_state:pick_shard_fun(State),
   ShardName = shard_name(Tab, PickShardFun(Key, N, w)),
   ets:insert(ShardName, ObjOrObjL).
+
+%% @equiv insert_new(Tab, ObjOrObjL, shards_state:new())
+insert_new(Tab, ObjOrObjL) ->
+  insert_new(Tab, ObjOrObjL, shards_state:new()).
 
 %% @doc
 %% This operation behaves like `ets:insert_new/2' BUT it is not atomic,
@@ -518,6 +566,10 @@ insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
 is_compiled_ms(Term) ->
   ets:is_compiled_ms(Term).
 
+%% @equiv last(Tab, shards_state:new())
+last(Tab) ->
+  last(Tab, shards_state:new()).
+
 %% @doc
 %% This operation behaves similar to `ets:last/1'.
 %% The order in which results are returned, might be not the same
@@ -538,6 +590,10 @@ last(Tab, State) ->
       first(Tab, State)
   end.
 
+%% @equiv lookup(Tab, Key, shards_state:new())
+lookup(Tab, Key) ->
+  lookup(Tab, Key, shards_state:new()).
+
 %% @doc
 %% This operation behaves like `ets:lookup/2'.
 %%
@@ -552,6 +608,10 @@ lookup(Tab, Key, State) ->
   Map = {fun ets:lookup/2, [Key]},
   Reduce = fun lists:append/2,
   mapred(Tab, Key, Map, Reduce, State, r).
+
+%% @equiv lookup_element(Tab, Key, Pos, shards_state:new())
+lookup_element(Tab, Key, Pos) ->
+  lookup_element(Tab, Key, Pos, shards_state:new()).
 
 %% @doc
 %% This operation behaves like `ets:lookup_element/3'.
@@ -585,19 +645,32 @@ lookup_element(Tab, Key, Pos, State) ->
       ets:lookup_element(ShardName, Key, Pos)
   end.
 
+match(Tab, Pattern) ->
+  match(Tab, Pattern, shards_state:new()).
+
 %% @doc
-%% This operation behaves similar to `ets:match/2'.
+%% If 3rd argument is `pos_integer()' this function behaves
+%% like `ets:match/3', but if it is the `shards_state:state()',
+%% it behaves like `ets:match/2'.
+%%
 %% The order in which results are returned, might be not the same
 %% as the original ETS function. Remember shards architecture
 %% described at the beginning.
 %%
 %% @see ets:match/2.
+%% @see ets:match/3.
 %% @end
--spec match(Tab, Pattern, State) -> [Match] when
-  Tab     :: atom(),
-  Pattern :: ets:match_pattern(),
-  State   :: shards_state:state(),
-  Match   :: [term()].
+-spec match(Tab, Pattern, StateOrLimit) -> Response when
+  Tab          :: atom(),
+  Pattern      :: ets:match_pattern(),
+  StateOrLimit :: shards_state:state() | pos_integer(),
+  Match        :: [term()],
+  Continuation :: continuation(),
+  ResWithState :: [Match],
+  ResWithLimit :: {[Match], Continuation} | '$end_of_table',
+  Response     :: ResWithState | ResWithLimit.
+match(Tab, Pattern, Limit) when is_integer(Limit), Limit > 0 ->
+  match(Tab, Pattern, Limit, shards_state:new());
 match(Tab, Pattern, State) ->
   Map = {fun ets:match/2, [Pattern]},
   Reduce = fun lists:append/2,
@@ -638,6 +711,10 @@ match(Tab, Pattern, Limit, State) ->
 match({_, _, Limit, _, _} = Continuation) ->
   q(match, Continuation, q_fun(), Limit, []).
 
+%% @equiv match_delete(Tab, Pattern, shards_state:new())
+match_delete(Tab, Pattern) ->
+  match_delete(Tab, Pattern, shards_state:new()).
+
 %% @doc
 %% This operation behaves like `ets:match_delete/2'.
 %%
@@ -652,19 +729,33 @@ match_delete(Tab, Pattern, State) ->
   Reduce = {fun(Res, Acc) -> Acc and Res end, true},
   mapred(Tab, Map, Reduce, State).
 
+%% @equiv match_object(Tab, Pattern, shards_state:new())
+match_object(Tab, Pattern) ->
+  match_object(Tab, Pattern, shards_state:new()).
+
 %% @doc
-%% This operation behaves similar to `ets:match_object/2'.
+%% If 3rd argument is `pos_integer()' this function behaves like
+%% `ets:match_object/3', but if it is the `shards_state:state()',
+%% it behaves like `ets:match_object/2'.
+%%
 %% The order in which results are returned, might be not the same
 %% as the original ETS function. Remember shards architecture
 %% described at the beginning.
 %%
 %% @see ets:match_object/2.
+%% @see ets:match_object/3.
 %% @end
--spec match_object(Tab, Pattern, State) -> [Object] when
-  Tab     :: atom(),
-  Pattern :: ets:match_pattern(),
-  State   :: shards_state:state(),
-  Object  :: tuple().
+-spec match_object(Tab, Pattern, StateOrLimit) -> Response when
+  Tab          :: atom(),
+  Pattern      :: ets:match_pattern(),
+  StateOrLimit :: shards_state:state() | pos_integer(),
+  Object       :: tuple(),
+  ResWithState :: [Object],
+  ResWithLimit :: {[term()], Continuation} | '$end_of_table',
+  Continuation :: continuation(),
+  Response     :: ResWithState | ResWithLimit.
+match_object(Tab, Pattern, Limit) when is_integer(Limit), Limit > 0 ->
+  match_object(Tab, Pattern, Limit, shards_state:new());
 match_object(Tab, Pattern, State) ->
   Map = {fun ets:match_object/2, [Pattern]},
   Reduce = fun lists:append/2,
@@ -713,6 +804,10 @@ match_spec_compile(MatchSpec) ->
 match_spec_run(List, CompiledMatchSpec) ->
   ets:match_spec_run(List, CompiledMatchSpec).
 
+%% @equiv member(Tab, Key, shards_state:new())
+member(Tab, Key) ->
+  member(Tab, Key, shards_state:new()).
+
 %% @doc
 %% This operation behaves like `ets:member/2'.
 %%
@@ -759,6 +854,10 @@ new(Name, Options) ->
     _       -> throw(badarg)
   end.
 
+%% @equiv next(Tab, Key1, shards_state:new())
+next(Tab, Key1) ->
+  next(Tab, Key1, shards_state:new()).
+
 %% @doc
 %% This operation behaves similar to `ets:next/2'.
 %% The order in which results are returned, might be not the same
@@ -793,6 +892,10 @@ next_(_, '$end_of_table', _) ->
 next_(_, Key2, _) ->
   Key2.
 
+%% @equiv prev(Tab, Key1, shards_state:new())
+prev(Tab, Key1) ->
+  prev(Tab, Key1, shards_state:new()).
+
 %% @doc
 %% This operation behaves similar to `ets:prev/2'.
 %% The order in which results are returned, might be not the same
@@ -814,19 +917,33 @@ prev(Tab, Key1, State) ->
       next(Tab, Key1, State)
   end.
 
+%% @equiv select(Tab, MatchSpec, shards_state:new())
+select(Tab, MatchSpec) ->
+  select(Tab, MatchSpec, shards_state:new()).
+
 %% @doc
-%% This operation behaves similar to `ets:select/2'.
+%% If 3rd argument is `pos_integer()' this function behaves like
+%% `ets:select/3', but if it is the `shards_state:state()',
+%% it behaves like `ets:select/2'.
+%%
 %% The order in which results are returned, might be not the same
 %% as the original ETS function. Remember shards architecture
 %% described at the beginning.
 %%
 %% @see ets:select/2.
+%% @see ets:select/3.
 %% @end
--spec select(Tab, MatchSpec, State) -> [Match] when
-  Tab       :: atom(),
-  MatchSpec :: ets:match_spec(),
-  State     :: shards_state:state(),
-  Match     :: term().
+-spec select(Tab, MatchSpec, StateOrLimit) -> Response when
+  Tab          :: atom(),
+  MatchSpec    :: ets:match_spec(),
+  StateOrLimit :: shards_state:state() | pos_integer(),
+  Match        :: term(),
+  ResWithState :: [Match],
+  ResWithLimit :: {[Match], Continuation} | '$end_of_table',
+  Continuation :: continuation(),
+  Response     :: ResWithState | ResWithLimit.
+select(Tab, MatchSpec, Limit) when is_integer(Limit), Limit > 0 ->
+  select(Tab, MatchSpec, Limit, shards_state:new());
 select(Tab, MatchSpec, State) ->
   Map = {fun ets:select/2, [MatchSpec]},
   Reduce = fun lists:append/2,
@@ -867,6 +984,10 @@ select(Tab, MatchSpec, Limit, State) ->
 select({_, _, Limit, _, _} = Continuation) ->
   q(select, Continuation, q_fun(), Limit, []).
 
+%% @equiv select_count(Tab, MatchSpec, shards_state:new())
+select_count(Tab, MatchSpec) ->
+  select_count(Tab, MatchSpec, shards_state:new()).
+
 %% @doc
 %% This operation behaves like `ets:select_count/2'.
 %%
@@ -881,6 +1002,10 @@ select_count(Tab, MatchSpec, State) ->
   Map = {fun ets:select_count/2, [MatchSpec]},
   Reduce = {fun(Res, Acc) -> Acc + Res end, 0},
   mapred(Tab, Map, Reduce, State).
+
+%% @equiv select_delete(Tab, MatchSpec, shards_state:new())
+select_delete(Tab, MatchSpec) ->
+  select_delete(Tab, MatchSpec, shards_state:new()).
 
 %% @doc
 %% This operation behaves like `ets:select_delete/2'.
@@ -897,19 +1022,33 @@ select_delete(Tab, MatchSpec, State) ->
   Reduce = {fun(Res, Acc) -> Acc + Res end, 0},
   mapred(Tab, Map, Reduce, State).
 
+%% @equiv select_reverse(Tab, MatchSpec, shards_state:new())
+select_reverse(Tab, MatchSpec) ->
+  select_reverse(Tab, MatchSpec, shards_state:new()).
+
 %% @doc
-%% This operation behaves similar to `ets:select_reverse/2'.
+%% If 3rd argument is `pos_integer()' this function behaves like
+%% `ets:select_reverse/3', but if it is the `shards_state:state()',
+%% it behaves like `ets:select_reverse/2'.
+%%
 %% The order in which results are returned, might be not the same
 %% as the original ETS function. Remember shards architecture
 %% described at the beginning.
 %%
 %% @see ets:select_reverse/2.
+%% @see ets:select_reverse/3.
 %% @end
--spec select_reverse(Tab, MatchSpec, State) -> [Match] when
-  Tab       :: atom(),
-  MatchSpec :: ets:match_spec(),
-  State     :: shards_state:state(),
-  Match     :: term().
+-spec select_reverse(Tab, MatchSpec, StateOrLimit) -> Response when
+  Tab          :: atom(),
+  MatchSpec    :: ets:match_spec(),
+  StateOrLimit :: shards_state:state() | pos_integer(),
+  Match        :: term(),
+  ResWithState :: [Match],
+  ResWithLimit :: {[Match], Continuation} | '$end_of_table',
+  Continuation :: continuation(),
+  Response     :: ResWithState | ResWithLimit.
+select_reverse(Tab, MatchSpec, Limit) when is_integer(Limit), Limit > 0 ->
+  select_reverse(Tab, MatchSpec, Limit, shards_state:new());
 select_reverse(Tab, MatchSpec, State) ->
   Map = {fun ets:select_reverse/2, [MatchSpec]},
   Reduce = fun lists:append/2,
@@ -950,6 +1089,10 @@ select_reverse(Tab, MatchSpec, Limit, State) ->
 select_reverse({_, _, Limit, _, _} = Continuation) ->
   q(select_reverse, Continuation, q_fun(), Limit, []).
 
+%% @equiv setopts(Tab, Opts, shards_state:new())
+setopts(Tab, Opts) ->
+  setopts(Tab, Opts, shards_state:new()).
+
 %% @doc
 %% Equivalent to `ets:setopts/2' for each shard table. It returns
 %% a `boolean()' instead that just `true'. Returns `true' if the
@@ -969,7 +1112,13 @@ setopts(Tab, Opts, State) ->
   Reduce = {fun(E, Acc) -> Acc and E end, true},
   mapred(Tab, Map, Reduce, State).
 
-%% @equiv tab2file(Tab, Filenames, [])
+%% @equiv tab2file(Tab, Filenames, shards_state:new())
+tab2file(Tab, Filenames) ->
+  tab2file(Tab, Filenames, shards_state:new()).
+
+%% @equiv tab2file/4
+tab2file(Tab, Filenames, Options) when is_list(Options) ->
+  tab2file(Tab, Filenames, Options, shards_state:new());
 tab2file(Tab, Filenames, State) ->
   tab2file(Tab, Filenames, [], State).
 
@@ -989,11 +1138,15 @@ tab2file(Tab, Filenames, State) ->
   ShardTab  :: atom(),
   ShardRes  :: ok | {error, Reason :: term()},
   Response  :: [{ShardTab, ShardRes}].
-tab2file(Tab, Filenames, Options,State) ->
+tab2file(Tab, Filenames, Options, State) ->
   N = shards_state:n_shards(State),
   [begin
      ets:tab2file(Shard, Filename, Options)
    end || {Shard, Filename} <- lists:zip(list(Tab, N), Filenames)].
+
+%% @equiv tab2list(Tab, shards_state:new())
+tab2list(Tab) ->
+  tab2list(Tab, shards_state:new()).
 
 %% @doc
 %% This operation behaves like `ets:tab2list/1'.
@@ -1011,7 +1164,13 @@ tab2list(Tab, State) ->
 tabfile_info(Filename) ->
   ets:tabfile_info(Filename).
 
-%% @equiv table(Tab, [])
+%% @equiv table(Tab, shards_state:new())
+table(Tab) ->
+  table(Tab, shards_state:new()).
+
+%% @equiv table/3
+table(Tab, Options) when is_list(Options) ->
+  table(Tab, Options, shards_state:new());
 table(Tab, State) ->
   table(Tab, [], State).
 
@@ -1037,6 +1196,10 @@ table(Tab, Options, State) ->
 test_ms(Tuple, MatchSpec) ->
   ets:test_ms(Tuple, MatchSpec).
 
+%% @equiv take(Tab, Key, shards_state:new())
+take(Tab, Key) ->
+  take(Tab, Key, shards_state:new()).
+
 %% @doc
 %% This operation behaves like `ets:take/2'.
 %%
@@ -1051,6 +1214,10 @@ take(Tab, Key, State) ->
   Map = {fun ets:take/2, [Key]},
   Reduce = fun lists:append/2,
   mapred(Tab, Key, Map, Reduce, State, r).
+
+%% @equiv update_counter(Tab, Key, UpdateOp, shards_state:new())
+update_counter(Tab, Key, UpdateOp) ->
+  update_counter(Tab, Key, UpdateOp, shards_state:new()).
 
 %% @doc
 %% This operation behaves like `ets:update_counter/3'.
@@ -1082,6 +1249,10 @@ update_counter(Tab, Key, UpdateOp, State) ->
 update_counter(Tab, Key, UpdateOp, Default, State) ->
   Map = {fun ets:update_counter/4, [Key, UpdateOp, Default]},
   mapred(Tab, Key, Map, nil, State, w).
+
+%% @equiv update_element(Tab, Key, ElementSpec, shards_state:new())
+update_element(Tab, Key, ElementSpec) ->
+  update_element(Tab, Key, ElementSpec, shards_state:new()).
 
 %% @doc
 %% This operation behaves like `ets:update_element/3'.
@@ -1122,7 +1293,7 @@ shard_name(TabName, Shard) ->
 %% <ul>
 %% <li>`Key': The key to be hashed to calculate the shard.</li>
 %% <li>`Range': Range/set – number of shards/nodes.</li>
-%% <li>`Op': Operation type: `r | w | d`.</li>
+%% <li>`Op': Operation type: `r | w | d'.</li>
 %% </ul>
 %% @end
 -spec pick(Key, Range, Op) -> Result when
