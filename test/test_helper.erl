@@ -573,10 +573,7 @@ t_tab2list_tab2file_file2tab(Config) ->
   % save tab to files
   DefaultShards = ?N_SHARDS,
   L = lists:duplicate(DefaultShards, ok),
-  FileL = [
-    "myfile0", "myfile1", "myfile2", "myfile3",
-    "myfile4", "myfile5", "myfile6", "myfile7"
-  ],
+  FileL = ["myfile" ++ integer_to_list(X) || X <- lists:seq(0, DefaultShards-1)],
   L = Mod:tab2file(?SET, FileL),
   L = Mod:tab2file(?SET, FileL, []),
 
@@ -588,7 +585,7 @@ t_tab2list_tab2file_file2tab(Config) ->
   {ok, ?SET} = shards:file2tab(FileL),
 
   % check
-  [_, _, _, _, _, _, _, _] = Mod:info(?SET),
+  DefaultShards = length(Mod:info(?SET)),
   KVPairs = lookup_keys(Mod, ?SET, [k1, k2, k3, k4]),
 
   ok.

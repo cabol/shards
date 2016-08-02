@@ -11,6 +11,7 @@ ifeq ($(REBAR),)
 ifeq ($(wildcard rebar3),)
 	curl -O https://s3.amazonaws.com/rebar3/rebar3
 	chmod a+x rebar3
+	./rebar3 update
 	$(eval REBAR=./rebar3)
 else
 	$(eval REBAR=./rebar3)
@@ -37,17 +38,17 @@ ifeq ($(EPMD_PROC_NUM),)
 	@echo " ---> Started epmd!"
 endif
 
-tests: check_rebar check_epmd
+test: check_rebar check_epmd
 	$(REBAR) ct --name ct@127.0.0.1
 	$(REBAR) cover
 	rm -rf test/*.beam
 
-local_tests: check_rebar check_epmd
+local_test: check_rebar check_epmd
 	$(REBAR) ct --suite=test/local_SUITE
 	$(REBAR) cover
 	rm -rf test/*.beam
 
-dist_tests: check_rebar check_epmd
+dist_test: check_rebar check_epmd
 	$(REBAR) ct --name ct@127.0.0.1 --suite=test/dist_SUITE
 	$(REBAR) cover
 	rm -rf test/*.beam

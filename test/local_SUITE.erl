@@ -93,7 +93,14 @@ t_shard_restarted_when_down(_Config) ->
   exit(whereis(ShardToKillTab1), kill),
   timer:sleep(500),
 
-  assert_values(tab1, [1, 2, 3], [nil, 2, 3]),
+  Expected = [begin
+    Shard = shards_local:pick(K, NumShards, w),
+    case Shard == ShardToKill of
+      true -> nil;
+      _    -> K
+    end
+  end || K <- [1, 2, 3]],
+  assert_values(tab1, [1, 2, 3], Expected),
 
   ShardToKillTab2 = shards_local:shard_name(tab2, ShardToKill),
   exit(whereis(ShardToKillTab2), kill),
