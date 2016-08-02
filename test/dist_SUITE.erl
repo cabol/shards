@@ -86,12 +86,14 @@ t_join_leave_ops(Config) ->
   Tabs = ?SHARDS_TABS -- [?ORDERED_SET],
   lists:foreach(fun(Tab) ->
     AllNodes = shards:join(Tab, AllNodes),
+    timer:sleep(500),
     7 = length(shards:get_nodes(Tab))
   end, Tabs),
 
   % check no duplicate members
   Members = pg2:get_members(?SET),
   AllNodes = shards:join(?SET, AllNodes),
+  timer:sleep(500),
   Members = pg2:get_members(?SET),
 
   % stop F node
@@ -109,10 +111,12 @@ t_join_leave_ops(Config) ->
 
   % leave an invalid node
   OkNodes1 = shards:leave(?SET, [wrongnode]),
+  timer:sleep(500),
 
   % leave node E from SET
   OkNodes2 = lists:usort([node() | lists:droplast(OkNodes1)]),
   OkNodes2 = shards:leave(?SET, [ENode]),
+  timer:sleep(500),
   OkNodes2 = shards:get_nodes(?SET),
   [A2, B2, C2, CT2, D2] = get_remote_nodes(OkNodes2, ?SET),
   OkNodes2 = A2 = B2 = C2 = CT2 = D2,
@@ -123,6 +127,7 @@ t_join_leave_ops(Config) ->
 
   % join E node
   OkNodes1 = shards:join(?SET, [ENode]),
+  timer:sleep(500),
   R1 = get_remote_nodes(OkNodes1, ?SET),
   R1 = get_remote_nodes(AllNodes, ?DUPLICATE_BAG),
 
@@ -162,12 +167,14 @@ t_eject_node_on_failure(Config) ->
   NewNodes = [Z] = start_slaves([z]),
   ok = rpc:call(Z, test_helper, init_shards, [g]),
   UpNodes1 = shards:join(?SET, NewNodes),
+  timer:sleep(500),
   UpNodes1 = shards:get_nodes(?SET),
 
   % insert some data on that node
   Z = lists:last(UpNodes1),
   Z = lists:nth(test_helper:pick_node(2, length(UpNodes1), r) + 1, UpNodes1),
   true = shards:insert(?SET, {2, 2}),
+  timer:sleep(500),
 
   % cause an error
   ok = rpc:call(Z, shards, stop, []),

@@ -1,26 +1,36 @@
 # Change Log
 
-## [v0.2.0](https://github.com/cabol/shards/tree/v0.2.0) (2016-07-10)
-[Full Changelog](https://github.com/cabol/shards/compare/0.1.0...v0.2.0)
+## [v0.3.0](https://github.com/cabol/shards/tree/v0.3.0) (2016-08-02)
+[Full Changelog](https://github.com/cabol/shards/compare/v0.2.0...v0.3.0)
 
 **Implemented enhancements:**
 
-- Encapsulate Shards **State** in its own module: `shards_state`.
-- Fix `rebar3` build and tests – all can be done with `rebar3` directly.
-- Fix `shards_dist` to handle `auto_eject_nodes` flag and/or unexpected errors.
-- Implement basic select/match functions for `shards_dist` module.
-- Configurable shards_owner_sup strategy, by means of restart_strategy option.
-- Modify `shards_local` to avoid additional table types, handle a flag `sharded` instead. [\#10](https://github.com/cabol/shards/issues/10)
-- Make distribution function to pick shard/node configurable. [\#9](https://github.com/cabol/shards/issues/9)
+- Allow to call `shards_local` without the state – using a default state. [#23](https://github.com/cabol/shards/issues/23)
+- Unify `pick_shard_fun` and `pick_node_fun` in a single spec [#22](https://github.com/cabol/shards/issues/22)
+- Separate `shards` from specific consistent hashing implementation. [#21](https://github.com/cabol/shards/issues/21)
+
+**Closed issues:**
+
+- Remove `auto_eject_nodes` property from `state` – it isn't being used [#24](https://github.com/cabol/shards/issues/24)
+- Fix `shards` to work well with `ordered_set` tables. [#4](https://github.com/cabol/shards/issues/4)
+
+## [v0.2.0](https://github.com/cabol/shards/tree/v0.2.0) (2016-07-10)
+[Full Changelog](https://github.com/cabol/shards/compare/v0.1.0...v0.2.0)
+
+**Implemented enhancements:**
+
+- Modify `shards\_local` to avoid additional table types, handle a flag `sharded` instead. [\#10](https://github.com/cabol/shards/issues/10)
+- Make distribution function \(pick none/shard\) configurable. [\#9](https://github.com/cabol/shards/issues/9)
 - Implement sharding at global level. [\#3](https://github.com/cabol/shards/issues/3)
 
 **Closed issues:**
 
-- OTP < 18 not supported [\#13](https://github.com/cabol/shards/issues/13)
+- OTP \< 18 not supported [\#13](https://github.com/cabol/shards/issues/13)
 - rebar2 compatibility [\#12](https://github.com/cabol/shards/issues/12)
 
 **Merged pull requests:**
 
+- Release 0.2.0 [\#20](https://github.com/cabol/shards/pull/20) ([cabol](https://github.com/cabol))
 - General fixes and refactoring. [\#19](https://github.com/cabol/shards/pull/19) ([cabol](https://github.com/cabol))
 - v0.2.0 [\#18](https://github.com/cabol/shards/pull/18) ([cabol](https://github.com/cabol))
 - Preparing v0.2.0. [\#17](https://github.com/cabol/shards/pull/17) ([cabol](https://github.com/cabol))
@@ -28,7 +38,7 @@
 - Enhancements and fix issue \#13. [\#14](https://github.com/cabol/shards/pull/14) ([cabol](https://github.com/cabol))
 - \[\#9\] Implement configurable and dynamic pick/compute shard and node functions [\#11](https://github.com/cabol/shards/pull/11) ([cabol](https://github.com/cabol))
 
-## [0.1.0](https://github.com/cabol/shards/tree/0.1.0) (2016-05-19)
+## [v0.1.0](https://github.com/cabol/shards/tree/v0.1.0) (2016-05-19)
 **Closed issues:**
 
 - Operation of the shards:info/2 does not match [\#8](https://github.com/cabol/shards/issues/8)
