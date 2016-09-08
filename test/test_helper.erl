@@ -655,7 +655,7 @@ init_shards_new(Scope) ->
   end,
 
   DefaultShards = ?N_SHARDS,
-  {_, StateSet} = shards:new(?SET, [
+  ?SET = shards:new(?SET, [
     {scope, Scope},
     {pick_node_fun, fun ?MODULE:pick_node/3}
   ]),
@@ -664,7 +664,7 @@ init_shards_new(Scope) ->
     n_shards := DefaultShards
   } = shards_state:to_map(StateSet),
 
-  {_, StateDupBag} = shards:new(?DUPLICATE_BAG, [
+  ?DUPLICATE_BAG = shards:new(?DUPLICATE_BAG, [
     {n_shards, 5},
     {scope, Scope},
     duplicate_bag,
@@ -675,7 +675,7 @@ init_shards_new(Scope) ->
     n_shards := 5
   } = shards_state:to_map(StateDupBag),
 
-  {_, StateOrderedSet} = shards:new(?ORDERED_SET, [
+  ?ORDERED_SET = shards:new(?ORDERED_SET, [
     {scope, Scope},
     ordered_set
   ]),
@@ -684,7 +684,7 @@ init_shards_new(Scope) ->
     n_shards := 1
   } = shards_state:to_map(StateOrderedSet),
 
-  {_, StateShardedDupBag} = shards:new(?SHARDED_DUPLICATE_BAG, [
+  ?SHARDED_DUPLICATE_BAG = shards:new(?SHARDED_DUPLICATE_BAG, [
     {n_shards, 5},
     {scope, Scope},
     duplicate_bag,

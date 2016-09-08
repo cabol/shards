@@ -5,7 +5,7 @@
 
 ETS tables on steroids!
 
-[Shards](https://github.com/cabol/shards) is an **Erlang/Elixir** library/tool compatible with the ETS API,
+[**Shards**](https://github.com/cabol/shards) is an **Erlang/Elixir** library/tool compatible with the ETS API,
 that implements [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database)) support on top of
 ETS totally transparent and out-of-box. **Shards** might be probably the **simplest** option to scale-out ETS tables.
 
@@ -26,7 +26,7 @@ It provides an API compatible with [ETS](http://erlang.org/doc/man/ets.html) –
 You can find the list of compatible ETS functions that **Shards** provides [HERE](https://github.com/cabol/shards/issues/1).
 
 
-## Installation
+## Usage
 
 ### Erlang
 
@@ -34,7 +34,7 @@ In your `rebar.config`:
 
 ```erlang
 {deps, [
-  {shards, "0.3.0"}
+  {shards, "0.3.1"}
 ]}.
 ```
 
@@ -44,7 +44,7 @@ In your `mix.exs`:
 
 ```elixir
 def deps do
-  [{:shards, "~> 0.3.0"}]
+  [{:shards, "~> 0.3.1"}]
 end
 ```
 
@@ -69,8 +69,7 @@ Now you can start an Erlang console with `shards` running:
 ```erlang
 % let's create a table, such as you would create it with ETS, with 4 shards
 > shards:new(mytab1, [{n_shards, 4}]).
-{mytab1,{state,shards_local,4,#Fun<shards_local.pick.3>,
-               #Fun<shards_local.pick.3>}}
+mytab1
 ```
 
 Exactly as ETS, `shards:new/2` function receives 2 arguments, the name of the table and
@@ -89,18 +88,23 @@ Option | Description | Default
   them and set your own functions, they are totally configurable by table, so you can have
   different tables with different pick-functions each.
 
-Furthermore, the `shards:new/2` function returns a tuple of two elements:
+Furthermore, when a new table is created, the [<i class="icon-refresh"></i> **State**](#state)
+is created for that table as well. The reason of the **State** is to store information
+related to that table, such as: number of shards, pick functions, etc. For more
+information go to the [<i class="icon-refresh"></i> **State Section**](#state).
+
+You can get the **State** at any time you want:
 
 ```erlang
-{mytab1, {state,shards_local,4,
-               #Fun<shards_local.pick.3>,
-               #Fun<shards_local.pick.3>}}
- ^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  1st                 2nd
-```
+> shards_state:get(mytab1).
+{state,shards_local,4,#Fun<shards_local.pick.3>,
+       #Fun<shards_local.pick.3>}
 
-The first element is the name of the created table; `mytab1`. And the second one is the
-[<i class="icon-refresh"></i> State](#state) – we'll cover it in the next section.
+% this is a wrapper on top of shards_state:get/1
+> shards:state(mytab1).
+{state,shards_local,4,#Fun<shards_local.pick.3>,
+       #Fun<shards_local.pick.3>}
+```
 
 > **NOTE:** For more information about `shards:new/2` see [shards](./src/shards.erl).
 
@@ -111,8 +115,7 @@ Let's continue:
 % schedulers; in my case is 8 (4 cores, 2 threads each).
 % This value is calculated calling: erlang:system_info(schedulers_online)
 > shards:new(mytab2, []).
-{mytab2,{state,shards_local,8,#Fun<shards_local.pick.3>,
-               #Fun<shards_local.pick.3>}}
+mytab2
 
 % now open the observer so you can see what happened
 > observer:start().
@@ -176,8 +179,8 @@ See how `shards` gets shrinks.
 
 ## State
 
-In the previous section we saw something about the `state`, how it is returned when
-a new table is created or how it can be fetched at any time. But, what is the `state`?
+In the previous section we saw something about the `state`, how it can be fetched at any time.
+But, what is the `state`?
 
 There are different properties that have to be stored somewhere in order `shards` works
 correctly. Remember, `shards` has a logic on top of `ETS`, for example, compute the
@@ -231,11 +234,9 @@ If any microsecond matters to you, you can skip the call to the control ETS tabl
     ```erlang
     % take a look at the 2nd element of the returned tuple, that is the state
     > shards:new(mytab, [{n_shards, 4}]).
-    {mytab,{state,shards_local,4,#Fun<shards_local.pick.3>,
-                  #Fun<shards_local.pick.3>}}
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    mytab
     
-    % you can also get the state at any time you want
+    % remember you can get the state at any time you want
     > State = shards:state(mytab).
     {state,shards_local,4,#Fun<shards_local.pick.3>,
            #Fun<shards_local.pick.3>}
@@ -257,8 +258,7 @@ If any microsecond matters to you, you can skip the call to the control ETS tabl
     ```erlang
     % create a table without set n_shards, pick_shard_fun or pick_node_fun
     > shards:new(mytab, []).
-    {mytab,{state,shards_local,8,#Fun<shards_local.pick.3>,
-                  #Fun<shards_local.pick.3>}}
+    mytab
     
     % call shards_local without the state
     > shards_local:insert(mytab, {1, 1}).
@@ -303,8 +303,7 @@ $ erl -sname c@localhost -pa _build/default/lib/*/ebin -s shards
 % when a tables is created with {scope, g}, the module shards_dist is used
 % internally by shards
 > shards:new(mytab, [{n_shards, 4}, {scope, g}]).
-{mytab,{state,shards_dist,4,#Fun<shards_local.pick.3>,
-              #Fun<shards_local.pick.3>}}
+mytab
 ```
 
 **3.** Setup the `shards` cluster.
@@ -381,6 +380,8 @@ And again, let's check it out from any node:
 ## Examples and/or Projects using Shards
 
 * [ExShards](https://github.com/cabol/exshards) is an **Elixir** wrapper for `shards`.
+
+* [KVX](https://github.com/cabol/kvx) – Simple/basic **Elixir** in-memory Key/Value Store using `shards` (default adapter).
 
 * [ErlBus](https://github.com/cabol/erlbus) uses `shards` to scale-out **Topics/Pids** table(s),
   which can be too large and with high concurrency level.

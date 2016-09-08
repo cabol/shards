@@ -233,11 +233,9 @@ member(Tab, Key, State) ->
     R                 -> R
   end.
 
--spec new(Name, Options) -> Result when
+-spec new(Name, Options) -> Name when
   Name    :: atom(),
-  Options :: [shards_local:option()],
-  State   :: shards_state:state(),
-  Result  :: {Name, State}.
+  Options :: [shards_local:option()].
 new(Name, Options) ->
   shards_local:new(Name, Options).
 

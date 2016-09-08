@@ -77,8 +77,8 @@ end_per_testcase(_, Config) ->
 
 t_shard_restarted_when_down(_Config) ->
   % create some sharded tables
-  {tab1, _} = shards:new(tab1, []),
-  {tab2, _} = shards:new(tab2, [{restart_strategy, one_for_all}]),
+  tab1 = shards:new(tab1, []),
+  tab2 = shards:new(tab2, [{restart_strategy, one_for_all}]),
 
   % insert some values
   true = shards:insert(tab1, [{1, 1}, {2, 2}, {3, 3}]),

@@ -443,11 +443,9 @@ member(Tab, Key) ->
 %% @see shards_local:new/2.
 %% @see shards_dist:new/2.
 %% @end
--spec new(Name, Options) -> Result when
+-spec new(Name, Options) -> Name when
   Name    :: atom(),
-  Options :: [shards_local:option()],
-  State   :: shards_state:state(),
-  Result  :: {Name, State}.
+  Options :: [shards_local:option()].
 new(Name, Options) ->
   case lists:keyfind(scope, 1, Options) of
     {scope, g} -> shards_dist:new(Name, Options);

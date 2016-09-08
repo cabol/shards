@@ -39,10 +39,10 @@
 %%% the `State'. E.g.:
 %%%
 %%% ```
-%%% % when you create the table by first time, the state is returned
-%%% {tab_name, State} = shards:new(tab_name, [{n_shards, 4}]).
+%%% % create a table
+%%% tab_name = shards:new(tab_name, [{n_shards, 4}]).
 %%%
-%%% % also you can get the state at any time by calling:
+%%% % you can get the state at any time by calling:
 %%% State = shards_state:get(tab_name).
 %%%
 %%% % normal way
@@ -301,7 +301,7 @@ file2tab(Filenames, Options) ->
       end
     end || FN <- Filenames],
     Tab = name_from_shard(First),
-    {Tab, _} = new(Tab, [
+    Tab = new(Tab, [
       {restore, ShardTabs, Options},
       {n_shards, length(Filenames)}
     ]),
@@ -843,14 +843,12 @@ member(Tab, Key, State) ->
 %%
 %% @see ets:new/2.
 %% @end
--spec new(Name, Options) -> Result when
+-spec new(Name, Options) -> Name when
   Name    :: atom(),
-  Options :: [option()],
-  State   :: shards_state:state(),
-  Result  :: {Name, State}.
+  Options :: [option()].
 new(Name, Options) ->
   case shards_sup:start_child([Name, Options]) of
-    {ok, _} -> {Name, shards_state:get(Name)};
+    {ok, _} -> Name;
     _       -> throw(badarg)
   end.
 
