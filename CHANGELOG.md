@@ -1,18 +1,25 @@
 # Change Log
 
+## [v0.3.1](https://github.com/cabol/shards/tree/v0.3.1) (2016-09-08)
+[Full Changelog](https://github.com/cabol/shards/compare/v0.3.0...v0.3.1)
+
+**Implemented enhancements:**
+
+- Modify `shards:new/2` function to return only the table name in case of success [\#27](https://github.com/cabol/shards/issues/27)
+
 ## [v0.3.0](https://github.com/cabol/shards/tree/v0.3.0) (2016-08-02)
 [Full Changelog](https://github.com/cabol/shards/compare/v0.2.0...v0.3.0)
 
 **Implemented enhancements:**
 
-- Allow to call `shards_local` without the state – using a default state. [#23](https://github.com/cabol/shards/issues/23)
-- Unify `pick_shard_fun` and `pick_node_fun` in a single spec [#22](https://github.com/cabol/shards/issues/22)
-- Separate `shards` from specific consistent hashing implementation. [#21](https://github.com/cabol/shards/issues/21)
+- Allow to call `shards\_local` without the state – using a default state. [\#23](https://github.com/cabol/shards/issues/23)
+- Unify `pick\_shard\_fun` and `pick\_node\_fun` in a single spec [\#22](https://github.com/cabol/shards/issues/22)
+- Separate `shards` from specific consistent hashing implementation. [\#21](https://github.com/cabol/shards/issues/21)
 
 **Closed issues:**
 
-- Remove `auto_eject_nodes` property from `state` – it isn't being used [#24](https://github.com/cabol/shards/issues/24)
-- Fix `shards` to work well with `ordered_set` tables. [#4](https://github.com/cabol/shards/issues/4)
+- Remove `auto\_eject\_nodes` property from `state` – it isn't being used [\#24](https://github.com/cabol/shards/issues/24)
+- Fix `shards` to work well with `ordered\_set` tables. [\#4](https://github.com/cabol/shards/issues/4)
 
 ## [v0.2.0](https://github.com/cabol/shards/tree/v0.2.0) (2016-07-10)
 [Full Changelog](https://github.com/cabol/shards/compare/v0.1.0...v0.2.0)
