@@ -5,4 +5,7 @@ otp_release:
   - 18.2.1
   - 18.1
   - 18.0
-script: "make local_test"
+before_script:
+  - epmd -daemon
+script:
+  - make local_test
