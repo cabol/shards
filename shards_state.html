@@ -34,64 +34,50 @@
   <li><code>w</code>: Write operation.</li>
   <li><code>d</code>: Delete operations.</li></p>
 
-<h3 class="typedecl"><a name="type-pick_node_fun">pick_node_fun()</a></h3>
-<p><tt>pick_node_fun() = <a href="#type-fun">'fun'</a>(fun((<a href="#type-op">op()</a>, <a href="#type-key">key()</a>, [node()]) -&gt; node()) | any)</tt></p>
-<p>Defines spec function to pick or compute the node.</p>
+<h3 class="typedecl"><a name="type-pick_fun">pick_fun()</a></h3>
+<p><tt>pick_fun() = <a href="#type-fun">'fun'</a>(fun((<a href="#type-key">key()</a>, <a href="#type-range">range()</a>, <a href="#type-op">op()</a>) -&gt; non_neg_integer()) | any)</tt></p>
+<p>Defines spec function to pick or compute the shard/node.
+  The function returns a value for <code>Key</code> within the range 0..Range-1.</p>
 
-<h3 class="typedecl"><a name="type-pick_shard_fun">pick_shard_fun()</a></h3>
-<p><tt>pick_shard_fun() = <a href="#type-fun">'fun'</a>(fun((<a href="#type-op">op()</a>, <a href="#type-key">key()</a>, <a href="#type-n_shards">n_shards()</a>) -&gt; non_neg_integer()) | any)</tt></p>
-<p>Defines spec function to pick or compute the shard.</p>
+<h3 class="typedecl"><a name="type-range">range()</a></h3>
+<p><tt>range() = pos_integer()</tt></p>
+<p>Defines the range or set – <code>range &gt; 0</code>.</p>
 
 <h3 class="typedecl"><a name="type-state">state()</a></h3>
 <p><tt>state() = #state{}</tt></p>
 <p>Defines <code>shards</code> state.</p>
 
 <h3 class="typedecl"><a name="type-state_map">state_map()</a></h3>
-<p><tt>state_map() = #{module =&gt; module(), n_shards =&gt; pos_integer(), type =&gt; <a href="ets.html#type-type">ets:type()</a>, pick_shard_fun =&gt; <a href="#type-pick_shard_fun">pick_shard_fun()</a>, pick_node_fun =&gt; <a href="#type-pick_node_fun">pick_node_fun()</a>, auto_eject_nodes =&gt; boolean()}</tt></p>
+<p><tt>state_map() = #{module =&gt; module(), n_shards =&gt; pos_integer(), pick_shard_fun =&gt; <a href="#type-pick_fun">pick_fun()</a>, pick_node_fun =&gt; <a href="#type-pick_fun">pick_fun()</a>}</tt></p>
 <p>Defines the map representation of the <code>shards</code> state:
   <ul>
   <li><code>module</code>: Module to be used depending on the <code>scope</code>:
   <code>shards_local</code> or <code>shards_dist</code>.</li>
   <li><code>n_shards</code>: Number of ETS shards/fragments.</li>
-  <li><code>type</code>: ETS Table type.</li>
   <li><code>pick_shard_fun</code>: Function callback to pick/compute the shard.</li>
   <li><code>pick_node_fun</code>: Function callback to pick/compute the node.</li>
-  <li><code>auto_eject_nodes</code>: A boolean value that controls if node should be
-  ejected when it fails.</li>
   </ul></p>
 
 <h2><a name="index">Function Index</a></h2>
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#auto_eject_nodes-1">auto_eject_nodes/1</a></td><td>
-  Returns the boolean value that controls if node should be
-  ejected when it fails.</td></tr>
-<tr><td valign="top"><a href="#from_map-1">from_map/1</a></td><td>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#from_map-1">from_map/1</a></td><td>
   Builds a new <code>state</code> from the given <code>Map</code>.</td></tr>
 <tr><td valign="top"><a href="#get-1">get/1</a></td><td>
   Returns the <code>state</code> for the given table <code>Tab</code>.</td></tr>
-<tr><td valign="top"><a href="#module-1">module/1</a></td><td>
-  Returns the used <code>module</code>.</td></tr>
-<tr><td valign="top"><a href="#n_shards-1">n_shards/1</a></td><td>
-  Returns the number of ETS shards/fragments.</td></tr>
+<tr><td valign="top"><a href="#module-1">module/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#module-2">module/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#n_shards-1">n_shards/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#n_shards-2">n_shards/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#new-0">new/0</a></td><td>
   Creates a new <code>state</code> with default values.</td></tr>
-<tr><td valign="top"><a href="#pick_node_fun-1">pick_node_fun/1</a></td><td>
-  Returns the function callback to pick/compute the node.</td></tr>
-<tr><td valign="top"><a href="#pick_shard_fun-1">pick_shard_fun/1</a></td><td>
-  Returns the function callback to pick/compute the shard.</td></tr>
+<tr><td valign="top"><a href="#pick_node_fun-1">pick_node_fun/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#pick_node_fun-2">pick_node_fun/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#pick_shard_fun-1">pick_shard_fun/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#pick_shard_fun-2">pick_shard_fun/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#to_map-1">to_map/1</a></td><td>
   Converts the given <code>state</code> into a <code>map</code>.</td></tr>
-<tr><td valign="top"><a href="#type-1">type/1</a></td><td>
-  Returns the <code>ets</code> table type.</td></tr>
 </table>
 
 <h2><a name="functions">Function Details</a></h2>
-
-<h3 class="function"><a name="auto_eject_nodes-1">auto_eject_nodes/1</a></h3>
-<div class="spec">
-<p><tt>auto_eject_nodes(Tab::atom() | <a href="#type-state">state()</a>) -&gt; boolean()</tt><br></p>
-</div><p>
-  Returns the boolean value that controls if node should be
-  ejected when it fails.</p>
 
 <h3 class="function"><a name="from_map-1">from_map/1</a></h3>
 <div class="spec">
@@ -107,15 +93,23 @@
 
 <h3 class="function"><a name="module-1">module/1</a></h3>
 <div class="spec">
-<p><tt>module(Tab::atom() | <a href="#type-state">state()</a>) -&gt; module()</tt><br></p>
-</div><p>
-  Returns the used <code>module</code>.</p>
+<p><tt>module(State::<a href="#type-state">state()</a> | atom()) -&gt; module()</tt><br></p>
+</div>
+
+<h3 class="function"><a name="module-2">module/2</a></h3>
+<div class="spec">
+<p><tt>module(Module::module(), State::<a href="#type-state">state()</a>) -&gt; <a href="#type-state">state()</a></tt><br></p>
+</div>
 
 <h3 class="function"><a name="n_shards-1">n_shards/1</a></h3>
 <div class="spec">
-<p><tt>n_shards(Tab::atom() | <a href="#type-state">state()</a>) -&gt; pos_integer()</tt><br></p>
-</div><p>
-  Returns the number of ETS shards/fragments.</p>
+<p><tt>n_shards(State::<a href="#type-state">state()</a> | atom()) -&gt; pos_integer()</tt><br></p>
+</div>
+
+<h3 class="function"><a name="n_shards-2">n_shards/2</a></h3>
+<div class="spec">
+<p><tt>n_shards(Shards::pos_integer(), State::<a href="#type-state">state()</a>) -&gt; <a href="#type-state">state()</a></tt><br></p>
+</div>
 
 <h3 class="function"><a name="new-0">new/0</a></h3>
 <div class="spec">
@@ -125,30 +119,32 @@
 
 <h3 class="function"><a name="pick_node_fun-1">pick_node_fun/1</a></h3>
 <div class="spec">
-<p><tt>pick_node_fun(Tab::atom() | <a href="#type-state">state()</a>) -&gt; <a href="#type-pick_node_fun">pick_node_fun()</a></tt><br></p>
-</div><p>
-  Returns the function callback to pick/compute the node.</p>
+<p><tt>pick_node_fun(State::<a href="#type-state">state()</a> | atom()) -&gt; <a href="#type-pick_fun">pick_fun()</a></tt><br></p>
+</div>
+
+<h3 class="function"><a name="pick_node_fun-2">pick_node_fun/2</a></h3>
+<div class="spec">
+<p><tt>pick_node_fun(Fun::<a href="#type-pick_fun">pick_fun()</a>, State::<a href="#type-state">state()</a>) -&gt; <a href="#type-state">state()</a></tt><br></p>
+</div>
 
 <h3 class="function"><a name="pick_shard_fun-1">pick_shard_fun/1</a></h3>
 <div class="spec">
-<p><tt>pick_shard_fun(Tab::atom() | <a href="#type-state">state()</a>) -&gt; <a href="#type-pick_shard_fun">pick_shard_fun()</a></tt><br></p>
-</div><p>
-  Returns the function callback to pick/compute the shard.</p>
+<p><tt>pick_shard_fun(State::<a href="#type-state">state()</a> | atom()) -&gt; <a href="#type-pick_fun">pick_fun()</a></tt><br></p>
+</div>
+
+<h3 class="function"><a name="pick_shard_fun-2">pick_shard_fun/2</a></h3>
+<div class="spec">
+<p><tt>pick_shard_fun(Fun::<a href="#type-pick_fun">pick_fun()</a>, State::<a href="#type-state">state()</a>) -&gt; <a href="#type-state">state()</a></tt><br></p>
+</div>
 
 <h3 class="function"><a name="to_map-1">to_map/1</a></h3>
 <div class="spec">
 <p><tt>to_map(State::<a href="#type-state">state()</a>) -&gt; <a href="#type-state_map">state_map()</a></tt><br></p>
 </div><p>
   Converts the given <code>state</code> into a <code>map</code>.</p>
-
-<h3 class="function"><a name="type-1">type/1</a></h3>
-<div class="spec">
-<p><tt>type(Tab::atom() | <a href="#type-state">state()</a>) -&gt; <a href="ets.html#type-type">ets:type()</a></tt><br></p>
-</div><p>
-  Returns the <code>ets</code> table type.</p>
 <hr>
 
 <div class="navbar"><a name="#navbar_bottom"></a><table width="100%" border="0" cellspacing="0" cellpadding="2" summary="navigation bar"><tr><td><a href="overview-summary.html" target="overviewFrame">Overview</a></td><td><a href="http://www.erlang.org/"><img src="erlang.png" align="right" border="0" alt="erlang logo"></a></td></tr></table></div>
-<p><i>Generated by EDoc, Jul 11 2016, 14:00:18.</i></p>
+<p><i>Generated by EDoc, Sep 9 2016, 08:46:11.</i></p>
 </body>
 </html>
