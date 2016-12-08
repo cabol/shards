@@ -614,6 +614,10 @@ t_equivalent_ops(Config) ->
   R5 = Mod:table(?SET, []),
 
   true = Mod:setopts(?SET, [{heir, none}]),
+  true = shards:setopts(?SET, []),
+
+  true = Mod:safe_fixtable(?SET, true),
+  true = shards:safe_fixtable(?SET, false),
 
   true = Mod:give_away(?SET, self(), []),
 

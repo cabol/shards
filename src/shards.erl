@@ -46,6 +46,7 @@
   new/2,
   next/2,
   prev/2,
+  safe_fixtable/2,
   select/2, select/3, select/1,
   select_count/2,
   select_delete/2,
@@ -477,6 +478,18 @@ next(Tab, Key1) ->
   Key2  :: term().
 prev(Tab, Key1) ->
   call(Tab, prev, [Tab, Key1]).
+
+%% @doc
+%% Wrapper to `shards_local:safe_fixtable/2' and `shards_dist:safe_fixtable/2'.
+%%
+%% @see safe_fixtable:select/2.
+%% @see safe_fixtable:select/2.
+%% @end
+-spec safe_fixtable(Tab, Fix) -> boolean() when
+  Tab :: atom(),
+  Fix :: boolean().
+safe_fixtable(Tab, Fix) ->
+  call(Tab, safe_fixtable, [Tab, Fix]).
 
 %% @doc
 %% Wrapper to `shards_local:select/3' and `shards_dist:select/3'.

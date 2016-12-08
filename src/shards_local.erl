@@ -88,6 +88,7 @@
   new/2,
   next/2, next/3,
   prev/2, prev/3,
+  safe_fixtable/2, safe_fixtable/3,
   select/2, select/3, select/4, select/1,
   select_count/2, select_count/3,
   select_delete/2, select_delete/3,
@@ -408,7 +409,7 @@ give_away(Tab, Pid, GiftData) ->
   GiftData :: term(),
   State    :: shards_state:state().
 give_away(Tab, Pid, GiftData, State) ->
-  Map = {fun shards_owner:give_away/3, [Pid, GiftData]},
+  Map = {fun shards_owner:apply_ets_fun/3, [give_away, [Pid, GiftData]]},
   Reduce = {fun(_, Acc) -> Acc end, true},
   mapred(Tab, Map, Reduce, State).
 
@@ -915,6 +916,27 @@ prev(Tab, Key1, State) ->
       next(Tab, Key1, State)
   end.
 
+%% @equiv safe_fixtable(Tab, Fix, shards_state:new())
+safe_fixtable(Tab, Fix) ->
+  safe_fixtable(Tab, Fix, shards_state:new()).
+
+%% @doc
+%% Equivalent to `ets:safe_fixtable/2' for each shard table.
+%% It returns a `boolean()' instead that just `true'.
+%% Returns `true' if the function was applied successfully
+%% on each shard, otherwise `false' is returned.
+%%
+%% @see ets:safe_fixtable/2.
+%% @end
+-spec safe_fixtable(Tab, Fix, State) -> boolean() when
+  Tab   :: atom(),
+  Fix   :: boolean(),
+  State :: shards_state:state().
+safe_fixtable(Tab, Fix, State) ->
+  Map = {fun ets:safe_fixtable/2, [Fix]},
+  Reduce = {fun(E, Acc) -> Acc and E end, true},
+  mapred(Tab, Map, Reduce, State).
+
 %% @equiv select(Tab, MatchSpec, shards_state:new())
 select(Tab, MatchSpec) ->
   select(Tab, MatchSpec, shards_state:new()).
@@ -1106,7 +1128,7 @@ setopts(Tab, Opts) ->
   HeirData :: term(),
   State    :: shards_state:state().
 setopts(Tab, Opts, State) ->
-  Map = {fun shards_owner:setopts/2, [Opts]},
+  Map = {fun shards_owner:apply_ets_fun/3, [setopts, [Opts]]},
   Reduce = {fun(E, Acc) -> Acc and E end, true},
   mapred(Tab, Map, Reduce, State).
 

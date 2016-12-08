@@ -11,8 +11,7 @@
 -export([
   start_link/2,
   shard_name/2,
-  give_away/3,
-  setopts/2,
+  apply_ets_fun/3,
   stop/1
 ]).
 
@@ -49,13 +48,9 @@ shard_name(Name, Shard) ->
           (integer_to_binary(Shard))/binary>>,
   binary_to_atom(Bin, utf8).
 
--spec give_away(atom(), pid(), term()) -> boolean().
-give_away(Name, Pid, GiftData) ->
-  gen_server:call(Name, {give_away, Pid, GiftData}).
-
--spec setopts(atom(), [term()]) -> boolean().
-setopts(Name, Options) ->
-  gen_server:call(Name, {setopts, Options}).
+-spec apply_ets_fun(atom(), atom(), [term()]) -> term().
+apply_ets_fun(Name, Fun, Args) ->
+  gen_server:call(Name, {Fun, Args}).
 
 -spec stop(atom()) -> ok.
 stop(ShardName) ->
@@ -88,11 +83,8 @@ validate_options(Options) ->
   end.
 
 %% @hidden
-handle_call({give_away, Pid, GiftData}, _From, #{name := Name} = State) ->
-  Response = ets:give_away(Name, Pid, GiftData),
-  {reply, Response, State};
-handle_call({setopts, Options}, _From, #{name := Name} = State) ->
-  Response = ets:setopts(Name, Options),
+handle_call({Fun, Args}, _From, #{name := Name} = State) ->
+  Response = apply(ets, Fun, [Name | Args]),
   {reply, Response, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
