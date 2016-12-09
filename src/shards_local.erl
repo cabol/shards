@@ -235,7 +235,7 @@ delete(Tab, Key) ->
   Key   :: term(),
   State :: shards_state:state().
 delete(Tab, Key, State) ->
-  mapred(Tab, Key, {fun ets:delete/2, [Key]}, nil, State, d),
+  _ = mapred(Tab, Key, {fun ets:delete/2, [Key]}, nil, State, d),
   true.
 
 %% @equiv delete_all_objects(Tab, shards_state:new())
@@ -251,7 +251,7 @@ delete_all_objects(Tab) ->
   Tab   :: atom(),
   State :: shards_state:state().
 delete_all_objects(Tab, State) ->
-  mapred(Tab, fun ets:delete_all_objects/1, State),
+  _ = mapred(Tab, fun ets:delete_all_objects/1, State),
   true.
 
 %% @equiv delete_object(Tab, Object, shards_state:new())
@@ -269,7 +269,7 @@ delete_object(Tab, Object) ->
   State  :: shards_state:state().
 delete_object(Tab, Object, State) when is_tuple(Object) ->
   [Key | _] = tuple_to_list(Object),
-  mapred(Tab, Key, {fun ets:delete_object/2, [Object]}, nil, State, d),
+  _ = mapred(Tab, Key, {fun ets:delete_object/2, [Object]}, nil, State, d),
   true.
 
 %% @equiv file2tab(Filenames, [])

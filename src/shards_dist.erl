@@ -40,6 +40,14 @@
 %% Macro to get the default module to use: `shards_local'.
 -define(SHARDS, shards_local).
 
+%% @type option() :: {nodes, [node()]} | shards_local:option().
+-type option() :: {nodes, [node()]} | shards_local:option().
+
+% Exported Types
+-export_type([
+  option/0
+]).
+
 %%%===================================================================
 %%% Extended API
 %%%===================================================================
@@ -52,13 +60,14 @@ join(Tab, Nodes) ->
   FilteredNodes = lists:filter(fun(Node) ->
     not lists:member(Node, get_nodes(Tab))
   end, Nodes),
-  global:trans({?MODULE, Tab}, fun() ->
+  _ = global:trans({?MODULE, Tab}, fun() ->
     rpc:multicall(FilteredNodes, erlang, apply, [fun join_/1, [Tab]])
   end),
   get_nodes(Tab).
 
 %% @private
-join_(Tab) -> pg2:join(Tab, whereis(Tab)).
+join_(Tab) ->
+  pg2:join(Tab, whereis(Tab)).
 
 -spec leave(Tab, Nodes) -> LeavedNodes when
   Tab         :: atom(),
@@ -86,7 +95,7 @@ get_nodes(Tab) ->
 
 -spec delete(Tab :: atom()) -> true.
 delete(Tab) ->
-  mapred(Tab, {?SHARDS, delete, [Tab]}, nil, shards_state:get(Tab), d),
+  _ = mapred(Tab, {?SHARDS, delete, [Tab]}, nil, shards_state:get(Tab), d),
   true.
 
 -spec delete(Tab, Key, State) -> true when
@@ -95,7 +104,7 @@ delete(Tab) ->
   State :: shards_state:state().
 delete(Tab, Key, State) ->
   Map = {?SHARDS, delete, [Tab, Key, State]},
-  mapred(Tab, Key, Map, nil, State, d),
+  _ = mapred(Tab, Key, Map, nil, State, d),
   true.
 
 -spec delete_all_objects(Tab, State) -> true when
@@ -103,7 +112,7 @@ delete(Tab, Key, State) ->
   State :: shards_state:state().
 delete_all_objects(Tab, State) ->
   Map = {?SHARDS, delete_all_objects, [Tab, State]},
-  mapred(Tab, Map, nil, State, d),
+  _ = mapred(Tab, Map, nil, State, d),
   true.
 
 -spec delete_object(Tab, Object, State) -> true when
@@ -113,7 +122,7 @@ delete_all_objects(Tab, State) ->
 delete_object(Tab, Object, State) when is_tuple(Object) ->
   [Key | _] = tuple_to_list(Object),
   Map = {?SHARDS, delete_object, [Tab, Object, State]},
-  mapred(Tab, Key, Map, nil, State, d),
+  _ = mapred(Tab, Key, Map, nil, State, d),
   true.
 
 -spec insert(Tab, ObjOrObjL, State) -> true when
@@ -235,9 +244,23 @@ member(Tab, Key, State) ->
 
 -spec new(Name, Options) -> Name when
   Name    :: atom(),
-  Options :: [shards_local:option()].
+  Options :: [option()].
 new(Name, Options) ->
-  shards_local:new(Name, Options).
+  case lists:keytake(nodes, 1, Options) of
+    {value, {nodes, Nodes}, Options1} ->
+      new(Name, Options1, Nodes);
+    _ ->
+      shards_local:new(Name, Options)
+  end.
+
+%% @private
+new(Name, Options, Nodes) ->
+  AllNodes = lists:usort([node() | Nodes]),
+  _ = global:trans({?MODULE, Name}, fun() ->
+    rpc:multicall(AllNodes, shards_local, new, [Name, Options])
+  end),
+  _ = join(Name, AllNodes),
+  Name.
 
 -spec select(Tab, MatchSpec, State) -> [Match] when
   Tab       :: atom(),

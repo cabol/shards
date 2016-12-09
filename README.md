@@ -82,6 +82,7 @@ Option | Description | Default
 `{restart_strategy, one_for_one | one_for_all}` | Allows to configure the restart strategy for `shards_owner_sup`. | `one_for_one`
 `{pick_shard_fun, pick_fun()}` | Function to pick the **shard** on which the `key` will be handled locally – used by `shards_local`. See [shards_state](./src/shards_state.erl). | `shards_local:pick/3`
 `{pick_node_fun, pick_fun()}` | Function to pick the **node** on which the `key` will be handled globally/distributed – used by `shards_dist`. See [shards_state](./src/shards_state.erl). | `shards_local:pick/3`
+`{nodes, [node()]}` | Allows to set a list of nodes to auto setup a distributed table – the table is created in all given nodes and then all nodes are joined. This option only has effect if the option `{scope, g}` has been set.  | `[]`
 
 > **NOTE:** By default `shards` uses a built-in functions to pick the **shard** (local scope)
   and the **node** (distributed scope) on which the key will be handled. BUT you can override
@@ -282,47 +283,68 @@ distributed.
 Node `a`:
 
 ```
-$ erl -sname a@localhost -pa _build/default/lib/*/ebin -s shards
+$ rebar3 shell --sname a@localhost
 ```
 
 Node `b`:
 
 ```
-$ erl -sname b@localhost -pa _build/default/lib/*/ebin -s shards
+$ rebar3 shell --sname b@localhost
 ```
 
 Node `c`:
 
 ```
-$ erl -sname c@localhost -pa _build/default/lib/*/ebin -s shards
+$ rebar3 shell --sname c@localhost
 ```
 
-**2.** Create a table with global scope (`{scope, g}`) on each node:
+**2.** Create a table with global scope (`{scope, g}`) on each node and then join them.
 
-```erlang
-% when a tables is created with {scope, g}, the module shards_dist is used
-% internally by shards
-> shards:new(mytab, [{n_shards, 4}, {scope, g}]).
-mytab
-```
+There are two ways to achieve this:
 
-**3.** Setup the `shards` cluster.
+ 1. Manually, create the table on each node and then from any of them, join the rest.
+ 
+    Create the table on each node:
+ 
+    ```erlang
+    % when a tables is created with {scope, g}, the module shards_dist is used
+    % internally by shards
+    > shards:new(mytab, [{scope, g}]).
+    mytab
+    ```
+    
+    Join them. From node `a`, join `b` and `c` nodes:
+    
+    ```erlang
+    > shards:join(mytab, ['b@localhost', 'c@localhost']).
+    [a@localhost,b@localhost,c@localhost]
+    ```
+    
+    Let's check that all nodes have the same nodes running next function on each node:
+    
+    ```erlang
+    > shards:get_nodes(mytab).
+    [a@localhost,b@localhost,c@localhost]
+    ```
+ 
+ 2. The easier way, call `shards:new/3` but passing the option `{nodes, Nodes}`,
+    where `Nodes` is the list of nodes you want to join.
+  
+    From Node `a`:
+    
+    ```erlang
+    > shards:new(mytab, [{scope, g}, {nodes, ['b@localhost', 'c@localhost']}]).
+    mytab
+    ```
+    
+    Let's check again on all nodes:
+        
+    ```erlang
+    > shards:get_nodes(mytab).
+    [a@localhost,b@localhost,c@localhost]
+    ```
 
-From node `a`, join `b` and `c` nodes:
-
-```erlang
-> shards:join(mytab, ['b@localhost', 'c@localhost']).
-[a@localhost,b@localhost,c@localhost]
-```
-
-Let's check that all nodes have the same nodes running next function on each node:
-
-```erlang
-> shards:get_nodes(mytab).
-[a@localhost,b@localhost,c@localhost]
-```
-
-**4.** Now **Shards** cluster is ready, let's do some basic operations:
+**3.** Now **Shards** cluster is ready, let's do some basic operations:
 
 From node `a`:
 

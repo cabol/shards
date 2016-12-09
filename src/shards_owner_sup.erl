@@ -16,9 +16,6 @@
 %% Macro to setup a supervisor worker
 -define(worker(Mod, Args, Spec), child(worker, Mod, Args, Spec)).
 
-%% Default number of shards
--define(N_SHARDS, erlang:system_info(schedulers_online)).
-
 %% Macro to check if restart strategy is allowed
 -define(is_restart_strategy(S_), S_ == one_for_one; S_ == one_for_all).
 
