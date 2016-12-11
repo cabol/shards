@@ -27,7 +27,7 @@
   t_match_ops/1,
   t_select_ops/1,
   t_eject_node_on_failure/1,
-  t_delete_tabs/1
+  t_delete_and_auto_setup_tab/1
 ]).
 
 -include("test_helper.hrl").
@@ -49,7 +49,7 @@ groups() ->
     t_match_ops,
     t_select_ops,
     t_eject_node_on_failure,
-    t_delete_tabs
+    t_delete_and_auto_setup_tab
   ]}].
 
 init_per_suite(Config) ->
@@ -191,7 +191,7 @@ t_eject_node_on_failure(Config) ->
 
   ok.
 
-t_delete_tabs(Config) ->
+t_delete_and_auto_setup_tab(Config) ->
   ok = cleanup_tabs(Config),
 
   UpNodes = shards:get_nodes(?SET),
@@ -202,6 +202,9 @@ t_delete_tabs(Config) ->
   [] = shards:get_nodes(?SET),
   [A, B, C, CT, D, E] = get_remote_nodes(UpNodes, ?SET),
   [] = A = B = C = CT = D = E,
+
+  ?SET = shards:new(?SET, [{scope, g}, {nodes, UpNodes}]),
+  6 = length(shards:get_nodes(?SET)),
 
   ok.
 

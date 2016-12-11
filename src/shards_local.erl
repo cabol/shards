@@ -268,7 +268,7 @@ delete_object(Tab, Object) ->
   Object :: tuple(),
   State  :: shards_state:state().
 delete_object(Tab, Object, State) when is_tuple(Object) ->
-  [Key | _] = tuple_to_list(Object),
+  Key = hd(tuple_to_list(Object)),
   _ = mapred(Tab, Key, {fun ets:delete_object/2, [Object]}, nil, State, d),
   true.
 
@@ -515,7 +515,7 @@ insert(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
     true = insert(Tab, Object, State)
   end, ObjOrObjL), true;
 insert(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
-  [Key | _] = tuple_to_list(ObjOrObjL),
+  Key = hd(tuple_to_list(ObjOrObjL)),
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
   ShardName = shard_name(Tab, PickShardFun(Key, N, w)),
@@ -544,7 +544,7 @@ insert_new(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
     [insert_new(Tab, Object, State) | Acc]
   end, [], ObjOrObjL);
 insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
-  [Key | _] = tuple_to_list(ObjOrObjL),
+  Key = hd(tuple_to_list(ObjOrObjL)),
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
   case PickShardFun(Key, N, r) of

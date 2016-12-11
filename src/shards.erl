@@ -360,7 +360,7 @@ match(Tab, Pattern, Limit) ->
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
 match(Continuation) ->
-  [Tab | _] = tuple_to_list(Continuation),
+  Tab = hd(tuple_to_list(Continuation)),
   Module = shards_state:module(Tab),
   Module:match(Continuation).
 
@@ -416,7 +416,7 @@ match_object(Tab, Pattern, Limit) ->
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
 match_object(Continuation) ->
-  [Tab | _] = tuple_to_list(Continuation),
+  Tab = hd(tuple_to_list(Continuation)),
   Module = shards_state:module(Tab),
   Module:match_object(Continuation).
 
@@ -531,7 +531,7 @@ select(Tab, MatchSpec, Limit) ->
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
 select(Continuation) ->
-  [Tab | _] = tuple_to_list(Continuation),
+  Tab = hd(tuple_to_list(Continuation)),
   Module = shards_state:module(Tab),
   Module:select(Continuation).
 
@@ -604,7 +604,7 @@ select_reverse(Tab, MatchSpec, Limit) ->
   Continuation :: continuation(),
   Response     :: {[Match], Continuation} | '$end_of_table'.
 select_reverse(Continuation) ->
-  [Tab | _] = tuple_to_list(Continuation),
+  Tab = hd(tuple_to_list(Continuation)),
   Module = shards_state:module(Tab),
   Module:select_reverse(Continuation).
 

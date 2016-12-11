@@ -120,7 +120,7 @@ delete_all_objects(Tab, State) ->
   Object :: tuple(),
   State  :: shards_state:state().
 delete_object(Tab, Object, State) when is_tuple(Object) ->
-  [Key | _] = tuple_to_list(Object),
+  Key = hd(tuple_to_list(Object)),
   Map = {?SHARDS, delete_object, [Tab, Object, State]},
   _ = mapred(Tab, Key, Map, nil, State, d),
   true.
@@ -134,10 +134,10 @@ insert(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
     true = insert(Tab, Object, State)
   end, ObjOrObjL), true;
 insert(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
-  [Key | _] = tuple_to_list(ObjOrObjL),
+  Key = hd(tuple_to_list(ObjOrObjL)),
   PickNodeFun = shards_state:pick_node_fun(State),
   Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
-  rpc_call(Node, {?SHARDS, insert, [Tab, ObjOrObjL, State]}, Tab).
+  rpc:call(Node, ?SHARDS, insert, [Tab, ObjOrObjL, State]).
 
 -spec insert_new(Tab, ObjOrObjL, State) -> Result when
   Tab       :: atom(),
@@ -149,7 +149,7 @@ insert_new(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
     [insert_new(Tab, Object, State) | Acc]
   end, [], ObjOrObjL);
 insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
-  [Key | _] = tuple_to_list(ObjOrObjL),
+  Key = hd(tuple_to_list(ObjOrObjL)),
   Nodes = get_nodes(Tab),
   PickNodeFun = shards_state:pick_node_fun(State),
   case pick_node(PickNodeFun, Key, Nodes, r) of
@@ -159,13 +159,13 @@ insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
       case mapred(Tab, Map, Reduce, State, r) of
         [] ->
           Node = pick_node(PickNodeFun, Key, Nodes, w),
-          rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, State]}, Tab);
+          rpc:call(Node, ?SHARDS, insert_new, [Tab, ObjOrObjL, State]);
         _ ->
           false
       end;
     _ ->
       Node = pick_node(PickNodeFun, Key, Nodes, w),
-      rpc_call(Node, {?SHARDS, insert_new, [Tab, ObjOrObjL, State]}, Tab)
+      rpc:call(Node, ?SHARDS, insert_new, [Tab, ObjOrObjL, State])
   end.
 
 -spec lookup(Tab, Key, State) -> Result when
@@ -326,15 +326,8 @@ pick_node(Fun, Key, Nodes, Op) ->
   end.
 
 %% @private
-rpc_call(Node, {Module, Function, Args}, Tab) ->
-  case rpc:call(Node, Module, Function, Args) of
-    {badrpc, _} ->
-      % unexpected to get here
-      _ = leave(Tab, [Node]),
-      throw({unexpected_error, {badrpc, Node}});
-    Response ->
-      Response
-  end.
+rpc_call(Node, {Module, Function, Args}) ->
+  rpc:call(Node, Module, Function, Args).
 
 %% @private
 mapred(Tab, Map, Reduce, State, Op) ->
@@ -351,7 +344,7 @@ mapred(Tab, Key, Map, Reduce, State, Op) ->
     any ->
       p_mapred(Tab, Map, Reduce);
     Node ->
-      rpc_call(Node, Map, Tab)
+      rpc_call(Node, Map)
   end.
 
 %% @private
