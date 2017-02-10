@@ -15,7 +15,6 @@
 -include_lib("mixer/include/mixer.hrl").
 -mixin([
   {test_helper, [
-    t_state/1,
     t_basic_ops/1,
     t_match_ops/1,
     t_select_ops/1,

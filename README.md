@@ -23,7 +23,7 @@ Therefore, one of the most common and proven strategies to deal with these probl
 
 Here is where **Shards** comes in. **Shards** makes extremely easy achieve all this, with **zero** effort.
 It provides an API compatible with [ETS](http://erlang.org/doc/man/ets.html) – with few exceptions.
-You can find the list of compatible ETS functions that **Shards** provides [HERE](https://github.com/cabol/shards/issues/1).
+You can check the list of compatible ETS functions that **Shards** provides [HERE](https://github.com/cabol/shards/issues/1).
 
 
 ## Usage
@@ -228,9 +228,9 @@ If any microsecond matters to you, you can skip the call to the control ETS tabl
 
  1. The first option is getting the `state`, and passing it as argument. Now the question is:
     how to get the **State**? Well, it's extremely easy, you can get the `state` when you call
-    `shards:new/2` by first time, or you can call `shards:state/1` or `shards_state:get/1`
-    at any time you want, and then it might be stored within the calling process, or wherever
-    you want. E.g.:
+    `shards:new/2` by first time, or you can call `shards:state/1`, `shards_state:get/1` or
+    `shards_state:new/0,1,2,3,4` at any time you want, and then it might be stored within
+    the calling process, or wherever you want. E.g.:
     
     ```erlang
     % take a look at the 2nd element of the returned tuple, that is the state
@@ -246,6 +246,11 @@ If any microsecond matters to you, you can skip the call to the control ETS tabl
     > shards_local:insert(mytab, {1, 1}, State).
     true
     > shards_local:lookup(mytab, 1, State).
+    [{1,1}]
+    
+    % in this case, only the n_shards is different from default, so you
+    % can do this:
+    > shards_local:lookup(mytab, 1, shards_state:new(4)).
     [{1,1}]
     ```
 

@@ -2,7 +2,6 @@
 
 %% Test Cases
 -export([
-  t_state/1,
   t_basic_ops/1,
   t_match_ops/1,
   t_select_ops/1,
@@ -61,40 +60,6 @@ pick_node_dist(_, _, _) ->
 %%%===================================================================
 %%% Test Cases
 %%%===================================================================
-
-t_state(_Config) ->
-  % test badarg
-  wrong_tab = ets:new(wrong_tab, [public, named_table]),
-  try shards_state:get(wrong_tab)
-  catch _:{badarg, wrong_tab} -> ok
-  end,
-
-  StateSet = shards_state:get(?SET),
-  DefaultShards = ?N_SHARDS,
-  #{n_shards := DefaultShards} = shards_state:to_map(StateSet),
-
-  Mod = shards_state:module(?SET),
-  true = Mod == shards_local orelse Mod == shards_dist,
-  DefaultShards = shards_state:n_shards(?SET),
-  Fun1 = fun shards_local:pick/3,
-  Fun1 = shards_state:pick_shard_fun(?SET),
-  Fun2 = fun ?MODULE:pick_node/3,
-  Fun2 = shards_state:pick_node_fun(?SET),
-
-  State0 = shards_state:new(),
-  State1 = shards_state:module(shards_dist, State0),
-  State2 = shards_state:n_shards(100, State1),
-  Fun = fun(X, Y, Z) -> (X + Y + Z) rem Y end,
-  State3 = shards_state:pick_shard_fun(Fun, State2),
-  State4 = shards_state:pick_node_fun(Fun, State3),
-
-  #{module           := shards_dist,
-    n_shards         := 100,
-    pick_shard_fun   := Fun,
-    pick_node_fun    := Fun
-  } = shards_state:to_map(State4),
-
-  ok.
 
 t_basic_ops(Config) ->
   Tables = lists:zip(?SHARDS_TABS, ?ETS_TABS),

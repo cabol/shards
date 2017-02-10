@@ -10,6 +10,10 @@
 -export([
   get/1,
   new/0,
+  new/1,
+  new/2,
+  new/3,
+  new/4,
   to_map/1,
   from_map/1
 ]).
@@ -112,22 +116,29 @@
 %%% API
 %%%===================================================================
 
-%% @doc
-%% Returns the `state' for the given table `Tab'.
-%% @end
--spec get(Tab :: atom()) -> state().
-get(Tab) when is_atom(Tab) ->
-  case ets:lookup(Tab, state) of
-    [State] -> State;
-    _       -> throw({badarg, Tab})
-  end.
-
-%% @doc
-%% Creates a new `state' with default values.
-%% @end
 -spec new() -> state().
 new() ->
   #state{}.
+
+-spec new(pos_integer()) -> state().
+new(Shards) ->
+  #state{n_shards = Shards}.
+
+-spec new(pos_integer(), module()) -> state().
+new(Shards, Module) ->
+  #state{n_shards = Shards, module = Module}.
+
+-spec new(pos_integer(), module(), pick_fun()) -> state().
+new(Shards, Module, PickShardFun) ->
+  #state{n_shards = Shards, module = Module, pick_shard_fun = PickShardFun}.
+
+-spec new(pos_integer(), module(), pick_fun(), pick_fun()) -> state().
+new(Shards, Module, PickShardFun, PickNodeFun) ->
+  #state{
+    n_shards       = Shards,
+    module         = Module,
+    pick_shard_fun = PickShardFun,
+    pick_node_fun  = PickNodeFun}.
 
 %% @doc
 %% Converts the given `state' into a `map'.
@@ -150,6 +161,16 @@ from_map(Map) ->
     pick_shard_fun = maps:get(pick_shard_fun, Map, fun shards_local:pick/3),
     pick_node_fun  = maps:get(pick_node_fun, Map, fun shards_local:pick/3)}.
 
+%% @doc
+%% Returns the `state' for the given table `Tab'.
+%% @end
+-spec get(Tab :: atom()) -> state().
+get(Tab) when is_atom(Tab) ->
+  case ets:lookup(Tab, state) of
+    [State] -> State;
+    _       -> throw({badarg, Tab})
+  end.
+
 %%%===================================================================
 %%% API – Getters & Setters
 %%%===================================================================
@@ -165,8 +186,8 @@ module(Module, #state{} = State) when is_atom(Module) ->
   State#state{module = Module}.
 
 -spec n_shards(state() | atom()) -> pos_integer().
-n_shards(#state{n_shards = NumShards}) ->
-  NumShards;
+n_shards(#state{n_shards = Shards}) ->
+  Shards;
 n_shards(Tab) when is_atom(Tab) ->
   n_shards(?MODULE:get(Tab)).
 

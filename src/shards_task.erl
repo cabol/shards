@@ -11,15 +11,30 @@
 -module(shards_task).
 
 %% Task API
--export([start/1, start/2, start/3]).
--export([start_link/1, start_link/2, start_link/3]).
--export([async/1, async/2, async/3]).
--export([await/1, await/2]).
+-export([
+  start/1,
+  start/2,
+  start/3,
+  start_link/1,
+  start_link/2,
+  start_link/3,
+  async/1,
+  async/2,
+  async/3,
+  await/1,
+  await/2
+]).
 
 %% Task Supervised API
--export([sup_start/2, sup_start_link/2, sup_start_link/4]).
--export([sup_spawn_link/3, sup_spawn_link/4]).
--export([reply/4, noreply/2]).
+-export([
+  sup_start/2,
+  sup_start_link/2,
+  sup_start_link/4,
+  sup_spawn_link/3,
+  sup_spawn_link/4,
+  reply/4,
+  noreply/2
+]).
 
 -define(TIMEOUT, 5000).
 
@@ -285,8 +300,7 @@ initial_call(MFA) ->
   put('$initial_call', get_initial_call(MFA)).
 
 %% @private
-get_initial_call({erlang, apply, [Fun, Args]})
-    when is_function(Fun, length(Args)) ->
+get_initial_call({erlang, apply, [Fun, Args]}) when is_function(Fun, length(Args)) ->
   {module, Module} = erlang:fun_info(Fun, module),
   {name, Name} = erlang:fun_info(Fun, name),
   {Module, Name, length(Args)};
@@ -313,8 +327,10 @@ exit(Info, MFA, LogReason, Reason) ->
   exit(Reason).
 
 %% @private
-get_from({Node, PidOrName}) when Node == node() -> PidOrName;
-get_from(Other)                                 -> Other.
+get_from({Node, PidOrName}) when Node == node() ->
+  PidOrName;
+get_from(Other) ->
+  Other.
 
 %% @private
 get_running({erlang, apply, [Fun, Args]}) when is_function(Fun, length(Args)) ->
@@ -323,8 +339,7 @@ get_running({Mod, Fun, Args}) ->
   {erlang:make_fun(Mod, Fun, length(Args)), Args}.
 
 %% @private
-get_reason({undef, [{Mod, Fun, Args, _Info} | _] = Stacktrace} = Reason)
-    when is_atom(Mod) and is_atom(Fun) ->
+get_reason({undef, [{Mod, Fun, Args, _Info} | _] = Stacktrace} = Reason) when is_atom(Mod) and is_atom(Fun) ->
   FunExported = fun
     (M, F, A) when is_list(A) ->
       erlang:function_exported(M, F, length(A));
@@ -346,9 +361,13 @@ get_reason(Reason) ->
   Reason.
 
 %% @private
-reason(noconnection, Proc) -> {nodedown, monitor_node(Proc)};
-reason(Reason, _)          -> Reason.
+reason(noconnection, Proc) ->
+  {nodedown, monitor_node(Proc)};
+reason(Reason, _) ->
+  Reason.
 
 %% @private
-monitor_node(Pid) when is_pid(Pid) -> node(Pid);
-monitor_node({_, Node})            -> Node.
+monitor_node(Pid) when is_pid(Pid) ->
+  node(Pid);
+monitor_node({_, Node}) ->
+  Node.

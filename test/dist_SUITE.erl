@@ -16,7 +16,6 @@
 -include_lib("mixer/include/mixer.hrl").
 -mixin([
   {test_helper, [
-    t_state/1,
     t_basic_ops/1
   ]}
 ]).
@@ -44,7 +43,6 @@ all() ->
 groups() ->
   [{dist_test_group, [sequence], [
     t_join_leave_ops,
-    t_state,
     t_basic_ops,
     t_match_ops,
     t_select_ops,
