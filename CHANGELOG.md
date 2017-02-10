@@ -1,5 +1,17 @@
 # Change Log
 
+## [v0.4.0](https://github.com/cabol/shards/tree/v0.4.0) (2017-02-10)
+[Full Changelog](https://github.com/cabol/shards/compare/v0.3.1...v0.4.0)
+
+**Implemented enhancements:**
+
+- Allow to create the `state` passing the rest of its attributes [\#30](https://github.com/cabol/shards/issues/30)
+
+**Closed issues:**
+
+- Add performance and scalability tests [\#2](https://github.com/cabol/shards/issues/2)
+- Fulfil ETS API for `shards\_local` [\#1](https://github.com/cabol/shards/issues/1)
+
 ## [v0.3.1](https://github.com/cabol/shards/tree/v0.3.1) (2016-09-08)
 [Full Changelog](https://github.com/cabol/shards/compare/v0.3.0...v0.3.1)
 
