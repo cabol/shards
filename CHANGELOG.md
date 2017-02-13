@@ -1,5 +1,18 @@
 # Change Log
 
+## [v0.4.1](https://github.com/cabol/shards/tree/v0.4.1) (2017-02-13)
+[Full Changelog](https://github.com/cabol/shards/compare/v0.4.0...v0.4.1)
+
+**Implemented enhancements:**
+
+- Automatically distributed table setup when `shards:new/2` is called with opt `{nodes, \[node\(\)\]}` [\#28](https://github.com/cabol/shards/issues/28)
+- Implement `select/match` pagination ops for `shards\_dist` [\#16](https://github.com/cabol/shards/issues/16)
+
+**Closed issues:**
+
+- Implement `update\_counter` and `update\_element` in `shards\_dist` [\#31](https://github.com/cabol/shards/issues/31)
+- LRU Feature may be  [\#29](https://github.com/cabol/shards/issues/29)
+
 ## [v0.4.0](https://github.com/cabol/shards/tree/v0.4.0) (2017-02-10)
 [Full Changelog](https://github.com/cabol/shards/compare/v0.3.1...v0.4.0)
 
