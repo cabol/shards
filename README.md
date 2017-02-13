@@ -44,7 +44,7 @@ In your `mix.exs`:
 
 ```elixir
 def deps do
-  [{:shards, "~> 0.4.0"}]
+  [{:shards, "~> 0.4"}]
 end
 ```
 
@@ -231,23 +231,23 @@ If any microsecond matters to you, you can skip the call to the control ETS tabl
     `shards:new/2` by first time, or you can call `shards:state/1`, `shards_state:get/1` or
     `shards_state:new/0,1,2,3,4` at any time you want, and then it might be stored within
     the calling process, or wherever you want. E.g.:
-    
+
     ```erlang
     % take a look at the 2nd element of the returned tuple, that is the state
     > shards:new(mytab, [{n_shards, 4}]).
     mytab
-    
+
     % remember you can get the state at any time you want
     > State = shards:state(mytab).
     {state,shards_local,4,#Fun<shards_local.pick.3>,
            #Fun<shards_local.pick.3>}
-    
+
     % now you can call shards_local directly
     > shards_local:insert(mytab, {1, 1}, State).
     true
     > shards_local:lookup(mytab, 1, State).
     [{1,1}]
-    
+
     % in this case, only the n_shards is different from default, so you
     % can do this:
     > shards_local:lookup(mytab, 1, shards_state:new(4)).
@@ -260,12 +260,12 @@ If any microsecond matters to you, you can skip the call to the control ETS tabl
     better, since in this case no additional calls are needed, not even to recover the `state`
     (like in the previous option), because a new `state` is created with default values.
     Therefore, the call is mapped directly to an **ETS** function. E.g.:
-    
+
     ```erlang
     % create a table without set n_shards, pick_shard_fun or pick_node_fun
     > shards:new(mytab, []).
     mytab
-    
+
     % call shards_local without the state
     > shards_local:insert(mytab, {1, 1}).
     true
@@ -308,42 +308,42 @@ $ rebar3 shell --sname c@localhost
 There are two ways to achieve this:
 
  1. Manually, create the table on each node and then from any of them, join the rest.
- 
+
     Create the table on each node:
- 
+
     ```erlang
     % when a tables is created with {scope, g}, the module shards_dist is used
     % internally by shards
     > shards:new(mytab, [{scope, g}]).
     mytab
     ```
-    
+
     Join them. From node `a`, join `b` and `c` nodes:
-    
+
     ```erlang
     > shards:join(mytab, ['b@localhost', 'c@localhost']).
     [a@localhost,b@localhost,c@localhost]
     ```
-    
+
     Let's check that all nodes have the same nodes running next function on each node:
-    
+
     ```erlang
     > shards:get_nodes(mytab).
     [a@localhost,b@localhost,c@localhost]
     ```
- 
+
  2. The easier way, call `shards:new/3` but passing the option `{nodes, Nodes}`,
     where `Nodes` is the list of nodes you want to join.
-  
+
     From Node `a`:
-    
+
     ```erlang
     > shards:new(mytab, [{scope, g}, {nodes, ['b@localhost', 'c@localhost']}]).
     mytab
     ```
-    
+
     Let's check again on all nodes:
-        
+
     ```erlang
     > shards:get_nodes(mytab).
     [a@localhost,b@localhost,c@localhost]
@@ -406,7 +406,7 @@ And again, let's check it out from any node:
 
 ## Examples and/or Projects using Shards
 
-* [ExShards](https://github.com/cabol/exshards) is an **Elixir** wrapper for `shards`.
+* [ExShards](https://github.com/cabol/ex_shards) is an **Elixir** wrapper for `shards` – with extra and nicer functions.
 
 * [KVX](https://github.com/cabol/kvx) – Simple/basic **Elixir** in-memory Key/Value Store using `shards` (default adapter).
 

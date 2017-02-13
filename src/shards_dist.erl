@@ -30,7 +30,10 @@
   select_count/3,
   select_delete/3,
   select_reverse/3,
-  take/3
+  take/3,
+  update_counter/4,
+  update_counter/5,
+  update_element/4
 ]).
 
 %%%===================================================================
@@ -311,6 +314,41 @@ take(Tab, Key, State) ->
   Map = {?SHARDS, take, [Tab, Key, State]},
   Reduce = fun lists:append/2,
   mapred(Tab, Key, Map, Reduce, State, r).
+
+-spec update_counter(Tab, Key, UpdateOp, State) -> Result when
+  Tab      :: atom(),
+  Key      :: term(),
+  UpdateOp :: term(),
+  State    :: shards_state:state(),
+  Result   :: integer().
+update_counter(Tab, Key, UpdateOp, State) ->
+  PickNodeFun = shards_state:pick_node_fun(State),
+  Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
+  rpc:call(Node, ?SHARDS, update_counter, [Tab, Key, UpdateOp, State]).
+
+-spec update_counter(Tab, Key, UpdateOp, Default, State) -> Result when
+  Tab      :: atom(),
+  Key      :: term(),
+  UpdateOp :: term(),
+  Default  :: tuple(),
+  State    :: shards_state:state(),
+  Result   :: integer().
+update_counter(Tab, Key, UpdateOp, Default, State) ->
+  PickNodeFun = shards_state:pick_node_fun(State),
+  Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
+  rpc:call(Node, ?SHARDS, update_counter, [Tab, Key, UpdateOp, Default, State]).
+
+-spec update_element(Tab, Key, ElementSpec, State) -> boolean() when
+  Tab         :: atom(),
+  Key         :: term(),
+  Pos         :: pos_integer(),
+  Value       :: term(),
+  ElementSpec :: {Pos, Value} | [{Pos, Value}],
+  State       :: shards_state:state().
+update_element(Tab, Key, ElementSpec, State) ->
+  PickNodeFun = shards_state:pick_node_fun(State),
+  Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
+  rpc:call(Node, ?SHARDS, update_element, [Tab, Key, ElementSpec, State]).
 
 %%%===================================================================
 %%% Internal functions
