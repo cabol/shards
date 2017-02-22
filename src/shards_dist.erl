@@ -44,7 +44,7 @@
 %% Macro to get the default module to use: `shards_local'.
 -define(SHARDS, shards_local).
 
-%% @type option() :: {nodes, [node()]} | shards_local:option().
+%% @type option() = {nodes, [node()]} | shards_local:option().
 -type option() :: {nodes, [node()]} | shards_local:option().
 
 % Exported Types

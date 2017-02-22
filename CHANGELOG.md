@@ -1,5 +1,13 @@
 # Change Log
 
+## [v0.4.2](https://github.com/cabol/shards/tree/v0.4.2) (2017-02-22)
+[Full Changelog](https://github.com/cabol/shards/compare/v0.4.1...v0.4.2)
+
+**Closed issues:**
+
+- Implement `ets:rename/2` [\#32](https://github.com/cabol/shards/issues/32)
+- Fulfil ETS API for `shards\_local` [\#1](https://github.com/cabol/shards/issues/1)
+
 ## [v0.4.1](https://github.com/cabol/shards/tree/v0.4.1) (2017-02-13)
 [Full Changelog](https://github.com/cabol/shards/compare/v0.4.0...v0.4.1)
 
@@ -23,7 +31,6 @@
 **Closed issues:**
 
 - Add performance and scalability tests [\#2](https://github.com/cabol/shards/issues/2)
-- Fulfil ETS API for `shards\_local` [\#1](https://github.com/cabol/shards/issues/1)
 
 ## [v0.3.1](https://github.com/cabol/shards/tree/v0.3.1) (2016-09-08)
 [Full Changelog](https://github.com/cabol/shards/compare/v0.3.0...v0.3.1)

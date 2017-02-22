@@ -34,7 +34,7 @@ In your `rebar.config`:
 
 ```erlang
 {deps, [
-  {shards, "0.4.1"}
+  {shards, "0.4.2"}
 ]}.
 ```
 
@@ -427,7 +427,7 @@ You can find tests results in `_build/test/logs`, and coverage in `_build/test/c
 
 ## Building Edoc
 
-    $ make edoc
+    $ make doc
 
 > **Note:** Once you run previous command, a new folder `doc` is created, and you'll have a pretty nice HTML documentation.
 

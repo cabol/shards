@@ -32,3 +32,5 @@ priv/*.so
 *.crashdump
 rebar.lock
 *_plt
+doc
+docs

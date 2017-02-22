@@ -229,7 +229,7 @@ start_slaves([Node | T], Acc) ->
     {startup_functions, [{shards, start, []}]},
     {erl_flags, ErlFlags}
   ]),
-  ct:print("\e[36m ---> Node ~p \e[32m[OK] \e[0m", [HostNode]),
+  ct:pal("==> Node ~p [UP]", [HostNode]),
   pong = net_adm:ping(HostNode),
   start_slaves(T, [HostNode | Acc]).
 
@@ -240,7 +240,7 @@ stop_slaves([], Acc) ->
   lists:usort(Acc);
 stop_slaves([Node | T], Acc) ->
   {ok, Name} = ct_slave:stop(Node),
-  ct:print("\e[36m ---> Node ~p \e[31m[STOPPED] \e[0m", [Name]),
+  ct:pal("==> Node ~p [STOPPED]", [Name]),
   pang = net_adm:ping(Node),
   stop_slaves(T, [Node | Acc]).
 
