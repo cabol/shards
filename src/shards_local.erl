@@ -88,6 +88,7 @@
   new/2,
   next/2, next/3,
   prev/2, prev/3,
+  rename/2, rename/3,
   safe_fixtable/2, safe_fixtable/3,
   select/2, select/3, select/4, select/1,
   select_count/2, select_count/3,
@@ -108,7 +109,8 @@
 -export([
   shard_name/2,
   pick/3,
-  list/2
+  list/2,
+  get_pid/1
 ]).
 
 %%%===================================================================
@@ -218,7 +220,7 @@ all() ->
 %% @end
 -spec delete(Tab :: atom()) -> true.
 delete(Tab) ->
-  ok = shards_sup:terminate_child(shards_sup, whereis(Tab)),
+  ok = shards_sup:terminate_child(shards_sup, get_pid(Tab)),
   true.
 
 %% @equiv delete(Tab, Key, shards_state:new())
@@ -297,8 +299,8 @@ file2tab(Filenames, Options) ->
         {ok, Info} ->
           {name, ShardTabName} = lists:keyfind(name, 1, Info),
           {ShardTabName, FN};
-        {error, Reason} ->
-          throw({error, Reason})
+        {error, _} = Error ->
+          throw(Error)
       end
     end || FN <- Filenames],
     Tab = name_from_shard(First),
@@ -638,7 +640,7 @@ lookup_element(Tab, Key, Pos, State) ->
         (_)           -> true
       end, mapred(Tab, {LookupElem, [Key, Pos]}, State)),
       case Filter of
-        [] -> exit({badarg, erlang:get_stacktrace()});
+        [] -> error(badarg);
         _  -> lists:append(Filter)
       end;
     Shard ->
@@ -849,8 +851,11 @@ member(Tab, Key, State) ->
   Options :: [option()].
 new(Name, Options) ->
   case shards_sup:start_child([Name, Options]) of
-    {ok, _} -> Name;
-    _       -> throw(badarg)
+    {ok, Pid} ->
+      true = register(Name, Pid),
+      Name;
+    _ ->
+      error(badarg)
   end.
 
 %% @equiv next(Tab, Key1, shards_state:new())
@@ -915,6 +920,39 @@ prev(Tab, Key1, State) ->
     _ ->
       next(Tab, Key1, State)
   end.
+
+%% @equiv rename(Tab, Name, shards_state:new())
+rename(Tab, Name) ->
+  rename(Tab, Name, shards_state:new()).
+
+%% @doc
+%% Equivalent to `ets:rename/2'.
+%%
+%% Renames the table name and all its associated shard tables.
+%% If something unexpected occurs during the process, an exception
+%% will be thrown.
+%%
+%% @see ets:rename/2.
+%% @end
+-spec rename(Tab, Name, State) -> Name | no_return() when
+  Tab   :: atom(),
+  Name  :: atom(),
+  State :: shards_state:state().
+rename(Tab, Name, State) ->
+  _ = lists:foreach(fun(Shard) ->
+    ShardName = shard_name(Tab, Shard),
+    NewShardName = shard_name(Name, Shard),
+    NewShardName = do_rename(ShardName, NewShardName)
+  end, lists:seq(0, shards_state:n_shards(State) - 1)),
+  do_rename(Tab, Name).
+
+%% @private
+do_rename(OldName, NewName) ->
+  NewName = ets:rename(OldName, NewName),
+  Pid = get_pid(OldName),
+  true = unregister(OldName),
+  true = register(NewName, Pid),
+  NewName.
 
 %% @equiv safe_fixtable(Tab, Fix, shards_state:new())
 safe_fixtable(Tab, Fix) ->
@@ -1339,6 +1377,19 @@ pick(Key, NumShards, _) ->
 list(TabName, NumShards) ->
   Shards = lists:seq(0, NumShards - 1),
   [shard_name(TabName, Shard) || Shard <- Shards].
+
+%% @doc
+%% Returns the PID associated to the table `Tab'.
+%% <ul>
+%% <li>`TabName': Table name.</li>
+%% </ul>
+%% @end
+-spec get_pid(Tab :: atom()) -> pid() | no_return().
+get_pid(Tab) ->
+  case whereis(Tab) of
+    undefined -> error(badarg);
+    Pid       -> Pid
+  end.
 
 %%%===================================================================
 %%% Internal functions

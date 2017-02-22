@@ -31,7 +31,7 @@
   Options  :: [term()],
   Response :: supervisor:startlink_ret().
 start_link(Name, Options) ->
-  supervisor:start_link({local, Name}, ?MODULE, [Name, Options]).
+  supervisor:start_link(?MODULE, [Name, Options]).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -39,7 +39,7 @@ start_link(Name, Options) ->
 
 %% @hidden
 init([Name, Options]) ->
-  % ETS table to hold state info.
+  % ETS table to store state info.
   Name = ets:new(Name, [
     set,
     named_table,

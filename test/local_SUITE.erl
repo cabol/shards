@@ -25,6 +25,7 @@
     t_fold_ops/1,
     t_info_ops/1,
     t_tab2list_tab2file_file2tab/1,
+    t_rename/1,
     t_equivalent_ops/1
   ]}
 ]).
@@ -78,6 +79,10 @@ t_shard_restarted_when_down(_Config) ->
   % create some sharded tables
   tab1 = shards:new(tab1, []),
   tab2 = shards:new(tab2, [{restart_strategy, one_for_all}]),
+
+  try shards_local:get_pid(wrong)
+  catch _:badarg -> ok
+  end,
 
   % insert some values
   true = shards:insert(tab1, [{1, 1}, {2, 2}, {3, 3}]),

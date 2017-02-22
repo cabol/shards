@@ -17,7 +17,6 @@
   delete/1, delete/3,
   delete_all_objects/2,
   delete_object/3,
-  new/2,
   insert/3,
   insert_new/3,
   lookup/3,
@@ -26,6 +25,8 @@
   match_delete/3,
   match_object/3,
   member/3,
+  new/2,
+  rename/3,
   select/3,
   select_count/3,
   select_delete/3,
@@ -70,7 +71,7 @@ join(Tab, Nodes) ->
 
 %% @private
 join_(Tab) ->
-  pg2:join(Tab, whereis(Tab)).
+  pg2:join(Tab, shards_local:get_pid(Tab)).
 
 -spec leave(Tab, Nodes) -> LeavedNodes when
   Tab         :: atom(),
@@ -198,7 +199,7 @@ lookup_element(Tab, Key, Pos, State) ->
         (_)                     -> true
       end, mapred(Tab, Map, nil, State, r)),
       case Filter of
-        [] -> exit({badarg, erlang:get_stacktrace()});
+        [] -> error(badarg);
         _  -> lists:append(Filter)
       end;
     Node ->
@@ -263,6 +264,19 @@ new(Name, Options, Nodes) ->
     rpc:multicall(AllNodes, shards_local, new, [Name, Options])
   end),
   _ = join(Name, AllNodes),
+  Name.
+
+-spec rename(Tab, Name, State) -> Name | no_return() when
+  Tab   :: atom(),
+  Name  :: atom(),
+  State :: shards_state:state().
+rename(Tab, Name, State) ->
+  Map = {?SHARDS, rename, [Tab, Name, State]},
+  _ = mapred(Tab, nil, Map, nil, State, r),
+  Nodes = get_nodes(Tab),
+  ok = pg2:delete(Tab),
+  ok = pg2:create(Name),
+  Nodes = join(Name, Nodes),
   Name.
 
 -spec select(Tab, MatchSpec, State) -> [Match] when

@@ -46,6 +46,7 @@
   new/2,
   next/2,
   prev/2,
+  rename/2,
   safe_fixtable/2,
   select/2, select/3, select/1,
   select_count/2,
@@ -478,6 +479,18 @@ next(Tab, Key1) ->
   Key2  :: term().
 prev(Tab, Key1) ->
   call(Tab, prev, [Tab, Key1]).
+
+%% @doc
+%% Wrapper to `shards_local:rename/3' and `shards_dist:rename/3'.
+%%
+%% @see shards_local:rename/3.
+%% @see shards_dist:rename/3.
+%% @end
+-spec rename(Tab, Name) -> Name | no_return() when
+  Tab   :: atom(),
+  Name  :: atom().
+rename(Tab, Name) ->
+  call(Tab, rename, [Tab, Name]).
 
 %% @doc
 %% Wrapper to `shards_local:safe_fixtable/2' and `shards_dist:safe_fixtable/2'.
