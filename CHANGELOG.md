@@ -1,5 +1,12 @@
 # Change Log
 
+## [v0.4.3](https://github.com/cabol/shards/tree/v0.4.3) (2017-03-19)
+[Full Changelog](https://github.com/cabol/shards/compare/v0.4.2...v0.4.3)
+
+**Closed issues:**
+
+- Allows to register `shards\_sup` with custom name \(given as parameter\) [\#34](https://github.com/cabol/shards/issues/34)
+
 ## [v0.4.2](https://github.com/cabol/shards/tree/v0.4.2) (2017-02-22)
 [Full Changelog](https://github.com/cabol/shards/compare/v0.4.1...v0.4.2)
 

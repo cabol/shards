@@ -1,6 +1,6 @@
 {application, shards, [
   {description, "ETS with Sharding support."},
-  {vsn, "0.4.2"},
+  {vsn, "0.4.3"},
   {registered, []},
   {mod, {shards, []}},
   {applications, [kernel, stdlib]},
