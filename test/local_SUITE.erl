@@ -32,7 +32,8 @@
 
 %% Test Cases
 -export([
-  t_shard_restarted_when_down/1
+  t_shard_restarted_when_down/1,
+  t_custom_supervisor/1
 ]).
 
 -include("test_helper.hrl").
@@ -115,6 +116,17 @@ t_shard_restarted_when_down(_Config) ->
   % delete tables
   true = shards:delete(tab1),
   true = shards:delete(tab2),
+
+  ok.
+
+t_custom_supervisor(_Config) ->
+  {ok, _Pid} = shards_sup:start_link(my_sup),
+
+  test = shards:new(test, [{sup_name, my_sup}]),
+  true = shards:insert(test, [{1, 1}, {2, 2}, {3, 3}]),
+  assert_values(test, [1, 2, 3], [1, 2, 3]),
+
+  true = shards:delete(test),
 
   ok.
 

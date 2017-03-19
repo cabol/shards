@@ -83,6 +83,7 @@ Option | Description | Default
 `{pick_shard_fun, pick_fun()}` | Function to pick the **shard** on which the `key` will be handled locally – used by `shards_local`. See [shards_state](./src/shards_state.erl). | `shards_local:pick/3`
 `{pick_node_fun, pick_fun()}` | Function to pick the **node** on which the `key` will be handled globally/distributed – used by `shards_dist`. See [shards_state](./src/shards_state.erl). | `shards_local:pick/3`
 `{nodes, [node()]}` | Allows to set a list of nodes to auto setup a distributed table – the table is created in all given nodes and then all nodes are joined. This option only has effect if the option `{scope, g}` has been set.  | `[]`
+`{sup_name, atom()}` | Allows to define a custom name for `shards_sup`. | `shards_sup`
 
 > **NOTE:** By default `shards` uses a built-in functions to pick the **shard** (local scope)
   and the **node** (distributed scope) on which the key will be handled. BUT you can override
@@ -98,12 +99,12 @@ You can get the **State** at any time you want:
 
 ```erlang
 > shards_state:get(mytab1).
-{state,shards_local,4,#Fun<shards_local.pick.3>,
+{state,shards_local,shards_sup,4,#Fun<shards_local.pick.3>,
        #Fun<shards_local.pick.3>}
 
 % this is a wrapper on top of shards_state:get/1
 > shards:state(mytab1).
-{state,shards_local,4,#Fun<shards_local.pick.3>,
+{state,shards_local,shards_sup,4,#Fun<shards_local.pick.3>,
        #Fun<shards_local.pick.3>}
 ```
 
@@ -198,6 +199,7 @@ The `shards` state is defined as:
 ```erlang
 -record(state, {
   module         = shards_local            :: module(),
+  sup_name       = shards_sup              :: atom(),
   n_shards       = ?N_SHARDS               :: pos_integer(),
   pick_shard_fun = fun shards_local:pick/3 :: pick_fun(),
   pick_node_fun  = fun shards_local:pick/3 :: pick_fun()
@@ -224,54 +226,58 @@ Most of the `shards_local` functions receives the **State** as parameter, so it 
 to call it. You can check how `shards` module is implemented [HERE](./src/shards.erl).
 
 If any microsecond matters to you, you can skip the call to the control ETS table by calling
-`shards_local` directly. We have two options:
+`shards_local` directly – there are two options to do it. 
 
- 1. The first option is getting the `state`, and passing it as argument. Now the question is:
-    how to get the **State**? Well, it's extremely easy, you can get the `state` when you call
-    `shards:new/2` by first time, or you can call `shards:state/1`, `shards_state:get/1` or
-    `shards_state:new/0,1,2,3,4` at any time you want, and then it might be stored within
-    the calling process, or wherever you want. E.g.:
+### Option 1
 
-    ```erlang
-    % take a look at the 2nd element of the returned tuple, that is the state
-    > shards:new(mytab, [{n_shards, 4}]).
-    mytab
+The first option is getting the `state`, and passing it as argument. Now the question is:
+how to get the **State**? Well, it's extremely easy, you can get the `state` when you call
+`shards:new/2` by first time, or you can call `shards:state/1`, `shards_state:get/1` or
+`shards_state:new/0,1,2,3,4` at any time you want, and then it might be stored within
+the calling process, or wherever you want. E.g.:
 
-    % remember you can get the state at any time you want
-    > State = shards:state(mytab).
-    {state,shards_local,4,#Fun<shards_local.pick.3>,
-           #Fun<shards_local.pick.3>}
+```erlang
+% take a look at the 2nd element of the returned tuple, that is the state
+> shards:new(mytab, [{n_shards, 4}]).
+mytab
 
-    % now you can call shards_local directly
-    > shards_local:insert(mytab, {1, 1}, State).
-    true
-    > shards_local:lookup(mytab, 1, State).
-    [{1,1}]
+% remember you can get the state at any time you want
+> State = shards:state(mytab).
+{state,shards_local,shards_sup,4,#Fun<shards_local.pick.3>,
+       #Fun<shards_local.pick.3>}
 
-    % in this case, only the n_shards is different from default, so you
-    % can do this:
-    > shards_local:lookup(mytab, 1, shards_state:new(4)).
-    [{1,1}]
-    ```
+% now you can call shards_local directly
+> shards_local:insert(mytab, {1, 1}, State).
+true
+> shards_local:lookup(mytab, 1, State).
+[{1,1}]
 
- 2. The 2nd option is to call `shards_local` directly without the `state`, but this is only
-    possible if you have created a table with default `shards` options – such as `n_shards`,
-    `pick_shard_fun` and `pick_node_fun`. If you can take this option it might be significantly
-    better, since in this case no additional calls are needed, not even to recover the `state`
-    (like in the previous option), because a new `state` is created with default values.
-    Therefore, the call is mapped directly to an **ETS** function. E.g.:
+% in this case, only the n_shards is different from default, so you
+% can do this:
+> shards_local:lookup(mytab, 1, shards_state:new(4)).
+[{1,1}]
+```
 
-    ```erlang
-    % create a table without set n_shards, pick_shard_fun or pick_node_fun
-    > shards:new(mytab, []).
-    mytab
+### Option 2
 
-    % call shards_local without the state
-    > shards_local:insert(mytab, {1, 1}).
-    true
-    > shards_local:lookup(mytab, 1).     
-    [{1,1}]
-    ```
+The second option is to call `shards_local` directly without the `state`, but this is only
+possible if you have created a table with default `shards` options – such as `n_shards`,
+`pick_shard_fun` and `pick_node_fun`. If you can take this option it might be significantly
+better, since in this case no additional calls are needed, not even to recover the `state`
+(like in the previous option), because a new `state` is created with default values.
+Therefore, the call is mapped directly to an **ETS** function. E.g.:
+
+```erlang
+% create a table without set n_shards, pick_shard_fun or pick_node_fun
+> shards:new(mytab, []).
+mytab
+
+% call shards_local without the state
+> shards_local:insert(mytab, {1, 1}).
+true
+> shards_local:lookup(mytab, 1).     
+[{1,1}]
+```
 
 Most of the cases this is not necessary, `shards` wrapper is more than enough, it adds only a
 few microseconds of latency. In conclusion, **Shards** gives you the flexibility to do it,
@@ -406,7 +412,7 @@ And again, let's check it out from any node:
 
 ## Examples and/or Projects using Shards
 
-* [ExShards](https://github.com/cabol/ex_shards) is an **Elixir** wrapper for `shards` – with extra and nicer functions.
+* [ExShards](https://github.com/cabol/ex_shards) – **Elixir** wrapper for `shards` with extra and nicer functions.
 
 * [KVX](https://github.com/cabol/kvx) – Simple/basic **Elixir** in-memory Key/Value Store using `shards` (default adapter).
 

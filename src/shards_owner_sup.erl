@@ -31,14 +31,14 @@
   Options  :: [term()],
   Response :: supervisor:startlink_ret().
 start_link(Name, Options) ->
-  supervisor:start_link(?MODULE, [Name, Options]).
+  supervisor:start_link(?MODULE, {Name, Options}).
 
 %%%===================================================================
 %%% Supervisor callbacks
 %%%===================================================================
 
 %% @hidden
-init([Name, Options]) ->
+init({Name, Options}) ->
   % ETS table to store state info.
   Name = ets:new(Name, [
     set,
@@ -101,7 +101,7 @@ assert_unique_ids([]) ->
   ok;
 assert_unique_ids([Id | Rest]) ->
   case lists:member(Id, Rest) of
-    true -> throw({badarg, duplicated_id});
+    true -> error(badarg);
     _    -> assert_unique_ids(Rest)
   end.
 
@@ -126,6 +126,8 @@ parse_opts([{scope, l} | Opts], Acc) ->
   parse_opts(Opts, Acc#{module := shards_local});
 parse_opts([{scope, g} | Opts], Acc) ->
   parse_opts(Opts, Acc#{module := shards_dist});
+parse_opts([{sup_name, SupName} | Opts], Acc) when is_atom(SupName) ->
+  parse_opts(Opts, Acc#{sup_name := SupName});
 parse_opts([{n_shards, N} | Opts], Acc) when is_integer(N), N > 0 ->
   parse_opts(Opts, Acc#{n_shards := N});
 parse_opts([{pick_shard_fun, Val} | Opts], Acc) when is_function(Val) ->

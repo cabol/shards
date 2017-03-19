@@ -14,6 +14,7 @@
   new/2,
   new/3,
   new/4,
+  new/5,
   to_map/1,
   from_map/1
 ]).
@@ -22,6 +23,8 @@
 -export([
   module/1,
   module/2,
+  sup_name/1,
+  sup_name/2,
   n_shards/1,
   n_shards/2,
   pick_shard_fun/1,
@@ -69,6 +72,7 @@
 %% State definition
 -record(state, {
   module         = shards_local            :: module(),
+  sup_name       = shards_sup              :: atom(),
   n_shards       = ?N_SHARDS               :: pos_integer(),
   pick_shard_fun = fun shards_local:pick/3 :: pick_fun(),
   pick_node_fun  = fun shards_local:pick/3 :: pick_fun()
@@ -81,6 +85,7 @@
 
 %% @type state_map() = #{
 %%   module         => module(),
+%%   sup_name       => atom(),
 %%   n_shards       => pos_integer(),
 %%   pick_shard_fun => pick_fun(),
 %%   pick_node_fun  => pick_fun()
@@ -90,12 +95,14 @@
 %% <ul>
 %% <li>`module': Module to be used depending on the `scope':
 %% `shards_local' or `shards_dist'.</li>
+%% <li>`sup_name': Registered name for `shards_sup'.</li>
 %% <li>`n_shards': Number of ETS shards/fragments.</li>
 %% <li>`pick_shard_fun': Function callback to pick/compute the shard.</li>
 %% <li>`pick_node_fun': Function callback to pick/compute the node.</li>
 %% </ul>
 -type state_map() :: #{
   module         => module(),
+  sup_name       => atom(),
   n_shards       => pos_integer(),
   pick_shard_fun => pick_fun(),
   pick_node_fun  => pick_fun()
@@ -128,15 +135,24 @@ new(Shards) ->
 new(Shards, Module) ->
   #state{n_shards = Shards, module = Module}.
 
--spec new(pos_integer(), module(), pick_fun()) -> state().
-new(Shards, Module, PickShardFun) ->
-  #state{n_shards = Shards, module = Module, pick_shard_fun = PickShardFun}.
+-spec new(pos_integer(), module(), atom()) -> state().
+new(Shards, Module, SupName) ->
+  #state{n_shards = Shards, module = Module, sup_name = SupName}.
 
--spec new(pos_integer(), module(), pick_fun(), pick_fun()) -> state().
-new(Shards, Module, PickShardFun, PickNodeFun) ->
+-spec new(pos_integer(), module(), atom(), pick_fun()) -> state().
+new(Shards, Module, SupName, PickShardFun) ->
   #state{
     n_shards       = Shards,
     module         = Module,
+    sup_name       = SupName,
+    pick_shard_fun = PickShardFun}.
+
+-spec new(pos_integer(), module(), atom(), pick_fun(), pick_fun()) -> state().
+new(Shards, Module, SupName, PickShardFun, PickNodeFun) ->
+  #state{
+    n_shards       = Shards,
+    module         = Module,
+    sup_name       = SupName,
     pick_shard_fun = PickShardFun,
     pick_node_fun  = PickNodeFun}.
 
@@ -146,6 +162,7 @@ new(Shards, Module, PickShardFun, PickNodeFun) ->
 -spec to_map(state()) -> state_map().
 to_map(State) ->
   #{module         => State#state.module,
+    sup_name       => State#state.sup_name,
     n_shards       => State#state.n_shards,
     pick_shard_fun => State#state.pick_shard_fun,
     pick_node_fun  => State#state.pick_node_fun}.
@@ -157,6 +174,7 @@ to_map(State) ->
 from_map(Map) ->
   #state{
     module         = maps:get(module, Map, shards_local),
+    sup_name       = maps:get(sup_name, Map, shards_sup),
     n_shards       = maps:get(n_shards, Map, ?N_SHARDS),
     pick_shard_fun = maps:get(pick_shard_fun, Map, fun shards_local:pick/3),
     pick_node_fun  = maps:get(pick_node_fun, Map, fun shards_local:pick/3)}.
@@ -168,7 +186,7 @@ from_map(Map) ->
 get(Tab) when is_atom(Tab) ->
   case ets:lookup(Tab, state) of
     [State] -> State;
-    _       -> throw({badarg, Tab})
+    _       -> error(badarg)
   end.
 
 %%%===================================================================
@@ -184,6 +202,16 @@ module(Tab) when is_atom(Tab) ->
 -spec module(module(), state()) -> state().
 module(Module, #state{} = State) when is_atom(Module) ->
   State#state{module = Module}.
+
+-spec sup_name(state() | atom()) -> atom().
+sup_name(#state{sup_name = SupName}) ->
+  SupName;
+sup_name(Tab) when is_atom(Tab) ->
+  sup_name(?MODULE:get(Tab)).
+
+-spec sup_name(atom(), state()) -> state().
+sup_name(SupName, #state{} = State) when is_atom(SupName) ->
+  State#state{sup_name = SupName}.
 
 -spec n_shards(state() | atom()) -> pos_integer().
 n_shards(#state{n_shards = Shards}) ->

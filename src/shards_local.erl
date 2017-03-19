@@ -220,7 +220,8 @@ all() ->
 %% @end
 -spec delete(Tab :: atom()) -> true.
 delete(Tab) ->
-  ok = shards_sup:terminate_child(shards_sup, get_pid(Tab)),
+  SupName = shards_state:sup_name(Tab),
+  ok = shards_sup:terminate_child(SupName, Tab),
   true.
 
 %% @equiv delete(Tab, Key, shards_state:new())
@@ -850,7 +851,16 @@ member(Tab, Key, State) ->
   Name    :: atom(),
   Options :: [option()].
 new(Name, Options) ->
-  case shards_sup:start_child([Name, Options]) of
+  case lists:keyfind(sup_name, 1, Options) of
+    {sup_name, SupName} ->
+      do_new(SupName, Name, Options);
+    false ->
+      do_new(shards_sup, Name, Options)
+  end.
+
+%% @private
+do_new(SupName, Name, Options) ->
+  case shards_sup:start_child(SupName, Name, Options) of
     {ok, Pid} ->
       true = register(Name, Pid),
       Name;
@@ -881,7 +891,7 @@ next(Tab, Key1, State) ->
   PickShardFun = shards_state:pick_shard_fun(State),
   case PickShardFun(Key1, N, r) of
     any ->
-      throw(bad_pick_fun_ret);
+      error(bad_pick_fun_ret);
     Shard ->
       ShardName = shard_name(Tab, Shard),
       next_(Tab, ets:next(ShardName, Key1), Shard)

@@ -627,6 +627,8 @@ init_shards_new(Scope) ->
 
   DefaultShards = ?N_SHARDS,
   ?SET = shards:new(?SET, [
+    named_table,
+    public,
     {scope, Scope},
     {pick_node_fun, fun ?MODULE:pick_node/3}
   ]),

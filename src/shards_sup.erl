@@ -10,7 +10,8 @@
 %% API
 -export([
   start_link/0,
-  start_child/1,
+  start_link/1,
+  start_child/3,
   terminate_child/2
 ]).
 
@@ -21,30 +22,44 @@
 %%% API
 %%%===================================================================
 
--spec start_link() -> supervisor:startlink_ret().
+%% @equiv start_link(?MODULE)
 start_link() ->
-  supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+  start_link(?MODULE).
 
--spec start_child([term()]) -> supervisor:startchild_ret().
-start_child(Args) ->
-  supervisor:start_child(?MODULE, Args).
+-spec start_link(Name :: atom()) -> supervisor:startlink_ret().
+start_link(Name) ->
+  supervisor:start_link({local, Name}, ?MODULE, {Name}).
 
--spec terminate_child(SupRef, Id) -> Response when
-  SupRef   :: supervisor:sup_ref(),
-  Id       :: pid() | supervisor:child_id(),
-  Error    :: not_found | simple_one_for_one,
-  Response :: ok | {error, Error}.
-terminate_child(SupRef, Id) ->
-  supervisor:terminate_child(SupRef, Id).
+%%%===================================================================
+%%% shards_supervisor callbacks
+%%%===================================================================
+
+-spec start_child(SupName, TabName, Options) -> Return when
+  SupName :: atom(),
+  TabName :: atom(),
+  Options :: [shards_local:option()],
+  Return  :: supervisor:startchild_ret().
+start_child(SupName, TabName, Options) ->
+  supervisor:start_child(SupName, [TabName, Options]).
+
+-spec terminate_child(SupName, Tab) -> Return when
+  SupName :: atom(),
+  Tab     :: pid() | atom(),
+  Error   :: not_found | simple_one_for_one,
+  Return  :: ok | {error, Error}.
+terminate_child(SupName, Tab) when is_atom(Tab) ->
+  terminate_child(SupName, shards_local:get_pid(Tab));
+terminate_child(SupName, Tab) when is_pid(Tab) ->
+  supervisor:terminate_child(SupName, Tab).
 
 %%%===================================================================
 %%% Supervisor callbacks
 %%%===================================================================
 
 %% @hidden
-init([]) ->
+init({Name}) ->
   ChildSpec = {
-    ?MODULE,
+    Name,
     {shards_owner_sup, start_link, []},
     permanent,
     infinity,
