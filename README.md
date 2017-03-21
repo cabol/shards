@@ -14,14 +14,14 @@ ETS totally transparent and out-of-box. **Shards** might be probably the **simpl
 
 ## Introduction
 
-Why we might need **Sharding** on ETS tables? Well, the main reason is to keep the lock contention under control,
+Why might we need **Sharding** on ETS tables? Well, the main reason is to keep the lock contention under control,
 in order to scale-out ETS tables (linearly) and support higher levels of concurrency without lock issues
 (specially write-locks) – which most of the cases might cause significant performance degradation.
 
 Therefore, one of the most common and proven strategies to deal with these problems is [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database))
 – the principle is pretty similar to [DHTs](https://en.wikipedia.org/wiki/Distributed_hash_table).
 
-Here is where **Shards** comes in. **Shards** makes extremely easy achieve all this, with **zero** effort.
+Here is where **Shards** comes in. **Shards** makes it extremely easy to achieve all this, with **zero** effort.
 It provides an API compatible with [ETS](http://erlang.org/doc/man/ets.html) – with few exceptions.
 You can check the list of compatible ETS functions that **Shards** provides [HERE](https://github.com/cabol/shards/issues/1).
 
@@ -91,7 +91,7 @@ Option | Description | Default
   different tables with different pick-functions each.
 
 Furthermore, when a new table is created, the [<i class="icon-refresh"></i> **State**](#state)
-is created for that table as well. The reason of the **State** is to store information
+is created for that table as well. The purpose of the **State** is to store information
 related to that table, such as: number of shards, pick functions, etc. For more
 information go to the [<i class="icon-refresh"></i> **State Section**](#state).
 
@@ -113,7 +113,7 @@ You can get the **State** at any time you want:
 Let's continue:
 
 ```erlang
-% create another one with default number of shards, which is the total of online
+% create another one with a default number of shards, which is the total of online
 % schedulers; in my case is 8 (4 cores, 2 threads each).
 % This value is calculated calling: erlang:system_info(schedulers_online)
 > shards:new(mytab2, []).
@@ -124,9 +124,9 @@ mytab2
 ok
 ```
 
-You will see the process tree of `shards` application. When you create a new "table", what happens behind
+You will see the process tree of `shards` application. When you create a new "table," what happens behind
 is: `shards` creates a supervision tree dedicated only to that group of shards that will represent
-your logical table in multiple physical ETS tables, and everything is handled auto-magically by `shards`,
+your logical table in multiple physical ETS tables and everything is handled auto-magically by `shards`,
 you only have to use the API like if you were working with a common ETS table.
 
 ### Playing with shards
@@ -162,11 +162,11 @@ true
 ```
 
 As you may have noticed, it's extremely easy, because almost all ETS functions are
-implemented by shards, it's only matters of replace `ets` module by `shards`.
+implemented by shards, it's only matters of replacing `ets` module by `shards`.
 
 ### Deleting shards
 
-**Shards** behaves in elastic way, as you saw, more shards can be added/removed dynamically:
+**Shards** behaves in an elastic way, as you saw, more shards can be added/removed dynamically:
 
 ```erlang
 > shards:delete(mytab1).
@@ -184,7 +184,7 @@ See how `shards` gets shrinks.
 In the previous section we saw something about the `state`, how it can be fetched at any time.
 But, what is the `state`?
 
-There are different properties that have to be stored somewhere in order `shards` works
+There are different properties that have to be stored somewhere for `shards` to work
 correctly. Remember, `shards` has a logic on top of `ETS`, for example, compute the
 shard/node where the key/value pair goes, and to do that, it needs the number of shards,
 the function to pick the shard or node (in case of global scope), the table type and
@@ -222,17 +222,17 @@ The module `shards` is a wrapper on top of two main modules:
 
 When you use `shards` on top of `shards_local`, a call to the control ETS table owned by `shards_owner_sup`
 must be done, in order to recover the [<i class="icon-refresh"></i> State](#state), mentioned previously.
-Most of the `shards_local` functions receives the **State** as parameter, so it must be fetched before
-to call it. You can check how `shards` module is implemented [HERE](./src/shards.erl).
+Most of the `shards_local` functions receive the **State** as a parameter, so it must be fetched before
+to call it. You can check how the `shards` module is implemented [HERE](./src/shards.erl).
 
 If any microsecond matters to you, you can skip the call to the control ETS table by calling
 `shards_local` directly – there are two options to do it. 
 
 ### Option 1
 
-The first option is getting the `state`, and passing it as argument. Now the question is:
+The first option is getting the `state`, and passing it as an argument. Now the question is:
 how to get the **State**? Well, it's extremely easy, you can get the `state` when you call
-`shards:new/2` by first time, or you can call `shards:state/1`, `shards_state:get/1` or
+`shards:new/2` for the first time, or you can call `shards:state/1`, `shards_state:get/1` or
 `shards_state:new/0,1,2,3,4` at any time you want, and then it might be stored within
 the calling process, or wherever you want. E.g.:
 
@@ -262,7 +262,7 @@ true
 
 The second option is to call `shards_local` directly without the `state`, but this is only
 possible if you have created a table with default `shards` options – such as `n_shards`,
-`pick_shard_fun` and `pick_node_fun`. If you can take this option it might be significantly
+`pick_shard_fun` and `pick_node_fun`. If you can take this option, it might be significantly
 better, since in this case no additional calls are needed, not even to recover the `state`
 (like in the previous option), because a new `state` is created with default values.
 Therefore, the call is mapped directly to an **ETS** function. E.g.:
@@ -286,7 +286,7 @@ but it's your call!
 
 ## Distributed Shards
 
-So far, we've seen how **Shards** works but locally, now let's see how **Shards** works but
+So far, we've seen how **Shards** works locally, now let's see how **Shards** works but
 distributed.
 
 **1.** Let's start 3 Erlang consoles running shards:
@@ -313,7 +313,7 @@ $ rebar3 shell --sname c@localhost
 
 There are two ways to achieve this:
 
- 1. Manually, create the table on each node and then from any of them, join the rest.
+ 1. Manually, create the table on each node and then from any of them join the rest.
 
     Create the table on each node:
 
@@ -435,7 +435,7 @@ You can find tests results in `_build/test/logs`, and coverage in `_build/test/c
 
     $ make doc
 
-> **Note:** Once you run previous command, a new folder `doc` is created, and you'll have a pretty nice HTML documentation.
+> **Note:** Once you run the previous command, a new folder `doc` is created, and you'll have a pretty nice HTML documentation.
 
 
 ## Copyright and License
