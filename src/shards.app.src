@@ -1,12 +1,12 @@
 {application, shards, [
   {description, "ETS with Sharding support."},
-  {vsn, "0.4.3"},
+  {vsn, "0.5.0"},
   {registered, []},
-  {mod, {shards, []}},
+  {mod, {shards_app, []}},
   {applications, [kernel, stdlib]},
   {env,[]},
   {modules, []},
-  {maintainers, ["Carlos Andres Bolanos"]},
+  {maintainers, ["Carlos A Bolanos"]},
   {licenses, ["MIT"]},
   {build_tools, ["rebar3", "make"]},
   {links, [

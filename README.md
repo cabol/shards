@@ -5,25 +5,29 @@
 
 ETS tables on steroids!
 
-[**Shards**](https://github.com/cabol/shards) is an **Erlang/Elixir** library/tool compatible with the ETS API,
-that implements [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database)) support on top of
-ETS totally transparent and out-of-box. **Shards** might be probably the **simplest** option to scale-out ETS tables.
+[**Shards**](https://github.com/cabol/shards) is an **Erlang/Elixir** library/tool
+compatible with the ETS API, that implements [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database)) support
+on top of ETS totally transparent and out-of-box. **Shards** might be probably
+the **simplest** option to scale-out ETS tables.
 
 [Additional documentation on cabol.github.io](http://cabol.github.io/posts/2016/04/14/sharding-support-for-ets.html).
 
 
 ## Introduction
 
-Why might we need **Sharding** on ETS tables? Well, the main reason is to keep the lock contention under control,
-in order to scale-out ETS tables (linearly) and support higher levels of concurrency without lock issues
-(specially write-locks) – which most of the cases might cause significant performance degradation.
+Why might we need **Sharding** on ETS tables? Well, the main reason is to keep
+the lock contention under control, in order to scale-out ETS tables (linearly)
+and support higher levels of concurrency without lock issues; specially
+write-locks – which most of the cases might cause significant performance
+degradation.
 
-Therefore, one of the most common and proven strategies to deal with these problems is [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database))
-– the principle is pretty similar to [DHTs](https://en.wikipedia.org/wiki/Distributed_hash_table).
+Therefore, one of the most common and proven strategies to deal with these problems
+is [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database)) –
+the principle is pretty similar to [DHTs](https://en.wikipedia.org/wiki/Distributed_hash_table).
 
-Here is where **Shards** comes in. **Shards** makes it extremely easy to achieve all this, with **zero** effort.
-It provides an API compatible with [ETS](http://erlang.org/doc/man/ets.html) – with few exceptions.
-You can check the list of compatible ETS functions that **Shards** provides [HERE](https://github.com/cabol/shards/issues/1).
+Here is where **Shards** comes in. **Shards** makes it extremely easy to achieve
+all this, with **zero** effort. It provides an API compatible with [ETS](http://erlang.org/doc/man/ets.html) – with few exceptions. You can check
+the list of compatible ETS functions that **Shards** provides [HERE](https://github.com/cabol/shards/issues/1).
 
 
 ## Usage
@@ -34,7 +38,7 @@ In your `rebar.config`:
 
 ```erlang
 {deps, [
-  {shards, "0.4.3"}
+  {shards, "0.4.4"}
 ]}.
 ```
 
@@ -80,8 +84,8 @@ Option | Description | Default
 `{n_shards, pos_integer()}` | Allows to set the desired number of shards. | By default, the number of shards is calculated from the total online schedulers: `erlang:system_info(schedulers_online)`
 `{scope, l | g}` | Defines `shards` scope, in other words, if sharding will be applied locally (`l`) or global/distributed (`g`) | `l`
 `{restart_strategy, one_for_one | one_for_all}` | Allows to configure the restart strategy for `shards_owner_sup`. | `one_for_one`
-`{pick_shard_fun, pick_fun()}` | Function to pick the **shard** on which the `key` will be handled locally – used by `shards_local`. See [shards_state](./src/shards_state.erl). | `shards_local:pick/3`
-`{pick_node_fun, pick_fun()}` | Function to pick the **node** on which the `key` will be handled globally/distributed – used by `shards_dist`. See [shards_state](./src/shards_state.erl). | `shards_local:pick/3`
+`{pick_shard_fun, pick_fun()}` | Function to pick the **shard** on which the `key` will be handled locally – used by `shards_local`. See [shards_state](./src/shards_state.erl). | `shards_lib:pick/3`
+`{pick_node_fun, pick_fun()}` | Function to pick the **node** on which the `key` will be handled globally/distributed – used by `shards_dist`. See [shards_state](./src/shards_state.erl). | `shards_lib:pick/3`
 `{nodes, [node()]}` | Allows to set a list of nodes to auto setup a distributed table – the table is created in all given nodes and then all nodes are joined. This option only has effect if the option `{scope, g}` has been set.  | `[]`
 `{sup_name, atom()}` | Allows to define a custom name for `shards_sup`. | `shards_sup`
 
@@ -124,10 +128,11 @@ mytab2
 ok
 ```
 
-You will see the process tree of `shards` application. When you create a new "table," what happens behind
-is: `shards` creates a supervision tree dedicated only to that group of shards that will represent
-your logical table in multiple physical ETS tables and everything is handled auto-magically by `shards`,
-you only have to use the API like if you were working with a common ETS table.
+You will see the process tree of `shards` application. When you create a new "table,"
+what happens behind is: `shards` creates a supervision tree dedicated only to that
+group of shards that will represent your logical table in multiple physical ETS
+tables and everything is handled auto-magically by `shards`, you only have to use
+the API like if you were working with a common ETS table.
 
 ### Playing with shards
 
@@ -181,8 +186,8 @@ See how `shards` gets shrinks.
 
 ## State
 
-In the previous section we saw something about the `state`, how it can be fetched at any time.
-But, what is the `state`?
+In the previous section we saw something about the `state`, how it can be fetched
+at any time. But, what is the `state`?
 
 There are different properties that have to be stored somewhere for `shards` to work
 correctly. Remember, `shards` has a logic on top of `ETS`, for example, compute the
@@ -198,11 +203,11 @@ The `shards` state is defined as:
 
 ```erlang
 -record(state, {
-  module         = shards_local            :: module(),
-  sup_name       = shards_sup              :: atom(),
-  n_shards       = ?N_SHARDS               :: pos_integer(),
-  pick_shard_fun = fun shards_local:pick/3 :: pick_fun(),
-  pick_node_fun  = fun shards_local:pick/3 :: pick_fun()
+  module         = shards_local          :: module(),
+  sup_name       = shards_sup            :: atom(),
+  n_shards       = ?N_SHARDS             :: pos_integer(),
+  pick_shard_fun = fun shards_lib:pick/3 :: pick_fun(),
+  pick_node_fun  = fun shards_lib:pick/3 :: pick_fun()
 }).
 ```
 
@@ -215,26 +220,31 @@ you can fetch the state, get any property and also other functions.
 
 The module `shards` is a wrapper on top of two main modules:
 
- * [shards_local](./src/shards_local.erl): Implements Sharding on top of ETS tables, but locally (on a single Erlang node).
- * [shards_dist](./src/shards_dist.erl): Implements Sharding but across multiple distributed Erlang nodes, which must
-   run `shards` locally, since `shards_dist` uses `shards_local` internally. We'll cover
-   the distributed part later.
+ * [shards_local](./src/shards_local.erl): Implements Sharding on top of ETS tables,
+   but locally (on a single Erlang node).
+ * [shards_dist](./src/shards_dist.erl): Implements Sharding but across multiple
+   distributed Erlang nodes, which must run `shards` locally, since `shards_dist`
+   uses `shards_local` internally. We'll cover the distributed part later.
 
-When you use `shards` on top of `shards_local`, a call to the control ETS table owned by `shards_owner_sup`
-must be done, in order to recover the [<i class="icon-refresh"></i> State](#state), mentioned previously.
-Most of the `shards_local` functions receive the **State** as a parameter, so it must be fetched before
-to call it. You can check how the `shards` module is implemented [HERE](./src/shards.erl).
+When you use `shards` on top of `shards_local`, a call to the control ETS table
+owned by `shards_owner_sup` must be done, in order to recover the
+[<i class="icon-refresh"></i> State](#state), mentioned previously.
 
-If any microsecond matters to you, you can skip the call to the control ETS table by calling
-`shards_local` directly – there are two options to do it. 
+Most of the `shards_local` functions receive the **State** as a parameter, so it
+must be fetched before to call it. You can check how the `shards` module is
+implemented [HERE](./src/shards.erl).
+
+If any microsecond matters to you, you can skip the call to the control ETS
+table by calling `shards_local` directly – there are two options to do it.
 
 ### Option 1
 
-The first option is getting the `state`, and passing it as an argument. Now the question is:
-how to get the **State**? Well, it's extremely easy, you can get the `state` when you call
-`shards:new/2` for the first time, or you can call `shards:state/1`, `shards_state:get/1` or
-`shards_state:new/0,1,2,3,4` at any time you want, and then it might be stored within
-the calling process, or wherever you want. E.g.:
+The first option is getting the `state`, and passing it as an argument. Now the
+question is: how to get the **State**? Well, it's extremely easy, you can get
+the `state` when you call `shards:new/2` for the first time, or you can call
+`shards:state/1`, `shards_state:get/1` or `shards_state:new/0,1,2,3,4` at any
+time you want, and then it might be stored within the calling process, or
+wherever you want. E.g.:
 
 ```erlang
 % take a look at the 2nd element of the returned tuple, that is the state
@@ -260,12 +270,13 @@ true
 
 ### Option 2
 
-The second option is to call `shards_local` directly without the `state`, but this is only
-possible if you have created a table with default `shards` options – such as `n_shards`,
-`pick_shard_fun` and `pick_node_fun`. If you can take this option, it might be significantly
-better, since in this case no additional calls are needed, not even to recover the `state`
-(like in the previous option), because a new `state` is created with default values.
-Therefore, the call is mapped directly to an **ETS** function. E.g.:
+The second option is to call `shards_local` directly without the `state`, but
+this is only possible if you have created a table with default `shards` options
+– such as `n_shards`, `pick_shard_fun` and `pick_node_fun`. If you can take this
+option, it might be significantly better, since in this case no additional calls
+are needed, not even to recover the `state` (like in the previous option),
+because a new `state` is created with default values. Therefore, the call is
+mapped directly to an **ETS** function. E.g.:
 
 ```erlang
 % create a table without set n_shards, pick_shard_fun or pick_node_fun
@@ -279,15 +290,15 @@ true
 [{1,1}]
 ```
 
-Most of the cases this is not necessary, `shards` wrapper is more than enough, it adds only a
-few microseconds of latency. In conclusion, **Shards** gives you the flexibility to do it,
-but it's your call!
+Most of the cases this is not necessary, `shards` wrapper is more than enough,
+it adds only a few microseconds of latency. In conclusion, **Shards** gives you
+the flexibility to do it, but it's your call!
 
 
 ## Distributed Shards
 
-So far, we've seen how **Shards** works locally, now let's see how **Shards** works but
-distributed.
+So far, we've seen how **Shards** works locally, now let's see how **Shards**
+works but distributed.
 
 **1.** Let's start 3 Erlang consoles running shards:
 
@@ -412,14 +423,20 @@ And again, let's check it out from any node:
 
 ## Examples and/or Projects using Shards
 
-* [ExShards](https://github.com/cabol/ex_shards) – **Elixir** wrapper for `shards` with extra and nicer functions.
+* [ExShards](https://github.com/cabol/ex_shards) – Elixir wrapper for
+  `shards` with extra and nicer functions.
 
-* [KVX](https://github.com/cabol/kvx) – Simple/basic **Elixir** in-memory Key/Value Store using `shards` (default adapter).
+* [Nebulex](https://github.com/cabol/nebulex) – Local and Distributed Caching
+  Tool for Elixir.
 
-* [ErlBus](https://github.com/cabol/erlbus) uses `shards` to scale-out **Topics/Pids** table(s),
-  which can be too large and with high concurrency level.
+* [KVX](https://github.com/cabol/kvx) – Simple/basic Elixir in-memory Key/Value
+  Store using `shards` (default adapter).
 
-* [Cacherl](https://github.com/ferigis/cacherl) uses `shards` to implement a Distributed Cache.
+* [ErlBus](https://github.com/cabol/erlbus) uses `shards` to scale-out
+  Topics/Pids table(s), which can be too large and with high concurrency level.
+
+* [Cacherl](https://github.com/ferigis/cacherl) uses `shards` to implement a
+  Distributed Cache.
 
 
 ## Running Tests
@@ -435,7 +452,8 @@ You can find tests results in `_build/test/logs`, and coverage in `_build/test/c
 
     $ make doc
 
-> **Note:** Once you run the previous command, a new folder `doc` is created, and you'll have a pretty nice HTML documentation.
+> **Note:** Once you run the previous command, a new folder `doc` is created,
+  and you'll have a pretty nice HTML documentation.
 
 
 ## Copyright and License

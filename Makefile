@@ -39,18 +39,15 @@ ifeq ($(EPMD_PROC_NUM),)
 endif
 
 test: check_rebar check_epmd
-	$(REBAR) ct --name ct@127.0.0.1
-	$(REBAR) cover
+	$(REBAR) do ct --name ct@127.0.0.1, cover
 	rm -rf test/*.beam
 
 local_test: check_rebar check_epmd
-	$(REBAR) ct --suite=test/task_SUITE,test/state_SUITE,test/local_SUITE
-	$(REBAR) cover
+	$(REBAR) do ct --suite=test/task_SUITE,test/state_SUITE,test/local_SUITE, cover
 	rm -rf test/*.beam
 
 dist_test: check_rebar check_epmd
-	$(REBAR) ct --name ct@127.0.0.1 --suite=test/dist_SUITE
-	$(REBAR) cover
+	$(REBAR) do ct --name ct@127.0.0.1 --suite=test/dist_SUITE, cover
 	rm -rf test/*.beam
 
 shell: check_rebar

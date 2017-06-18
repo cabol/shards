@@ -105,14 +105,6 @@
   update_element/3, update_element/4
 ]).
 
-%% Extended API
--export([
-  shard_name/2,
-  pick/3,
-  list/2,
-  get_pid/1
-]).
-
 %%%===================================================================
 %%% Types & Macros
 %%%===================================================================
@@ -152,7 +144,7 @@
                 | {heir, none} | tweaks()
                 | shards_opt().
 
-% ETS Info Tuple
+%% ETS Info Tuple
 -type info_tuple() :: {compressed, boolean()}
                     | {heir, pid() | none}
                     | {keypos, pos_integer()}
@@ -167,11 +159,16 @@
                     | {write_concurrency, boolean()}
                     | {read_concurrency, boolean()}.
 
-% ETS Info Item
+%% ETS Info Item
 -type info_item() :: compressed | fixed | heir | keypos | memory
                    | name | named_table | node | owner | protection
                    | safe_fixed | size | stats | type
                    | write_concurrency | read_concurrency.
+
+%% Shards Info
+-type info_shards() :: {name, atom()}
+                     | {shards, [ShardTab :: atom()]}
+                     | {n_shards, pos_integer()}.
 
 %% @type continuation() = {
 %%  Tab          :: atom(),
@@ -276,38 +273,30 @@ delete_object(Tab, Object, State) when is_tuple(Object) ->
   true.
 
 %% @equiv file2tab(Filenames, [])
-file2tab(Filenames) ->
-  file2tab(Filenames, []).
+file2tab(Filename) ->
+  file2tab(Filename, []).
 
 %% @doc
 %% Similar to `shards:file2tab/2'. Moreover, it restores the
 %% supervision tree for the `shards' corresponding to the given
-%% files, such as if they had been created using `shards:new/2,3'.
+%% file, such as if they had been created using `shards:new/2,3'.
 %%
 %% @see ets:file2tab/2.
 %% @end
--spec file2tab(Filenames, Options) -> Response when
-  Filenames :: [file:name()],
-  Tab       :: atom(),
-  Options   :: [Option],
-  Option    :: {verify, boolean()},
-  Reason    :: term(),
-  Response  :: {ok, Tab} | {error, Reason}.
-file2tab(Filenames, Options) ->
+-spec file2tab(Filename, Options) -> Response when
+  Filename :: string() | binary() | atom(),
+  Tab      :: atom(),
+  Options  :: [Option],
+  Option   :: {verify, boolean()},
+  Reason   :: term(),
+  Response :: {ok, Tab} | {error, Reason}.
+file2tab(Filename, Options) ->
+  StrFilename = shards_lib:to_string(Filename),
   try
-    ShardTabs = [{First, _} | _] = [begin
-      case tabfile_info(FN) of
-        {ok, Info} ->
-          {name, ShardTabName} = lists:keyfind(name, 1, Info),
-          {ShardTabName, FN};
-        {error, _} = Error ->
-          throw(Error)
-      end
-    end || FN <- Filenames],
-    Tab = name_from_shard(First),
+    {Tab, ShardTabs} = read_tabfile(StrFilename),
     Tab = new(Tab, [
       {restore, ShardTabs, Options},
-      {n_shards, length(Filenames)}
+      {n_shards, length(ShardTabs)}
     ]),
     {ok, Tab}
   catch
@@ -333,12 +322,12 @@ first(Tab) ->
 first(Tab, State) ->
   N = shards_state:n_shards(State),
   Shard = N - 1,
-  first(Tab, ets:first(shard_name(Tab, Shard)), Shard).
+  first(Tab, ets:first(shards_lib:shard_name(Tab, Shard)), Shard).
 
 %% @private
 first(Tab, '$end_of_table', Shard) when Shard > 0 ->
   NextShard = Shard - 1,
-  first(Tab, ets:first(shard_name(Tab, NextShard)), NextShard);
+  first(Tab, ets:first(shards_lib:shard_name(Tab, NextShard)), NextShard);
 first(_, '$end_of_table', _) ->
   '$end_of_table';
 first(_, Key, _) ->
@@ -480,7 +469,7 @@ info(Tab, Item, State) ->
   Shard    :: non_neg_integer(),
   InfoList :: [info_tuple()].
 info_shard(Tab, Shard) ->
-  ShardName = shard_name(Tab, Shard),
+  ShardName = shards_lib:shard_name(Tab, Shard),
   ets:info(ShardName).
 
 %% @doc
@@ -494,7 +483,7 @@ info_shard(Tab, Shard) ->
   Item  :: info_item(),
   Value :: term().
 info_shard(Tab, Shard, Item) ->
-  ShardName = shard_name(Tab, Shard),
+  ShardName = shards_lib:shard_name(Tab, Shard),
   ets:info(ShardName, Item).
 
 %% @equiv insert(Tab, ObjOrObjL, shards_state:new())
@@ -521,7 +510,7 @@ insert(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   Key = hd(tuple_to_list(ObjOrObjL)),
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
-  ShardName = shard_name(Tab, PickShardFun(Key, N, w)),
+  ShardName = shards_lib:shard_name(Tab, PickShardFun(Key, N, w)),
   ets:insert(ShardName, ObjOrObjL).
 
 %% @equiv insert_new(Tab, ObjOrObjL, shards_state:new())
@@ -553,16 +542,16 @@ insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   case PickShardFun(Key, N, r) of
     any ->
       Map = {fun ets:lookup/2, [Key]},
-      Reduce = fun lists:append/2,
+      Reduce = fun erlang:'++'/2,
       case mapred(Tab, Map, Reduce, State) of
         [] ->
-          ShardName = shard_name(Tab, PickShardFun(Key, N, w)),
+          ShardName = shards_lib:shard_name(Tab, PickShardFun(Key, N, w)),
           ets:insert_new(ShardName, ObjOrObjL);
         _ ->
           false
       end;
     _ ->
-      ShardName = shard_name(Tab, PickShardFun(Key, N, w)),
+      ShardName = shards_lib:shard_name(Tab, PickShardFun(Key, N, w)),
       ets:insert_new(ShardName, ObjOrObjL)
   end.
 
@@ -587,9 +576,9 @@ last(Tab) ->
   State :: shards_state:state(),
   Key   :: term().
 last(Tab, State) ->
-  case ets:info(shard_name(Tab, 0), type) of
+  case ets:info(shards_lib:shard_name(Tab, 0), type) of
     ordered_set ->
-      ets:last(shard_name(Tab, 0));
+      ets:last(shards_lib:shard_name(Tab, 0));
     _ ->
       first(Tab, State)
   end.
@@ -610,7 +599,7 @@ lookup(Tab, Key) ->
   Result :: [tuple()].
 lookup(Tab, Key, State) ->
   Map = {fun ets:lookup/2, [Key]},
-  Reduce = fun lists:append/2,
+  Reduce = fun erlang:'++'/2,
   mapred(Tab, Key, Map, Reduce, State, r).
 
 %% @equiv lookup_element(Tab, Key, Pos, shards_state:new())
@@ -645,7 +634,7 @@ lookup_element(Tab, Key, Pos, State) ->
         _  -> lists:append(Filter)
       end;
     Shard ->
-      ShardName = shard_name(Tab, Shard),
+      ShardName = shards_lib:shard_name(Tab, Shard),
       ets:lookup_element(ShardName, Key, Pos)
   end.
 
@@ -677,7 +666,7 @@ match(Tab, Pattern, Limit) when is_integer(Limit), Limit > 0 ->
   match(Tab, Pattern, Limit, shards_state:new());
 match(Tab, Pattern, State) ->
   Map = {fun ets:match/2, [Pattern]},
-  Reduce = fun lists:append/2,
+  Reduce = fun erlang:'++'/2,
   mapred(Tab, Map, Reduce, State).
 
 %% @doc
@@ -730,7 +719,7 @@ match_delete(Tab, Pattern) ->
   State   :: shards_state:state().
 match_delete(Tab, Pattern, State) ->
   Map = {fun ets:match_delete/2, [Pattern]},
-  Reduce = {fun(Res, Acc) -> Acc and Res end, true},
+  Reduce = {fun erlang:'and'/2, true},
   mapred(Tab, Map, Reduce, State).
 
 %% @equiv match_object(Tab, Pattern, shards_state:new())
@@ -762,7 +751,7 @@ match_object(Tab, Pattern, Limit) when is_integer(Limit), Limit > 0 ->
   match_object(Tab, Pattern, Limit, shards_state:new());
 match_object(Tab, Pattern, State) ->
   Map = {fun ets:match_object/2, [Pattern]},
-  Reduce = fun lists:append/2,
+  Reduce = fun erlang:'++'/2,
   mapred(Tab, Map, Reduce, State).
 
 %% @doc
@@ -864,8 +853,10 @@ do_new(SupName, Name, Options) ->
     {ok, Pid} ->
       true = register(Name, Pid),
       Name;
-    _ ->
-      error(badarg)
+    {error, {shutdown, {_, _, {restore_error, Error}}}} ->
+      error(Error);
+    Error ->
+      error({badarg, Error})
   end.
 
 %% @equiv next(Tab, Key1, shards_state:new())
@@ -893,14 +884,14 @@ next(Tab, Key1, State) ->
     any ->
       error(bad_pick_fun_ret);
     Shard ->
-      ShardName = shard_name(Tab, Shard),
+      ShardName = shards_lib:shard_name(Tab, Shard),
       next_(Tab, ets:next(ShardName, Key1), Shard)
   end.
 
 %% @private
 next_(Tab, '$end_of_table', Shard) when Shard > 0 ->
   NextShard = Shard - 1,
-  next_(Tab, ets:first(shard_name(Tab, NextShard)), NextShard);
+  next_(Tab, ets:first(shards_lib:shard_name(Tab, NextShard)), NextShard);
 next_(_, '$end_of_table', _) ->
   '$end_of_table';
 next_(_, Key2, _) ->
@@ -924,9 +915,9 @@ prev(Tab, Key1) ->
   State :: shards_state:state(),
   Key2  :: term().
 prev(Tab, Key1, State) ->
-  case ets:info(shard_name(Tab, 0), type) of
+  case ets:info(shards_lib:shard_name(Tab, 0), type) of
     ordered_set ->
-      ets:prev(shard_name(Tab, 0), Key1);
+      ets:prev(shards_lib:shard_name(Tab, 0), Key1);
     _ ->
       next(Tab, Key1, State)
   end.
@@ -950,8 +941,8 @@ rename(Tab, Name) ->
   State :: shards_state:state().
 rename(Tab, Name, State) ->
   _ = lists:foreach(fun(Shard) ->
-    ShardName = shard_name(Tab, Shard),
-    NewShardName = shard_name(Name, Shard),
+    ShardName = shards_lib:shard_name(Tab, Shard),
+    NewShardName = shards_lib:shard_name(Name, Shard),
     NewShardName = do_rename(ShardName, NewShardName)
   end, lists:seq(0, shards_state:n_shards(State) - 1)),
   do_rename(Tab, Name).
@@ -959,7 +950,7 @@ rename(Tab, Name, State) ->
 %% @private
 do_rename(OldName, NewName) ->
   NewName = ets:rename(OldName, NewName),
-  Pid = get_pid(OldName),
+  Pid = shards_lib:get_pid(OldName),
   true = unregister(OldName),
   true = register(NewName, Pid),
   NewName.
@@ -982,7 +973,7 @@ safe_fixtable(Tab, Fix) ->
   State :: shards_state:state().
 safe_fixtable(Tab, Fix, State) ->
   Map = {fun ets:safe_fixtable/2, [Fix]},
-  Reduce = {fun(E, Acc) -> Acc and E end, true},
+  Reduce = {fun erlang:'and'/2, true},
   mapred(Tab, Map, Reduce, State).
 
 %% @equiv select(Tab, MatchSpec, shards_state:new())
@@ -1014,7 +1005,7 @@ select(Tab, MatchSpec, Limit) when is_integer(Limit), Limit > 0 ->
   select(Tab, MatchSpec, Limit, shards_state:new());
 select(Tab, MatchSpec, State) ->
   Map = {fun ets:select/2, [MatchSpec]},
-  Reduce = fun lists:append/2,
+  Reduce = fun erlang:'++'/2,
   mapred(Tab, Map, Reduce, State).
 
 %% @doc
@@ -1068,7 +1059,7 @@ select_count(Tab, MatchSpec) ->
   NumMatched :: non_neg_integer().
 select_count(Tab, MatchSpec, State) ->
   Map = {fun ets:select_count/2, [MatchSpec]},
-  Reduce = {fun(Res, Acc) -> Acc + Res end, 0},
+  Reduce = {fun erlang:'+'/2, 0},
   mapred(Tab, Map, Reduce, State).
 
 %% @equiv select_delete(Tab, MatchSpec, shards_state:new())
@@ -1087,7 +1078,7 @@ select_delete(Tab, MatchSpec) ->
   NumDeleted :: non_neg_integer().
 select_delete(Tab, MatchSpec, State) ->
   Map = {fun ets:select_delete/2, [MatchSpec]},
-  Reduce = {fun(Res, Acc) -> Acc + Res end, 0},
+  Reduce = {fun erlang:'+'/2, 0},
   mapred(Tab, Map, Reduce, State).
 
 %% @equiv select_reverse(Tab, MatchSpec, shards_state:new())
@@ -1119,7 +1110,7 @@ select_reverse(Tab, MatchSpec, Limit) when is_integer(Limit), Limit > 0 ->
   select_reverse(Tab, MatchSpec, Limit, shards_state:new());
 select_reverse(Tab, MatchSpec, State) ->
   Map = {fun ets:select_reverse/2, [MatchSpec]},
-  Reduce = fun lists:append/2,
+  Reduce = fun erlang:'++'/2,
   mapred(Tab, Map, Reduce, State).
 
 %% @doc
@@ -1177,40 +1168,54 @@ setopts(Tab, Opts) ->
   State    :: shards_state:state().
 setopts(Tab, Opts, State) ->
   Map = {fun shards_owner:apply_ets_fun/3, [setopts, [Opts]]},
-  Reduce = {fun(E, Acc) -> Acc and E end, true},
+  Reduce = {fun erlang:'and'/2, true},
   mapred(Tab, Map, Reduce, State).
 
 %% @equiv tab2file(Tab, Filenames, shards_state:new())
-tab2file(Tab, Filenames) ->
-  tab2file(Tab, Filenames, shards_state:new()).
+tab2file(Tab, Filename) ->
+  tab2file(Tab, Filename, shards_state:new()).
 
 %% @equiv tab2file/4
-tab2file(Tab, Filenames, Options) when is_list(Options) ->
-  tab2file(Tab, Filenames, Options, shards_state:new());
-tab2file(Tab, Filenames, State) ->
-  tab2file(Tab, Filenames, [], State).
+tab2file(Tab, Filename, Options) when is_list(Options) ->
+  tab2file(Tab, Filename, Options, shards_state:new());
+tab2file(Tab, Filename, State) ->
+  tab2file(Tab, Filename, [], State).
 
 %% @doc
-%% Similar to `ets:tab2file/3', but it returns a list of
-%% responses for each shard table instead.
+%% Similar to `ets:tab2file/3', but it behaves different.
+%% This function generates one file per shard using `ets:tab2file/3',
+%% and also generate a master file with the given `Filename' that
+%% holds the information about the other shards files in order to
+%% be able to recover them using `ets:file2tab/1,2'.
 %%
 %% @see ets:tab2file/3.
 %% @end
--spec tab2file(Tab, Filenames, Options, State) -> Response when
-  Tab       :: atom(),
-  Filenames :: [file:name()],
-  Options   :: [Option],
-  Option    :: {extended_info, [ExtInfo]} | {sync, boolean()},
-  ExtInfo   :: md5sum | object_count,
-  State     :: shards_state:state(),
-  ShardTab  :: atom(),
-  ShardRes  :: ok | {error, Reason :: term()},
-  Response  :: [{ShardTab, ShardRes}].
-tab2file(Tab, Filenames, Options, State) ->
-  N = shards_state:n_shards(State),
-  [begin
-     ets:tab2file(Shard, Filename, Options)
-   end || {Shard, Filename} <- lists:zip(list(Tab, N), Filenames)].
+-spec tab2file(Tab, Filename, Options, State) -> Response when
+  Tab      :: atom(),
+  Filename :: string() | binary() | atom(),
+  Options  :: [Option],
+  Option   :: {extended_info, [ExtInfo]} | {sync, boolean()},
+  ExtInfo  :: md5sum | object_count,
+  State    :: shards_state:state(),
+  Response :: ok | {error, Reason :: term()}.
+tab2file(Tab, Filename, Options, State) ->
+  StrFilename = shards_lib:to_string(Filename),
+  ShardFilenamePairs = shards_lib:reduce_while(fun(Shard, Acc) ->
+    ShardName = shards_lib:shard_name(Tab, Shard),
+    ShardFilename = StrFilename ++ "." ++ integer_to_list(Shard),
+    case ets:tab2file(ShardName, ShardFilename, Options) of
+      ok ->
+        {cont, [{ShardName, ShardFilename} | Acc]};
+      {error, _} = Error ->
+        {halt, Error}
+    end
+  end, [], lists:seq(0, shards_state:n_shards(State) - 1)),
+  case ShardFilenamePairs of
+    {error, _} = Error ->
+      Error;
+    _ ->
+      write_tabfile(Tab, StrFilename, ShardFilenamePairs)
+  end.
 
 %% @equiv tab2list(Tab, shards_state:new())
 tab2list(Tab) ->
@@ -1226,11 +1231,30 @@ tab2list(Tab) ->
   State  :: shards_state:state(),
   Object :: tuple().
 tab2list(Tab, State) ->
-  mapred(Tab, fun ets:tab2list/1, fun lists:append/2, State).
+  mapred(Tab, fun ets:tab2list/1, fun erlang:'++'/2, State).
 
-%% @equiv ets:tabfile_info(Filename)
+%% @doc
+%% This operation is analogous to `ets:tabfile_info/1'.
+%%
+%% @see ets:tabfile_info/1.
+%% @end
+-spec tabfile_info(Filename) -> Response when
+  Filename  :: string() | binary() | atom(),
+  InfoItem  :: {atom(), any()},
+  TableInfo :: [InfoItem],
+  Ok        :: {ok, {[info_shards()], [TableInfo]}},
+  Response  :: Ok | {error, Reason :: term()}.
 tabfile_info(Filename) ->
-  ets:tabfile_info(Filename).
+  StrFilename = shards_lib:to_string(Filename),
+  try
+    {Tab, ShardTabs} = read_tabfile(StrFilename),
+    {Shards, ShardsTabInfo} = lists:foldr(fun({Shard, ShardFN}, {Acc1, Acc2}) ->
+      {[Shard | Acc1], [ets:tabfile_info(ShardFN) | Acc2]}
+    end, {[], []}, ShardTabs),
+    {ok, {shards_info(Tab, Shards), ShardsTabInfo}}
+  catch
+    _:Error -> Error
+  end.
 
 %% @equiv table(Tab, shards_state:new())
 table(Tab) ->
@@ -1280,7 +1304,7 @@ take(Tab, Key) ->
   Object :: tuple().
 take(Tab, Key, State) ->
   Map = {fun ets:take/2, [Key]},
-  Reduce = fun lists:append/2,
+  Reduce = fun erlang:'++'/2,
   mapred(Tab, Key, Map, Reduce, State, r).
 
 %% @equiv update_counter(Tab, Key, UpdateOp, shards_state:new())
@@ -1339,69 +1363,6 @@ update_element(Tab, Key, ElementSpec, State) ->
   mapred(Tab, Key, Map, nil, State, w).
 
 %%%===================================================================
-%%% Extended API
-%%%===================================================================
-
-%% @doc
-%% Builds a shard name `ShardName'.
-%% <ul>
-%% <li>`TabName': Table name from which the shard name is generated.</li>
-%% <li>`ShardNum': Shard number – from `0' to `(NumShards - 1)'</li>
-%% </ul>
-%% @end
--spec shard_name(TabName, ShardNum) -> ShardName when
-  TabName   :: atom(),
-  ShardNum  :: non_neg_integer(),
-  ShardName :: atom().
-shard_name(TabName, Shard) ->
-  shards_owner:shard_name(TabName, Shard).
-
-%% @doc
-%% Pick/computes the shard where the `Key' will be handled.
-%% <ul>
-%% <li>`Key': The key to be hashed to calculate the shard.</li>
-%% <li>`Range': Range/set – number of shards/nodes.</li>
-%% <li>`Op': Operation type: `r | w | d'.</li>
-%% </ul>
-%% @end
--spec pick(Key, Range, Op) -> Result when
-  Key    :: shards_state:key(),
-  Range  :: shards_state:range(),
-  Op     :: shards_state:op(),
-  Result :: non_neg_integer().
-pick(Key, NumShards, _) ->
-  erlang:phash2(Key, NumShards).
-
-%% @doc
-%% Returns the list of shard names associated to the given `TabName'.
-%% The shard names that were created in the `shards:new/2,3' fun.
-%% <ul>
-%% <li>`TabName': Table name.</li>
-%% <li>`NumShards': Number of shards.</li>
-%% </ul>
-%% @end
--spec list(TabName, NumShards) -> ShardTabNames when
-  TabName       :: atom(),
-  NumShards     :: pos_integer(),
-  ShardTabNames :: [atom()].
-list(TabName, NumShards) ->
-  Shards = lists:seq(0, NumShards - 1),
-  [shard_name(TabName, Shard) || Shard <- Shards].
-
-%% @doc
-%% Returns the PID associated to the table `Tab'.
-%% <ul>
-%% <li>`TabName': Table name.</li>
-%% </ul>
-%% @end
--spec get_pid(Tab :: atom()) -> pid() | no_return().
-get_pid(Tab) ->
-  case whereis(Tab) of
-    undefined -> error(badarg);
-    Pid       -> Pid
-  end.
-
-%%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
@@ -1430,13 +1391,13 @@ mapred(Tab, Key, {MapFun, Args} = Map, Reduce, State, Op) ->
     any ->
       s_mapred(Tab, N, Map, Reduce);
     Shard ->
-      apply(MapFun, [shard_name(Tab, Shard) | Args])
+      apply(MapFun, [shards_lib:shard_name(Tab, Shard) | Args])
   end.
 
 %% @private
 s_mapred(Tab, NumShards, {MapFun, Args}, {ReduceFun, AccIn}) ->
   lists:foldl(fun(Shard, Acc) ->
-    MapRes = apply(MapFun, [shard_name(Tab, Shard) | Args]),
+    MapRes = apply(MapFun, [shards_lib:shard_name(Tab, Shard) | Args]),
     ReduceFun(MapRes, Acc)
   end, AccIn, lists:seq(0, NumShards - 1));
 s_mapred(Tab, NumShards, MapFun, ReduceFun) ->
@@ -1447,7 +1408,7 @@ s_mapred(Tab, NumShards, MapFun, ReduceFun) ->
 p_mapred(Tab, NumShards, {MapFun, Args}, {ReduceFun, AccIn}) ->
   Tasks = lists:foldl(fun(Shard, Acc) ->
     AsyncTask = shards_task:async(fun() ->
-      apply(MapFun, [shard_name(Tab, Shard) | Args])
+      apply(MapFun, [shards_lib:shard_name(Tab, Shard) | Args])
     end), [AsyncTask | Acc]
   end, [], lists:seq(0, NumShards - 1)),
   lists:foldl(fun(Task, Acc) ->
@@ -1470,22 +1431,13 @@ mapred_funs(MapFun, ReduceFun) ->
 %% @private
 fold(Tab, NumShards, Fold, [Fun, Acc]) ->
   lists:foldl(fun(Shard, FoldAcc) ->
-    ShardName = shard_name(Tab, Shard),
+    ShardName = shards_lib:shard_name(Tab, Shard),
     apply(ets, Fold, [Fun, FoldAcc, ShardName])
   end, Acc, lists:seq(0, NumShards - 1)).
 
 %% @private
-name_from_shard(ShardTabName) ->
-  BinShardTabName = atom_to_binary(ShardTabName, utf8),
-  Tokens = binary:split(BinShardTabName, <<"_">>, [global]),
-  binary_to_atom(join_bin(lists:droplast(Tokens), <<"_">>), utf8).
-
-%% @private
-join_bin(BinL, Separator) when is_list(BinL) ->
-  lists:foldl(fun
-    (X, <<"">>) -> <<X/binary>>;
-    (X, Acc)    -> <<Acc/binary, Separator/binary, X/binary>>
-  end, <<"">>, BinL).
+shards_info(Tab, Shards) ->
+  [{name, Tab}, {shards, Shards}, {n_shards, length(Shards)}].
 
 %% @private
 q(_, Tab, MatchSpec, Limit, _, 0, Shard, {Acc, Continuation}) ->
@@ -1497,7 +1449,7 @@ q(_, Tab, MatchSpec, Limit, _, _, Shard, {Acc, _}) when Shard < 0 ->
 q(F, Tab, MatchSpec, Limit, QFun, I, Shard, {Acc, '$end_of_table'}) ->
   q(F, Tab, MatchSpec, Limit, QFun, I, Shard - 1, {Acc, nil});
 q(F, Tab, MatchSpec, Limit, QFun, I, Shard, {Acc, _}) ->
-  case ets:F(shard_name(Tab, Shard), MatchSpec, I) of
+  case ets:F(shards_lib:shard_name(Tab, Shard), MatchSpec, I) of
     {L, Cont} ->
       NewAcc = {QFun(L, Acc), Cont},
       q(F, Tab, MatchSpec, Limit, QFun, I - length(L), Shard, NewAcc);
@@ -1522,3 +1474,14 @@ q(F, {Tab, MatchSpec, Limit, Shard, Continuation}, QFun, I, Acc) ->
 %% @private
 q_fun() ->
   fun(L1, L0) -> L1 ++ L0 end.
+
+%% @private
+read_tabfile(Filename) ->
+  case file:read_file(Filename) of
+    {ok, Binary} -> binary_to_term(Binary);
+    Error0       -> throw(Error0)
+  end.
+
+%% @private
+write_tabfile(Tab, Filename, Terms) ->
+  file:write_file(Filename, term_to_binary({Tab, Terms})).

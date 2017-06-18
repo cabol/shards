@@ -1,4 +1,4 @@
--module(test_helper).
+-module(shards_test_helper).
 
 %% Test Cases
 -export([
@@ -38,7 +38,7 @@
 ]).
 
 -include_lib("stdlib/include/ms_transform.hrl").
--include("test_helper.hrl").
+-include("shards_test_helper.hrl").
 
 %%%===================================================================
 %%% Tests Key Generator
@@ -334,7 +334,7 @@ t_first_last_next_prev_ops_({_, ?SHARDED_DUPLICATE_BAG, _}) ->
   true = shards:insert(?SHARDED_DUPLICATE_BAG, KVPairs),
 
   % check first-next against select
-  try first_next_traversal(shards, ?SHARDED_DUPLICATE_BAG, 10, [])
+  _ = try first_next_traversal(shards, ?SHARDED_DUPLICATE_BAG, 10, [])
   catch _:bad_pick_fun_ret -> ok
   end,
 
@@ -407,8 +407,8 @@ t_update_ops(Config) ->
   Mod = get_module(Scope, ?SET),
 
   % update counter
-  ets:insert(?ETS_SET, {counter1, 0}),
-  Mod:insert(?SET, {counter1, 0}),
+  _ = ets:insert(?ETS_SET, {counter1, 0}),
+  _ = Mod:insert(?SET, {counter1, 0}),
   R1 = ets:update_counter(?ETS_SET, counter1, 1),
   R1 = Mod:update_counter(?SET, counter1, 1),
 
@@ -417,8 +417,8 @@ t_update_ops(Config) ->
   R2 = shards:update_counter(?SET, counter2, 1, {counter2, 0}),
 
   % update element
-  ets:insert(?ETS_SET, {elem0, 0}),
-  Mod:insert(?SET, {elem0, 0}),
+  _ = ets:insert(?ETS_SET, {elem0, 0}),
+  _ = Mod:insert(?SET, {elem0, 0}),
   R3 = ets:update_element(?ETS_SET, elem0, {2, 10}),
   R3 = Mod:update_element(?SET, elem0, {2, 10}),
 
@@ -509,19 +509,35 @@ t_tab2list_tab2file_file2tab(Config) ->
   R1 = lists:usort(ets:tab2list(?ETS_SET)),
   4 = length(R1),
 
-  % save tab to files
+  % save tab to file
   DefaultShards = ?N_SHARDS,
-  L = lists:duplicate(DefaultShards, ok),
-  FileL = ["myfile" ++ integer_to_list(X) || X <- lists:seq(0, DefaultShards-1)],
-  L = Mod:tab2file(?SET, FileL),
-  L = Mod:tab2file(?SET, FileL, []),
+  ok = Mod:tab2file(?SET, test_tab),
+  ok = Mod:tab2file(?SET, <<"test_tab2">>, []),
+
+  % errors
+  {error, _} = Mod:tab2file(?SET, "mydir/test_tab3"),
+  _ = try Mod:tab2file(?SET, [1, 2, 3])
+  catch _:{badarg, _} -> ok
+  end,
+  _ = try Mod:tab2file(?SET, self())
+  catch _:{badarg, _} -> ok
+  end,
 
   % delete table
-  Mod:delete(?SET),
+  true = Mod:delete(?SET),
+
+  % tab info
+  {ok, {_, _}} = Mod:tabfile_info("test_tab"),
+  {error, _} = Mod:tabfile_info(123),
+  {error, _} = Mod:tabfile_info(1.2),
+
+  % errors
+  {error, _} = Mod:file2tab("wrong_file"),
+  ok = file:delete("test_tab2.1"),
+  {error, _} = Mod:file2tab("test_tab2"),
 
   % restore table from files
-  {error, _} = shards:file2tab(["myfile0", "wrong_file"]),
-  {ok, ?SET} = shards:file2tab(FileL),
+  {ok, ?SET} = Mod:file2tab("test_tab"),
 
   % check
   DefaultShards = length(Mod:info(?SET)),
@@ -536,7 +552,7 @@ t_rename_({Scope, Tab, _}) ->
   Mod = get_module(Scope, Tab),
 
   % rename non existent table
-  try Mod:rename(wrong, new_name)
+  _ = try Mod:rename(wrong, new_name)
   catch _:badarg -> ok
   end,
 
@@ -595,22 +611,22 @@ t_equivalent_ops(Config) ->
 %%%===================================================================
 
 init_shards(Scope) ->
-  init_shards_new(Scope),
+  _ = init_shards_new(Scope),
 
   set = shards_local:info_shard(?SET, 0, type),
   duplicate_bag = shards_local:info_shard(?DUPLICATE_BAG, 0, type),
   ordered_set = shards_local:info_shard(?ORDERED_SET, 0, type),
   duplicate_bag = shards_local:info_shard(?SHARDED_DUPLICATE_BAG, 0, type),
-  shards_created(?SHARDS_TABS),
+  _ = shards_created(?SHARDS_TABS),
 
-  ets:new(?ETS_SET, [set, public, named_table]),
-  ets:give_away(?ETS_SET, whereis(?SET), []),
-  ets:new(?ETS_DUPLICATE_BAG, [duplicate_bag, public, named_table]),
-  ets:give_away(?ETS_DUPLICATE_BAG, whereis(?DUPLICATE_BAG), []),
-  ets:new(?ETS_ORDERED_SET, [ordered_set, public, named_table]),
-  ets:give_away(?ETS_ORDERED_SET, whereis(?ORDERED_SET), []),
-  ets:new(?ETS_SHARDED_DUPLICATE_BAG, [duplicate_bag, public, named_table]),
-  ets:give_away(?ETS_SHARDED_DUPLICATE_BAG, whereis(?SHARDED_DUPLICATE_BAG), []),
+  _ = ets:new(?ETS_SET, [set, public, named_table]),
+  _ = ets:give_away(?ETS_SET, whereis(?SET), []),
+  _ = ets:new(?ETS_DUPLICATE_BAG, [duplicate_bag, public, named_table]),
+  _ = ets:give_away(?ETS_DUPLICATE_BAG, whereis(?DUPLICATE_BAG), []),
+  _ = ets:new(?ETS_ORDERED_SET, [ordered_set, public, named_table]),
+  _ = ets:give_away(?ETS_ORDERED_SET, whereis(?ORDERED_SET), []),
+  _ = ets:new(?ETS_SHARDED_DUPLICATE_BAG, [duplicate_bag, public, named_table]),
+  _ = ets:give_away(?ETS_SHARDED_DUPLICATE_BAG, whereis(?SHARDED_DUPLICATE_BAG), []),
   ok.
 
 %% @private
@@ -621,8 +637,8 @@ init_shards_new(Scope) ->
   end,
 
   % test badarg
-  try shards:new(?SET, [{scope, Scope}, wrongarg])
-  catch _:badarg -> ok
+  _ = try shards:new(?SET, [{scope, Scope}, wrongarg])
+  catch _:{badarg, _} -> ok
   end,
 
   DefaultShards = ?N_SHARDS,

@@ -23,7 +23,7 @@
   end_per_suite
 ]).
 
--include("test_helper.hrl").
+-include("support/shards_test_helper.hrl").
 
 %%%===================================================================
 %%% Common Test
@@ -51,32 +51,32 @@ t_create_state(_Config) ->
   shards_local = shards_state:module(State0),
   shards_sup = shards_state:sup_name(State0),
   true = ?N_SHARDS == shards_state:n_shards(State0),
-  true = fun shards_local:pick/3 == shards_state:pick_shard_fun(State0),
-  true = fun shards_local:pick/3 == shards_state:pick_node_fun(State0),
+  true = fun shards_lib:pick/3 == shards_state:pick_shard_fun(State0),
+  true = fun shards_lib:pick/3 == shards_state:pick_node_fun(State0),
 
   % create state using shards_state:new/1
   State1 = shards_state:new(4),
   shards_local = shards_state:module(State1),
   shards_sup = shards_state:sup_name(State0),
   true = 4 == shards_state:n_shards(State1),
-  true = fun shards_local:pick/3 == shards_state:pick_shard_fun(State1),
-  true = fun shards_local:pick/3 == shards_state:pick_node_fun(State1),
+  true = fun shards_lib:pick/3 == shards_state:pick_shard_fun(State1),
+  true = fun shards_lib:pick/3 == shards_state:pick_node_fun(State1),
 
   % create state using shards_state:new/2
   State2 = shards_state:new(2, shards_dist),
   shards_dist = shards_state:module(State2),
   shards_sup = shards_state:sup_name(State2),
   true = 2 == shards_state:n_shards(State2),
-  true = fun shards_local:pick/3 == shards_state:pick_shard_fun(State2),
-  true = fun shards_local:pick/3 == shards_state:pick_node_fun(State2),
+  true = fun shards_lib:pick/3 == shards_state:pick_shard_fun(State2),
+  true = fun shards_lib:pick/3 == shards_state:pick_node_fun(State2),
 
   % create state using shards_state:new/3
   State3 = shards_state:new(2, shards_dist, my_shards_sup),
   shards_dist = shards_state:module(State3),
   my_shards_sup = shards_state:sup_name(State3),
   true = 2 == shards_state:n_shards(State3),
-  true = fun shards_local:pick/3 == shards_state:pick_shard_fun(State3),
-  true = fun shards_local:pick/3 == shards_state:pick_node_fun(State3),
+  true = fun shards_lib:pick/3 == shards_state:pick_shard_fun(State3),
+  true = fun shards_lib:pick/3 == shards_state:pick_node_fun(State3),
 
   % create state using shards_state:new/3
   Fun = fun(X, Y, Z) -> (X + Y + Z) rem Y end,
@@ -85,7 +85,7 @@ t_create_state(_Config) ->
   my_shards_sup = shards_state:sup_name(State4),
   true = 4 == shards_state:n_shards(State4),
   true = Fun == shards_state:pick_shard_fun(State4),
-  true = fun shards_local:pick/3 == shards_state:pick_node_fun(State4),
+  true = fun shards_lib:pick/3 == shards_state:pick_node_fun(State4),
 
   % create state using shards_state:new/4
   State5 = shards_state:new(4, shards_dist, my_shards_sup, Fun, Fun),
@@ -99,7 +99,7 @@ t_create_state(_Config) ->
 
 t_state_ops(_Config) ->
   test_set = shards:new(test_set, [
-    {pick_node_fun, fun test_helper:pick_node/3}
+    {pick_node_fun, fun shards_test_helper:pick_node/3}
   ]),
   StateSet = shards_state:get(test_set),
   DefaultShards = ?N_SHARDS,
@@ -109,9 +109,9 @@ t_state_ops(_Config) ->
   true = Mod == shards_local orelse Mod == shards_dist,
   shards_sup = shards_state:sup_name(test_set),
   DefaultShards = shards_state:n_shards(test_set),
-  Fun1 = fun shards_local:pick/3,
+  Fun1 = fun shards_lib:pick/3,
   Fun1 = shards_state:pick_shard_fun(test_set),
-  Fun2 = fun test_helper:pick_node/3,
+  Fun2 = fun shards_test_helper:pick_node/3,
   Fun2 = shards_state:pick_node_fun(test_set),
 
   State0 = shards_state:new(),

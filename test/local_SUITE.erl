@@ -14,7 +14,7 @@
 %% Common Test Cases
 -include_lib("mixer/include/mixer.hrl").
 -mixin([
-  {test_helper, [
+  {shards_test_helper, [
     t_basic_ops/1,
     t_match_ops/1,
     t_select_ops/1,
@@ -36,7 +36,7 @@
   t_custom_supervisor/1
 ]).
 
--include("test_helper.hrl").
+-include("support/shards_test_helper.hrl").
 
 -define(EXCLUDED_FUNS, [
   module_info,
@@ -56,20 +56,20 @@ all() ->
   [F || {F, _} <- Exports, not lists:member(F, ?EXCLUDED_FUNS)].
 
 init_per_suite(Config) ->
-  shards:start(),
+  _ = shards:start(),
   [{scope, l} | Config].
 
 end_per_suite(Config) ->
-  shards:stop(),
+  _ = shards:stop(),
   Config.
 
 init_per_testcase(_, Config) ->
-  test_helper:init_shards(l),
-  true = test_helper:cleanup_shards(),
+  _ = shards_test_helper:init_shards(l),
+  true = shards_test_helper:cleanup_shards(),
   Config.
 
 end_per_testcase(_, Config) ->
-  test_helper:delete_shards(),
+  _ = shards_test_helper:delete_shards(),
   Config.
 
 %%%===================================================================
@@ -81,7 +81,7 @@ t_shard_restarted_when_down(_Config) ->
   tab1 = shards:new(tab1, []),
   tab2 = shards:new(tab2, [{restart_strategy, one_for_all}]),
 
-  try shards_local:get_pid(wrong)
+  try shards_lib:get_pid(wrong)
   catch _:badarg -> ok
   end,
 
@@ -93,13 +93,13 @@ t_shard_restarted_when_down(_Config) ->
   assert_values(tab2, [1, 2, 3], [1, 2, 3]),
 
   NumShards = shards_state:n_shards(tab1),
-  ShardToKill = shards_local:pick(1, NumShards, w),
-  ShardToKillTab1 = shards_local:shard_name(tab1, ShardToKill),
+  ShardToKill = shards_lib:pick(1, NumShards, w),
+  ShardToKillTab1 = shards_lib:shard_name(tab1, ShardToKill),
   exit(whereis(ShardToKillTab1), kill),
   timer:sleep(500),
 
   Expected = [begin
-    Shard = shards_local:pick(K, NumShards, w),
+    Shard = shards_lib:pick(K, NumShards, w),
     case Shard == ShardToKill of
       true -> nil;
       _    -> K
@@ -107,7 +107,7 @@ t_shard_restarted_when_down(_Config) ->
   end || K <- [1, 2, 3]],
   assert_values(tab1, [1, 2, 3], Expected),
 
-  ShardToKillTab2 = shards_local:shard_name(tab2, ShardToKill),
+  ShardToKillTab2 = shards_lib:shard_name(tab2, ShardToKill),
   exit(whereis(ShardToKillTab2), kill),
   timer:sleep(500),
 

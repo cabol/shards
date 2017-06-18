@@ -71,7 +71,7 @@ join(Tab, Nodes) ->
 
 %% @private
 join_(Tab) ->
-  pg2:join(Tab, shards_local:get_pid(Tab)).
+  pg2:join(Tab, shards_lib:get_pid(Tab)).
 
 -spec leave(Tab, Nodes) -> LeavedNodes when
   Tab         :: atom(),

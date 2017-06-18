@@ -9,12 +9,10 @@
 %%%-------------------------------------------------------------------
 -module(shards).
 
--behaviour(application).
-
-%% Application callbacks and functions
+%% Application Utilities
 -export([
-  start/0, start/2,
-  stop/0, stop/1
+  start/0,
+  stop/0
 ]).
 
 %% ETS API
@@ -90,26 +88,18 @@
 -define(SHARDS, shards_local).
 
 %%%===================================================================
-%%% Application callbacks and functions
+%%% Application Utilities
 %%%===================================================================
 
 %% @doc Starts `shards' application.
--spec start() -> {ok, [atom()]} | {error, term()}.
+-spec start() -> ok | {error, term()}.
 start() ->
-  application:ensure_all_started(shards).
+  application:start(shards).
 
 %% @doc Stops `shards' application.
 -spec stop() -> ok | {error, term()}.
 stop() ->
   application:stop(shards).
-
-%% @hidden
-start(_StartType, _StartArgs) ->
-  shards_sup:start_link().
-
-%% @hidden
-stop(_State) ->
-  ok.
 
 %%%===================================================================
 %%% Shards/ETS API
@@ -166,12 +156,12 @@ delete_object(Tab, Object) ->
   call(Tab, delete_object, [Tab, Object]).
 
 %% @equiv shards_local:file2tab/1
-file2tab(Filenames) ->
-  ?SHARDS:file2tab(Filenames).
+file2tab(Filename) ->
+  ?SHARDS:file2tab(Filename).
 
 %% @equiv shards_local:file2tab/2
-file2tab(Filenames, Options) ->
-  ?SHARDS:file2tab(Filenames, Options).
+file2tab(Filename, Options) ->
+  ?SHARDS:file2tab(Filename, Options).
 
 %% @doc
 %% Wrapper to `shards_local:first/2' and `shards_dist:first/2'.
@@ -236,14 +226,14 @@ i() ->
 info(Tab) ->
   case whereis(Tab) of
     undefined -> undefined;
-    _         -> ?SHARDS:info(Tab, shards_state:get(Tab))
+    _         -> call(Tab, info, [Tab])
   end.
 
 %% @equiv shards_local:info/3
 info(Tab, Item) ->
   case whereis(Tab) of
     undefined -> undefined;
-    _         -> ?SHARDS:info(Tab, Item, shards_state:get(Tab))
+    _         -> call(Tab, info, [Tab, Item])
   end.
 
 %% @equiv shards_local:info_shard/2
@@ -641,14 +631,12 @@ setopts(Tab, Opts) ->
 %% @see shards_local:tab2file/3.
 %% @see shards_dist:tab2file/3.
 %% @end
--spec tab2file(Tab, Filenames) -> Response when
-  Tab       :: atom(),
-  Filenames :: [file:name()],
-  ShardTab  :: atom(),
-  ShardRes  :: ok | {error, Reason :: term()},
-  Response  :: [{ShardTab, ShardRes}].
-tab2file(Tab, Filenames) ->
-  call(Tab, tab2file, [Tab, Filenames]).
+-spec tab2file(Tab, Filename) -> Response when
+  Tab      :: atom(),
+  Filename :: string() | binary() | atom(),
+  Response :: ok | {error, Reason :: term()}.
+tab2file(Tab, Filename) ->
+  call(Tab, tab2file, [Tab, Filename]).
 
 %% @doc
 %% Wrapper to `shards_local:tab2file/4' and `shards_dist:tab2file/4'.
@@ -656,17 +644,15 @@ tab2file(Tab, Filenames) ->
 %% @see shards_local:tab2file/4.
 %% @see shards_dist:tab2file/4.
 %% @end
--spec tab2file(Tab, Filenames, Options) -> Response when
-  Tab       :: atom(),
-  Filenames :: [file:name()],
-  Options   :: [Option],
-  Option    :: {extended_info, [ExtInfo]} | {sync, boolean()},
-  ExtInfo   :: md5sum | object_count,
-  ShardTab  :: atom(),
-  ShardRes  :: ok | {error, Reason :: term()},
-  Response  :: [{ShardTab, ShardRes}].
-tab2file(Tab, Filenames, Options) ->
-  call(Tab, tab2file, [Tab, Filenames, Options]).
+-spec tab2file(Tab, Filename, Options) -> Response when
+  Tab      :: atom(),
+  Filename :: string() | binary() | atom(),
+  Options  :: [Option],
+  Option   :: {extended_info, [ExtInfo]} | {sync, boolean()},
+  ExtInfo  :: md5sum | object_count,
+  Response :: ok | {error, Reason :: term()}.
+tab2file(Tab, Filename, Options) ->
+  call(Tab, tab2file, [Tab, Filename, Options]).
 
 %% @doc
 %% Wrapper to `shards_local:tab2list/2' and `shards_dist:tab2list/2'.
@@ -816,7 +802,7 @@ get_nodes(Tab) ->
   Tab    :: atom(),
   Result :: [atom()].
 list(Tab) ->
-  shards_local:list(Tab, shards_state:n_shards(Tab)).
+  shards_lib:list_shards(Tab, shards_state:n_shards(Tab)).
 
 %% @doc
 %% Utility to get the `state' for the given table `Tab'.

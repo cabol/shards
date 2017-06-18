@@ -48,7 +48,7 @@ start_child(SupName, TabName, Options) ->
   Error   :: not_found | simple_one_for_one,
   Return  :: ok | {error, Error}.
 terminate_child(SupName, Tab) when is_atom(Tab) ->
-  terminate_child(SupName, shards_local:get_pid(Tab));
+  terminate_child(SupName, shards_lib:get_pid(Tab));
 terminate_child(SupName, Tab) when is_pid(Tab) ->
   supervisor:terminate_child(SupName, Tab).
 
@@ -58,12 +58,5 @@ terminate_child(SupName, Tab) when is_pid(Tab) ->
 
 %% @hidden
 init({Name}) ->
-  ChildSpec = {
-    Name,
-    {shards_owner_sup, start_link, []},
-    permanent,
-    infinity,
-    supervisor,
-    [shards_owner_sup]
-  },
+  ChildSpec = shards_owner_sup:child_spec(Name),
   {ok, {{simple_one_for_one, 10, 10}, [ChildSpec]}}.

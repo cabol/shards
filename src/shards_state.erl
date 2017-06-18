@@ -71,11 +71,11 @@
 
 %% State definition
 -record(state, {
-  module         = shards_local            :: module(),
-  sup_name       = shards_sup              :: atom(),
-  n_shards       = ?N_SHARDS               :: pos_integer(),
-  pick_shard_fun = fun shards_local:pick/3 :: pick_fun(),
-  pick_node_fun  = fun shards_local:pick/3 :: pick_fun()
+  module         = shards_local          :: module(),
+  sup_name       = shards_sup            :: atom(),
+  n_shards       = ?N_SHARDS             :: pos_integer(),
+  pick_shard_fun = fun shards_lib:pick/3 :: pick_fun(),
+  pick_node_fun  = fun shards_lib:pick/3 :: pick_fun()
 }).
 
 %% @type state() = #state{}.
@@ -170,14 +170,14 @@ to_map(State) ->
 %% @doc
 %% Builds a new `state' from the given `Map'.
 %% @end
--spec from_map(state_map()) -> state().
+-spec from_map(map()) -> state().
 from_map(Map) ->
   #state{
     module         = maps:get(module, Map, shards_local),
     sup_name       = maps:get(sup_name, Map, shards_sup),
     n_shards       = maps:get(n_shards, Map, ?N_SHARDS),
-    pick_shard_fun = maps:get(pick_shard_fun, Map, fun shards_local:pick/3),
-    pick_node_fun  = maps:get(pick_node_fun, Map, fun shards_local:pick/3)}.
+    pick_shard_fun = maps:get(pick_shard_fun, Map, fun shards_lib:pick/3),
+    pick_node_fun  = maps:get(pick_node_fun, Map, fun shards_lib:pick/3)}.
 
 %% @doc
 %% Returns the `state' for the given table `Tab'.

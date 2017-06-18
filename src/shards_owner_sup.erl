@@ -8,7 +8,10 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/2]).
+-export([
+  start_link/2,
+  child_spec/1
+]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -32,6 +35,12 @@
   Response :: supervisor:startlink_ret().
 start_link(Name, Options) ->
   supervisor:start_link(?MODULE, {Name, Options}).
+
+-spec child_spec(Name) -> ChildSpec when
+  Name      :: atom(),
+  ChildSpec :: supervisor:child_spec().
+child_spec(Name) ->
+  {Name, {?MODULE, start_link, []}, permanent, infinity, supervisor, [?MODULE]}.
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -59,7 +68,7 @@ init({Name, Options}) ->
   NumShards = shards_state:n_shards(State),
   Children = [begin
     % get a local name to shard
-    LocalShardName = shards_owner:shard_name(Name, Shard),
+    LocalShardName = shards_lib:shard_name(Name, Shard),
     % save relationship between shard and shard name
     true = ets:insert(Name, {Shard, LocalShardName}),
     % shard worker spec
@@ -68,7 +77,7 @@ init({Name, Options}) ->
 
   % init shards_dist pg2 group
   Module = shards_state:module(State),
-  ok = init_shards_dist(Name, Module),
+  ok = maybe_init_shards_dist(Name, Module),
 
   % launch shards supervisor
   supervise(Children, #{strategy => RestartStrategy}).
@@ -101,7 +110,7 @@ assert_unique_ids([]) ->
   ok;
 assert_unique_ids([Id | Rest]) ->
   case lists:member(Id, Rest) of
-    true -> error(badarg);
+    true -> error({badarg, duplicated_id});
     _    -> assert_unique_ids(Rest)
   end.
 
@@ -142,8 +151,8 @@ parse_opts([Opt | Opts], #{opts := NOpts} = Acc) ->
   parse_opts(Opts, Acc#{opts := [Opt | NOpts]}).
 
 %% @private
-init_shards_dist(Tab, shards_dist) ->
+maybe_init_shards_dist(Tab, shards_dist) ->
   ok = pg2:create(Tab),
   ok = pg2:join(Tab, self());
-init_shards_dist(_, _) ->
+maybe_init_shards_dist(_, _) ->
   ok.
