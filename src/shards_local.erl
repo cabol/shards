@@ -72,7 +72,7 @@
   give_away/3, give_away/4,
   i/0,
   info/1, info/2, info/3,
-  info_shard/2, info_shard/3,
+  info_shard/1, info_shard/2,
   insert/2, insert/3,
   insert_new/2, insert_new/3,
   is_compiled_ms/1,
@@ -157,18 +157,26 @@
                     | {size, non_neg_integer()}
                     | {type, ets:type()}
                     | {write_concurrency, boolean()}
-                    | {read_concurrency, boolean()}.
+                    | {read_concurrency, boolean()}
+                    | {shards, [atom()]}.
 
 %% ETS Info Item
 -type info_item() :: compressed | fixed | heir | keypos | memory
                    | name | named_table | node | owner | protection
                    | safe_fixed | size | stats | type
-                   | write_concurrency | read_concurrency.
+                   | write_concurrency | read_concurrency
+                   | shards.
 
-%% Shards Info
--type info_shards() :: {name, atom()}
-                     | {shards, [ShardTab :: atom()]}
-                     | {n_shards, pos_integer()}.
+%% ETS TabInfo Item
+-type tabinfo_item() :: {name, atom()}
+                      | {type, ets:type()}
+                      | {protection, ets:access()}
+                      | {named_table, boolean()}
+                      | {keypos, non_neg_integer()}
+                      | {size, non_neg_integer()}
+                      | {extended_info, [md5sum | object_count]}
+                      | {version, {Major :: non_neg_integer(), Minor :: non_neg_integer()}}
+                      | {shards, [atom()]}.
 
 %% @type continuation() = {
 %%  Tab          :: atom(),
@@ -194,13 +202,19 @@
   Continuation :: ets:continuation()
 }.
 
+%% @type filename() = string() | binary() | atom().
+-type filename() :: string() | binary() | atom().
+
 % Exported Types
 -export_type([
   option/0,
   info_tuple/0,
   info_item/0,
-  continuation/0
+  continuation/0,
+  filename/0
 ]).
+
+-define(is_filename(_FN), is_list(_FN); is_binary(_FN); is_atom(_FN)).
 
 %%%===================================================================
 %%% ETS API
@@ -284,13 +298,13 @@ file2tab(Filename) ->
 %% @see ets:file2tab/2.
 %% @end
 -spec file2tab(Filename, Options) -> Response when
-  Filename :: string() | binary() | atom(),
+  Filename :: filename(),
   Tab      :: atom(),
   Options  :: [Option],
   Option   :: {verify, boolean()},
   Reason   :: term(),
   Response :: {ok, Tab} | {error, Reason}.
-file2tab(Filename, Options) ->
+file2tab(Filename, Options) when ?is_filename(Filename) ->
   StrFilename = shards_lib:to_string(Filename),
   try
     {Tab, ShardTabs} = read_tabfile(StrFilename),
@@ -414,77 +428,53 @@ info(Tab) ->
   info(Tab, shards_state:new()).
 
 %% @doc
-%% If 2nd argument is `info_tuple()' this function behaves like
+%% If 2nd argument is `info_item()' this function behaves like
 %% `ets:info/2', but if it is the `shards_state:state()',
-%% it behaves like `ets:info/1', but instead of return the
-%% information about one single table, it returns a list with
-%% the information of each shard table.
+%% it behaves like `ets:info/1'.
 %%
 %% @see ets:info/1.
 %% @see ets:info/2.
-%% @see shards:info_shard/2.
-%% @see shards:info_shard/3.
 %% @end
 -spec info(Tab, StateOrItem) -> Result when
   Tab         :: atom(),
   StateOrItem :: shards_state:state() | info_item(),
   InfoList    :: [info_tuple()],
-  Result1     :: [InfoList] | undefined,
-  Value       :: [term()] | undefined,
-  Result      :: Result1 | Value.
+  Value       :: any(),
+  Result      :: InfoList | Value | undefined.
 info(Tab, Item) when is_atom(Item) ->
   info(Tab, Item, shards_state:new());
 info(Tab, State) ->
   case whereis(Tab) of
-    undefined -> undefined;
-    _         -> mapred(Tab, fun ets:info/1, State)
+    undefined ->
+      undefined;
+    _ ->
+      InfoLists = mapred(Tab, fun ets:info/1, State),
+      shards_info(Tab, InfoLists, [memory])
   end.
 
 %% @doc
-%% This operation behaves like `ets:info/2', but instead of return
-%% the information about one single table, it returns a list with
-%% the information of each shard table.
+%% This operation is analogous to `ets:info/2'.
 %%
 %% @see ets:info/2.
-%% @see shards:info_shard/3.
 %% @end
 -spec info(Tab, Item, State) -> Value when
   Tab   :: atom(),
   State :: shards_state:state(),
   Item  :: info_item(),
-  Value :: [term()] | undefined.
+  Value :: any() | undefined.
 info(Tab, Item, State) ->
-  case whereis(Tab) of
+  case info(Tab, State) of
     undefined -> undefined;
-    _         -> mapred(Tab, {fun ets:info/2, [Item]}, State)
+    TabInfo   -> shards_lib:keyfind(Item, TabInfo)
   end.
 
-%% @doc
-%% This operation behaves like `ets:info/1'
-%%
-%% @see ets:info/1.
-%% @end
--spec info_shard(Tab, Shard) -> InfoList | undefined when
-  Tab      :: atom(),
-  Shard    :: non_neg_integer(),
-  InfoList :: [info_tuple()].
-info_shard(Tab, Shard) ->
-  ShardName = shards_lib:shard_name(Tab, Shard),
-  ets:info(ShardName).
+%% @equiv ets:info(ShardTab)
+info_shard(ShardTab) ->
+  ets:info(ShardTab).
 
-%% @doc
-%% This operation behaves like `ets:info/2'.
-%%
-%% @see ets:info/2.
-%% @end
--spec info_shard(Tab, Shard, Item) -> Value | undefined when
-  Tab   :: atom(),
-  Shard :: non_neg_integer(),
-  Item  :: info_item(),
-  Value :: term().
-info_shard(Tab, Shard, Item) ->
-  ShardName = shards_lib:shard_name(Tab, Shard),
-  ets:info(ShardName, Item).
+%% @equiv ets:info(ShardTab, Item)
+info_shard(ShardTab, Item) ->
+  ets:info(ShardTab, Item).
 
 %% @equiv insert(Tab, ObjOrObjL, shards_state:new())
 insert(Tab, ObjOrObjL) ->
@@ -840,12 +830,8 @@ member(Tab, Key, State) ->
   Name    :: atom(),
   Options :: [option()].
 new(Name, Options) ->
-  case lists:keyfind(sup_name, 1, Options) of
-    {sup_name, SupName} ->
-      do_new(SupName, Name, Options);
-    false ->
-      do_new(shards_sup, Name, Options)
-  end.
+  SupName = shards_lib:keyfind(sup_name, Options, shards_sup),
+  do_new(SupName, Name, Options).
 
 %% @private
 do_new(SupName, Name, Options) ->
@@ -1192,13 +1178,13 @@ tab2file(Tab, Filename, State) ->
 %% @end
 -spec tab2file(Tab, Filename, Options, State) -> Response when
   Tab      :: atom(),
-  Filename :: string() | binary() | atom(),
+  Filename :: filename(),
   Options  :: [Option],
   Option   :: {extended_info, [ExtInfo]} | {sync, boolean()},
   ExtInfo  :: md5sum | object_count,
   State    :: shards_state:state(),
   Response :: ok | {error, Reason :: term()}.
-tab2file(Tab, Filename, Options, State) ->
+tab2file(Tab, Filename, Options, State) when ?is_filename(Filename) ->
   StrFilename = shards_lib:to_string(Filename),
   ShardFilenamePairs = shards_lib:reduce_while(fun(Shard, Acc) ->
     ShardName = shards_lib:shard_name(Tab, Shard),
@@ -1239,19 +1225,20 @@ tab2list(Tab, State) ->
 %% @see ets:tabfile_info/1.
 %% @end
 -spec tabfile_info(Filename) -> Response when
-  Filename  :: string() | binary() | atom(),
-  InfoItem  :: {atom(), any()},
-  TableInfo :: [InfoItem],
-  Ok        :: {ok, {[info_shards()], [TableInfo]}},
-  Response  :: Ok | {error, Reason :: term()}.
-tabfile_info(Filename) ->
+  Filename  :: filename(),
+  TableInfo :: [tabinfo_item()],
+  Response  :: {ok, TableInfo} | {error, Reason :: term()}.
+tabfile_info(Filename) when ?is_filename(Filename) ->
   StrFilename = shards_lib:to_string(Filename),
   try
     {Tab, ShardTabs} = read_tabfile(StrFilename),
-    {Shards, ShardsTabInfo} = lists:foldr(fun({Shard, ShardFN}, {Acc1, Acc2}) ->
-      {[Shard | Acc1], [ets:tabfile_info(ShardFN) | Acc2]}
-    end, {[], []}, ShardTabs),
-    {ok, {shards_info(Tab, Shards), ShardsTabInfo}}
+    ShardsTabInfo = lists:foldl(fun({_, ShardFN}, Acc) ->
+      case ets:tabfile_info(ShardFN) of
+        {ok, TabInfo} -> [TabInfo | Acc];
+        Error         -> throw(Error)
+      end
+    end, [], ShardTabs),
+    {ok, shards_info(Tab, ShardsTabInfo)}
   catch
     _:Error -> Error
   end.
@@ -1436,8 +1423,23 @@ fold(Tab, NumShards, Fold, [Fun, Acc]) ->
   end, Acc, lists:seq(0, NumShards - 1)).
 
 %% @private
-shards_info(Tab, Shards) ->
-  [{name, Tab}, {shards, Shards}, {n_shards, length(Shards)}].
+shards_info(Tab, [FirstInfo | RestInfoLists]) ->
+  shards_info(Tab, [FirstInfo | RestInfoLists], []).
+
+%% @private
+shards_info(Tab, [FirstInfo | RestInfoLists], ExtraAttrs) ->
+  {name, InitShard} = lists:keyfind(name, 1, FirstInfo),
+  FirstInfo1 = lists:keystore(name, 1, FirstInfo, {name, Tab}),
+  lists:foldl(fun(InfoList, InfoListAcc) ->
+    shards_lib:keyupdate(fun
+      (shards, Shards) ->
+        {name, ShardName} = lists:keyfind(name, 1, InfoList),
+        [ShardName | Shards];
+      (K, V) ->
+        {K, V1} = lists:keyfind(K, 1, InfoList),
+        V + V1
+    end, [size, shards] ++ ExtraAttrs, InfoListAcc)
+  end, [{shards, [InitShard]} | FirstInfo1], RestInfoLists).
 
 %% @private
 q(_, Tab, MatchSpec, Limit, _, 0, Shard, {Acc, Continuation}) ->

@@ -28,7 +28,7 @@
   give_away/3,
   i/0,
   info/1, info/2,
-  info_shard/2, info_shard/3,
+  info_shard/1, info_shard/2,
   insert/2,
   insert_new/2,
   is_compiled_ms/1,
@@ -236,13 +236,13 @@ info(Tab, Item) ->
     _         -> call(Tab, info, [Tab, Item])
   end.
 
-%% @equiv shards_local:info_shard/2
-info_shard(Tab, Shard) ->
-  ?SHARDS:info_shard(Tab, Shard).
+%% @equiv shards_local:info_shard/1
+info_shard(ShardTab) ->
+  ?SHARDS:info_shard(ShardTab).
 
-%% @equiv shards_local:info_shard/3
-info_shard(Tab, Shard, Item) ->
-  ?SHARDS:info_shard(Tab, Shard, Item).
+%% @equiv shards_local:info_shard/2
+info_shard(ShardTab, Item) ->
+  ?SHARDS:info_shard(ShardTab, Item).
 
 %% @doc
 %% Wrapper to `shards_local:insert/3' and `shards_dist:insert/3'.

@@ -43,11 +43,11 @@ test: check_rebar check_epmd
 	rm -rf test/*.beam
 
 local_test: check_rebar check_epmd
-	$(REBAR) do ct --suite=test/task_SUITE,test/state_SUITE,test/local_SUITE, cover
+	$(REBAR) do ct --suite=test/shards_local_SUITE,test/shards_task_SUITE,test/shards_state_SUITE, cover
 	rm -rf test/*.beam
 
 dist_test: check_rebar check_epmd
-	$(REBAR) do ct --name ct@127.0.0.1 --suite=test/dist_SUITE, cover
+	$(REBAR) do ct --name ct@127.0.0.1 --suite=test/shards_dist_SUITE, cover
 	rm -rf test/*.beam
 
 shell: check_rebar

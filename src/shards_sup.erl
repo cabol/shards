@@ -22,7 +22,7 @@
 %%% API
 %%%===================================================================
 
-%% @equiv start_link(?MODULE)
+%% @equiv start_link(shards_sup)
 start_link() ->
   start_link(?MODULE).
 

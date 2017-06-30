@@ -11,9 +11,17 @@
   list_shards/2,
   get_pid/1,
   pick/3,
+  keyfind/2,
+  keyfind/3,
+  keyupdate/3,
+  keyupdate/4,
   reduce_while/3,
   to_string/1
 ]).
+
+-type kv_list() :: [{any(), any()}].
+
+-export_type([kv_list/0]).
 
 %%%===================================================================
 %%% API
@@ -50,14 +58,14 @@ list_shards(Tab, NumShards) ->
   [shard_name(Tab, Shard) || Shard <- lists:seq(0, NumShards - 1)].
 
 %% @doc
-%% Returns the PID associated to the table `Tab'.
+%% Returns the PID associated to the `Name'.
 %% <ul>
-%% <li>`TabName': Table name.</li>
+%% <li>`Name': Process name.</li>
 %% </ul>
 %% @end
--spec get_pid(Tab :: atom()) -> pid() | no_return().
-get_pid(Tab) ->
-  case whereis(Tab) of
+-spec get_pid(Name :: atom()) -> pid() | no_return().
+get_pid(Name) ->
+  case whereis(Name) of
     undefined -> error(badarg);
     Pid       -> Pid
   end.
@@ -79,6 +87,43 @@ get_pid(Tab) ->
 pick(Key, NumShards, _) ->
   erlang:phash2(Key, NumShards).
 
+%% @equiv keyfind(Key, KVList, undefined)
+keyfind(Key, KVList) ->
+  keyfind(Key, KVList, undefined).
+
+%% @doc
+%% Returns the value to the given `Key' or `Default' if it doesn't exist.
+%% @end
+-spec keyfind(term(), kv_list(), term()) -> term().
+keyfind(Key, KVList, Default) ->
+  case lists:keyfind(Key, 1, KVList) of
+    {Key, Value} -> Value;
+    _            -> Default
+  end.
+
+%% @equiv keyupdate(Fun, Keys, undefined, TupleList)
+keyupdate(Fun, Keys, TupleList) ->
+  keyupdate(Fun, Keys, undefined, TupleList).
+
+%% @doc
+%% Updates the given `Keys' by the result of calling `Fun(OldValue)'.
+%% If `Key' doesn't exist, then `Init' is set.
+%% @end
+-spec keyupdate(Fun, Keys, Init, KVList1) -> KVList2 when
+  Fun     :: fun((Key :: any(), Value :: any()) -> any()),
+  Keys    :: [any()],
+  Init    :: any(),
+  KVList1 :: kv_list(),
+  KVList2 :: kv_list().
+keyupdate(Fun, Keys, Init, KVList1) when is_function(Fun, 2) ->
+  lists:foldl(fun(Key, Acc) ->
+    NewKV = case lists:keyfind(Key, 1, Acc) of
+      {Key, Value} -> {Key, Fun(Key, Value)};
+      false        -> {Key, Init}
+    end,
+    lists:keystore(Key, 1, Acc, NewKV)
+  end, KVList1, Keys).
+
 %% @doc
 %% Reduces the `List' until fun returns `{halt, any()}''.
 %% <ul>
@@ -89,11 +134,12 @@ pick(Key, NumShards, _) ->
 %% </ul>
 %% @end
 -spec reduce_while(Fun, AccIn, List) -> Result when
-  Fun    :: fun((Elem :: any(), Acc :: any()) -> any()),
+  Fun    :: fun((Elem :: any(), Acc :: any()) -> FunRes),
+  FunRes :: {cont | halt, AccOut :: any()},
   AccIn  :: any(),
   List   :: [any()],
   Result :: any().
-reduce_while(Fun, AccIn, List) ->
+reduce_while(Fun, AccIn, List) when is_function(Fun, 2) ->
   try
     lists:foldl(fun(Elem, Acc) ->
       case Fun(Elem, Acc) of

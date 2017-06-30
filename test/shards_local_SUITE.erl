@@ -1,4 +1,4 @@
--module(local_SUITE).
+-module(shards_local_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
 

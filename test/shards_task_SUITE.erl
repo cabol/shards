@@ -1,4 +1,4 @@
--module(task_SUITE).
+-module(shards_task_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
 

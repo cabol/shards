@@ -454,34 +454,38 @@ t_info_ops(Config) ->
 
   % test info/1,2
   DefaultShards = ?N_SHARDS,
-  DefaultShards = length(Mod:info(?SET)),
-  5 = length(shards:info(?DUPLICATE_BAG)),
-  L1 = lists:duplicate(DefaultShards, public),
-  L1 = Mod:info(?SET, protection),
-  L2 = lists:duplicate(5, public),
-  L2 = shards:info(?DUPLICATE_BAG, protection),
+  Info1 = Mod:info(?SET),
+  ?SET = shards_lib:keyfind(name, Info1),
+  DefaultShards = length(shards_lib:keyfind(shards, Info1)),
+  ?SET = Mod:info(?SET, name),
+  DefaultShards = length(Mod:info(?SET, shards)),
+
+  Shards1 = [Shard1 | _] = Mod:info(?SET, shards),
+  {Items, _} = lists:unzip(ets:info(Shard1)),
+  ok = lists:foreach(fun(Item) ->
+    {Item, _} = lists:keyfind(Item, 1, Info1)
+  end, Items),
 
   % test info_shard/2,3
-  SetShards = shards:list(?SET),
-  ok = lists:foreach(fun({Shard, ShardName}) ->
-    R1 = shards:info_shard(?SET, Shard),
+  ok = lists:foreach(fun(ShardName) ->
+    R1 = shards:info_shard(ShardName),
     R1 = ets:info(ShardName)
-  end, lists:zip(lists:seq(0, length(SetShards) - 1), SetShards)),
-  ok = lists:foreach(fun({Shard, ShardName}) ->
-    R1 = shards:info_shard(?SET, Shard, protection),
+  end, Shards1),
+  ok = lists:foreach(fun(ShardName) ->
+    R1 = shards:info_shard(ShardName, protection),
     R1 = ets:info(ShardName, protection)
-  end, lists:zip(lists:seq(0, length(SetShards) - 1), SetShards)),
+  end, Shards1),
 
   % test info_shard/2,3
-  DupBagShards = shards:list(?DUPLICATE_BAG),
-  ok = lists:foreach(fun({Shard, ShardName}) ->
-    R1 = shards:info_shard(?DUPLICATE_BAG, Shard),
+  Shards2 = shards:info(?DUPLICATE_BAG, shards),
+  ok = lists:foreach(fun(ShardName) ->
+    R1 = shards:info_shard(ShardName),
     R1 = ets:info(ShardName)
-  end, lists:zip(lists:seq(0, length(DupBagShards) - 1), DupBagShards)),
-  ok = lists:foreach(fun({Shard, ShardName}) ->
-    R1 = shards:info_shard(?DUPLICATE_BAG, Shard, protection),
+  end, Shards2),
+  ok = lists:foreach(fun(ShardName) ->
+    R1 = shards:info_shard(ShardName, protection),
     R1 = ets:info(ShardName, protection)
-  end, lists:zip(lists:seq(0, length(DupBagShards) - 1), DupBagShards)),
+  end, Shards2),
 
   % test invalid values
   R2 = ets:info(undefined_tab),
@@ -491,7 +495,7 @@ t_info_ops(Config) ->
   R3 = ets:info(undefined_tab, name),
   R3 = shards:info(undefined_tab, name),
   R3 = shards_local:info(undefined_tab, name, nil),
-  R3 = shards:info_shard(undefined_tab, 0, name),
+  R3 = shards:info_shard(undefined_tab, name),
 
   ok.
 
@@ -519,28 +523,33 @@ t_tab2list_tab2file_file2tab(Config) ->
   _ = try Mod:tab2file(?SET, [1, 2, 3])
   catch _:{badarg, _} -> ok
   end,
-  _ = try Mod:tab2file(?SET, self())
-  catch _:{badarg, _} -> ok
-  end,
 
   % delete table
   true = Mod:delete(?SET),
 
   % tab info
-  {ok, {_, _}} = Mod:tabfile_info("test_tab"),
-  {error, _} = Mod:tabfile_info(123),
-  {error, _} = Mod:tabfile_info(1.2),
+  ok = file:delete("test_tab2.1"),
+  {ok, TabInfo} = Mod:tabfile_info("test_tab"),
+  {error, _} = Mod:tabfile_info("test_tab2"),
+  {error, _} = Mod:tabfile_info(shards_lib:to_string(123)),
+  {error, _} = Mod:tabfile_info(shards_lib:to_string(1.2)),
+
+  % check tab info attrs
+  {ok, ShardTabInfo} = ets:tabfile_info("test_tab.0"),
+  {Items, _} = lists:unzip(ShardTabInfo),
+  ok = lists:foreach(fun(Item) ->
+    {Item, _} = lists:keyfind(Item, 1, TabInfo)
+  end, Items),
 
   % errors
   {error, _} = Mod:file2tab("wrong_file"),
-  ok = file:delete("test_tab2.1"),
   {error, _} = Mod:file2tab("test_tab2"),
 
   % restore table from files
   {ok, ?SET} = Mod:file2tab("test_tab"),
 
   % check
-  DefaultShards = length(Mod:info(?SET)),
+  DefaultShards = length(Mod:info(?SET, shards)),
   KVPairs = lookup_keys(Mod, ?SET, [k1, k2, k3, k4]),
 
   ok.
@@ -613,10 +622,10 @@ t_equivalent_ops(Config) ->
 init_shards(Scope) ->
   _ = init_shards_new(Scope),
 
-  set = shards_local:info_shard(?SET, 0, type),
-  duplicate_bag = shards_local:info_shard(?DUPLICATE_BAG, 0, type),
-  ordered_set = shards_local:info_shard(?ORDERED_SET, 0, type),
-  duplicate_bag = shards_local:info_shard(?SHARDED_DUPLICATE_BAG, 0, type),
+  set = shards_local:info(?SET, type),
+  duplicate_bag = shards_local:info(?DUPLICATE_BAG, type, shards_state:get(?DUPLICATE_BAG)),
+  ordered_set = shards_local:info(?ORDERED_SET, type, shards_state:get(?ORDERED_SET)),
+  duplicate_bag = shards_local:info(?SHARDED_DUPLICATE_BAG, type, shards_state:get(?SHARDED_DUPLICATE_BAG)),
   _ = shards_created(?SHARDS_TABS),
 
   _ = ets:new(?ETS_SET, [set, public, named_table]),
