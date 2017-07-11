@@ -38,7 +38,7 @@ In your `rebar.config`:
 
 ```erlang
 {deps, [
-  {shards, "0.4.4"}
+  {shards, "0.5.0"}
 ]}.
 ```
 
@@ -48,7 +48,7 @@ In your `mix.exs`:
 
 ```elixir
 def deps do
-  [{:shards, "~> 0.4"}]
+  [{:shards, "~> 0.5"}]
 end
 ```
 
