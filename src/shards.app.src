@@ -11,7 +11,6 @@
   {build_tools, ["rebar3", "make"]},
   {links, [
     {"GitHub", "https://github.com/cabol/shards"},
-    {"Doc", "http://cabol.github.io/shards"},
     {"Blog Post", "http://cabol.github.io/posts/2016/04/14/sharding-support-for-ets.html"}
   ]}
 ]}.

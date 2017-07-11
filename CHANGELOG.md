@@ -1,11 +1,22 @@
 # Change Log
 
-## [v0.4.3](https://github.com/cabol/shards/tree/v0.4.3) (2017-03-19)
-[Full Changelog](https://github.com/cabol/shards/compare/v0.4.2...v0.4.3)
+## [v0.5.0](https://github.com/cabol/shards/tree/v0.5.0) (2017-07-11)
+[Full Changelog](https://github.com/cabol/shards/compare/v0.4.2...v0.5.0)
+
+**Implemented enhancements:**
+
+- Improve `shards\_local:info/1,2` to be compliant with ETS functions [\#37](https://github.com/cabol/shards/issues/37)
+- Improve `file2tab` and `tab2file` in `shards\_local` to be compliant with ETS functions [\#36](https://github.com/cabol/shards/issues/36)
+- Improve `shards\_local` fix \#4 – `ordered\_set` support. [\#25](https://github.com/cabol/shards/issues/25)
 
 **Closed issues:**
 
 - Allows to register `shards\_sup` with custom name \(given as parameter\) [\#34](https://github.com/cabol/shards/issues/34)
+- file2tab,tab2file not working  [\#33](https://github.com/cabol/shards/issues/33)
+
+**Merged pull requests:**
+
+- Improve README grammar [\#35](https://github.com/cabol/shards/pull/35) ([casidiablo](https://github.com/casidiablo))
 
 ## [v0.4.2](https://github.com/cabol/shards/tree/v0.4.2) (2017-02-22)
 [Full Changelog](https://github.com/cabol/shards/compare/v0.4.1...v0.4.2)
