@@ -18,6 +18,7 @@
   {shards_test_helper, [
     t_basic_ops/1,
     t_update_ops/1,
+    t_fold_ops/1,
     t_rename/1,
     t_info_ops/1,
     t_tab2list/1,
@@ -50,6 +51,7 @@ groups() ->
     t_join_leave_ops,
     t_basic_ops,
     t_update_ops,
+    t_fold_ops,
     t_match_ops,
     t_select_ops,
     t_rename,

@@ -18,6 +18,8 @@
   delete_all_objects/2,
   delete_object/3,
   file2tab/1, file2tab/2,
+  foldl/4,
+  foldr/4,
   info/2, info/3,
   insert/3,
   insert_new/3,
@@ -171,6 +173,28 @@ file2tab(Filename, Options) when ?is_filename(Filename) ->
   catch
     throw:Error -> Error
   end.
+
+-spec foldl(Function, Acc0, Tab, State) -> Acc1 when
+  Function :: fun((Element :: term(), AccIn) -> AccOut),
+  Tab      :: atom(),
+  State    :: shards_state:state(),
+  Acc0     :: term(),
+  Acc1     :: term(),
+  AccIn    :: term(),
+  AccOut   :: term().
+foldl(Function, Acc0, Tab, State) ->
+  fold(foldl, Function, Acc0, Tab, State).
+
+-spec foldr(Function, Acc0, Tab, State) -> Acc1 when
+  Function :: fun((Element :: term(), AccIn) -> AccOut),
+  Tab      :: atom(),
+  State    :: shards_state:state(),
+  Acc0     :: term(),
+  Acc1     :: term(),
+  AccIn    :: term(),
+  AccOut   :: term().
+foldr(Function, Acc0, Tab, State) ->
+  fold(foldr, Function, Acc0, Tab, State).
 
 -spec info(Tab, State) -> Result when
   Tab      :: atom(),
@@ -544,6 +568,12 @@ p_mapred(Tab, {MapMod, MapFun, MapArgs}, {RedFun, AccIn}) ->
   end, AccIn, Tasks);
 p_mapred(Tab, MapFun, ReduceFun) ->
   p_mapred(Tab, MapFun, {ReduceFun, []}).
+
+%% @private
+fold(Fold, Function, Acc0, Tab, State) ->
+  lists:foldl(fun(Node, FoldAcc) ->
+    rpc:call(Node, ?SHARDS, Fold, [Function, FoldAcc, Tab, State])
+  end, Acc0, get_nodes(Tab)).
 
 %% @private
 shards_info([FirstInfo | RestInfoLists], Attrs, Nodes) ->

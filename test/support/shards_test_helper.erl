@@ -432,8 +432,10 @@ t_fold_ops_({Scope, Tab, EtsTab}) ->
   Mod = get_module(Scope, Tab),
 
   % insert some values
-  true = ets:insert(EtsTab, [{k1, 1}, {k2, 2}, {k3, 3}]),
-  true = Mod:insert(Tab, [{k1, 1}, {k2, 2}, {k3, 3}]),
+  It = lists:seq(1, 100),
+  KVPairs = lists:zip(It, It),
+  true = ets:insert(EtsTab, KVPairs),
+  true = Mod:insert(Tab, KVPairs),
 
   % foldl
   Foldl = fun({_, V}, Acc) -> [V | Acc] end,
