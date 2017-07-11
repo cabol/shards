@@ -9,6 +9,7 @@
 -export([
   shard_name/2,
   list_shards/2,
+  iterator/1,
   get_pid/1,
   pick/3,
   keyfind/2,
@@ -16,7 +17,9 @@
   keyupdate/3,
   keyupdate/4,
   reduce_while/3,
-  to_string/1
+  to_string/1,
+  read_tabfile/1,
+  write_tabfile/2
 ]).
 
 -type kv_list() :: [{any(), any()}].
@@ -55,7 +58,28 @@ shard_name(Tab, Shard) ->
   NumShards  :: pos_integer(),
   ShardNames :: [atom()].
 list_shards(Tab, NumShards) ->
-  [shard_name(Tab, Shard) || Shard <- lists:seq(0, NumShards - 1)].
+  [shard_name(Tab, Shard) || Shard <- iterator(NumShards)].
+
+%% @doc
+%% Returns a sequence of integers that starts with `0' and contains the
+%% successive results of adding `+1' to the previous element, until
+%% `NumShards' is reached or passed (in the latter case, `NumShards'
+%% is not an element of the sequence).
+%% <ul>
+%% <li>`StateOrNumShards': A valid shards state or number of shards.</li>
+%% </ul>
+%% @end
+-spec iterator(StateOrNumShards) -> Iterator when
+  StateOrNumShards :: shards_state:state() | pos_integer(),
+  Iterator         :: [integer()].
+iterator(StateOrNumShards) ->
+  N = case shards_state:is_state(StateOrNumShards) of
+    true ->
+      shards_state:n_shards(StateOrNumShards);
+    false when is_integer(StateOrNumShards) ->
+      StateOrNumShards
+  end,
+  lists:seq(0, N - 1).
 
 %% @doc
 %% Returns the PID associated to the `Name'.
@@ -148,7 +172,10 @@ reduce_while(Fun, AccIn, List) when is_function(Fun, 2) ->
       end
     end, AccIn, List)
   catch
-    throw:{halt, AccOut} -> AccOut
+    throw:{halt, AccOut} ->
+      AccOut;
+    _:Error ->
+      error(Error)
   end.
 
 %% @doc
@@ -162,7 +189,7 @@ to_string(Data) when is_binary(Data) ->
 to_string(Data) when is_integer(Data) ->
   integer_to_list(Data);
 to_string(Data) when is_float(Data) ->
-  float_to_list(Data);
+  lists:flatten(io_lib:format("~.1f", [Data]));
 to_string(Data) when is_atom(Data) ->
   atom_to_list(Data);
 to_string(Data) when is_list(Data) ->
@@ -172,3 +199,20 @@ to_string(Data) when is_list(Data) ->
   end;
 to_string(Data) ->
   error({badarg, Data}).
+
+%% @doc
+%% Reads the file info related to a tabfile saved previously.
+%% @end
+-spec read_tabfile(shards_local:filename()) -> term() | no_return().
+read_tabfile(Filename) ->
+  case file:read_file(Filename) of
+    {ok, Binary} -> binary_to_term(Binary);
+    Error        -> throw(Error)
+  end.
+
+%% @doc
+%% Writes to a file a content related to a table.
+%% @end
+-spec write_tabfile(shards_local:filename(), term()) -> ok | {error, term()}.
+write_tabfile(Filename, Content) ->
+  file:write_file(Filename, term_to_binary(Content)).

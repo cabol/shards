@@ -11,7 +11,8 @@
   t_update_ops/1,
   t_fold_ops/1,
   t_info_ops/1,
-  t_tab2list_tab2file_file2tab/1,
+  t_tab2list/1,
+  t_tab2file_file2tab_tabfile_info/1,
   t_rename/1,
   t_equivalent_ops/1
 ]).
@@ -425,42 +426,54 @@ t_update_ops(Config) ->
   ok.
 
 t_fold_ops(Config) ->
-  {_, Scope} = lists:keyfind(scope, 1, Config),
-  Mod = get_module(Scope, ?SET),
+  run_for_all_tables(Config, fun t_fold_ops_/1).
+
+t_fold_ops_({Scope, Tab, EtsTab}) ->
+  Mod = get_module(Scope, Tab),
 
   % insert some values
-  true = ets:insert(?ETS_SET, [{k1, 1}, {k2, 2}, {k3, 3}]),
-  true = Mod:insert(?SET, [{k1, 1}, {k2, 2}, {k3, 3}]),
+  true = ets:insert(EtsTab, [{k1, 1}, {k2, 2}, {k3, 3}]),
+  true = Mod:insert(Tab, [{k1, 1}, {k2, 2}, {k3, 3}]),
 
   % foldl
   Foldl = fun({_, V}, Acc) -> [V | Acc] end,
-  R1 = lists:usort(Mod:foldl(Foldl, [], ?SET)),
-  R1 = lists:usort(ets:foldl(Foldl, [], ?ETS_SET)),
+  R1 = lists:usort(Mod:foldl(Foldl, [], Tab)),
+  R1 = lists:usort(ets:foldl(Foldl, [], EtsTab)),
 
   % foldr
   Foldr = fun({_, V}, Acc) -> [V | Acc] end,
-  R2 = lists:usort(Mod:foldr(Foldr, [], ?SET)),
-  R2 = lists:usort(ets:foldr(Foldr, [], ?ETS_SET)),
+  R2 = lists:usort(Mod:foldr(Foldr, [], Tab)),
+  R2 = lists:usort(ets:foldr(Foldr, [], EtsTab)),
 
   ok.
 
 t_info_ops(Config) ->
-  {_, Scope} = lists:keyfind(scope, 1, Config),
-  Mod = get_module(Scope, ?SET),
+  run_for_all_tables(Config, fun t_info_ops_/1).
+
+t_info_ops_({Scope, Tab, _EtsTab}) ->
+  Mod = get_module(Scope, Tab),
 
   % test i/0
   R0 = shards:i(),
   R0 = ets:i(),
 
   % test info/1,2
-  DefaultShards = ?N_SHARDS,
-  Info1 = Mod:info(?SET),
-  ?SET = shards_lib:keyfind(name, Info1),
-  DefaultShards = length(shards_lib:keyfind(shards, Info1)),
-  ?SET = Mod:info(?SET, name),
-  DefaultShards = length(Mod:info(?SET, shards)),
+  NumShards = shards_state:n_shards(Tab),
+  Info1 = Mod:info(Tab),
+  Tab = shards_lib:keyfind(name, Info1),
+  NumShards = length(shards_lib:keyfind(shards, Info1)),
+  Tab = Mod:info(Tab, name),
+  NumShards = length(Mod:info(Tab, shards)),
+  _ = case Scope of
+    g ->
+      Nodes = lists:usort(Mod:get_nodes(Tab)),
+      Nodes = lists:usort(shards_lib:keyfind(nodes, Info1)),
+      Nodes = lists:usort(Mod:info(Tab, nodes));
+    _ ->
+      ok
+  end,
 
-  Shards1 = [Shard1 | _] = Mod:info(?SET, shards),
+  Shards1 = [Shard1 | _] = Mod:info(Tab, shards),
   {Items, _} = lists:unzip(ets:info(Shard1)),
   ok = lists:foreach(fun(Item) ->
     {Item, _} = lists:keyfind(Item, 1, Info1)
@@ -491,6 +504,8 @@ t_info_ops(Config) ->
   R2 = ets:info(undefined_tab),
   R2 = Mod:info(undefined_tab),
   R2 = shards_local:info(undefined_tab, nil),
+  R2 = shards_dist:info(undefined_tab, nil),
+  R2 = shards_dist:info(undefined_tab, nil, nil),
   R2 = shards:info_shard(undefined_tab, 0),
   R3 = ets:info(undefined_tab, name),
   R3 = shards:info(undefined_tab, name),
@@ -499,58 +514,89 @@ t_info_ops(Config) ->
 
   ok.
 
-t_tab2list_tab2file_file2tab(Config) ->
-  {_, Scope} = lists:keyfind(scope, 1, Config),
-  Mod = get_module(Scope, ?SET),
+t_tab2list(Config) ->
+  run_for_all_tables(Config, fun t_tab2list_/1).
+
+t_tab2list_({Scope, Tab, EtsTab}) ->
+  Mod = get_module(Scope, Tab),
 
   % insert some values
-  KVPairs = [{k1, 1}, {k2, 2}, {k3, 3}, {k4, 4}],
-  true = ets:insert(?ETS_SET, KVPairs),
-  true = Mod:insert(?SET, KVPairs),
+  It = lists:seq(1, 100),
+  KVPairs = lists:zip(It, It),
+  true = ets:insert(EtsTab, KVPairs),
+  true = Mod:insert(Tab, KVPairs),
 
   % check tab2list/1
-  R1 = lists:usort(Mod:tab2list(?SET)),
-  R1 = lists:usort(ets:tab2list(?ETS_SET)),
-  4 = length(R1),
+  R1 = lists:usort(Mod:tab2list(Tab)),
+  R1 = lists:usort(ets:tab2list(EtsTab)),
+  100 = length(R1),
+
+  ok.
+
+t_tab2file_file2tab_tabfile_info(Config) ->
+  run_for_all_tables(Config, fun t_tab2file_file2tab_tabfile_info_/1).
+
+t_tab2file_file2tab_tabfile_info_({Scope, Tab, _EtsTab}) ->
+  ct:log("==> ~p", [Tab]),
+  Mod = get_module(Scope, Tab),
+  FN = shards_lib:to_string(Tab) ++ "_test_tab",
+
+  % insert some values
+  It = lists:seq(1, 100),
+  KVPairs = lists:zip(It, It),
+  true = Mod:insert(Tab, KVPairs),
 
   % save tab to file
-  DefaultShards = ?N_SHARDS,
-  ok = Mod:tab2file(?SET, test_tab),
-  ok = Mod:tab2file(?SET, <<"test_tab2">>, []),
+  NumShards = shards_state:n_shards(Tab),
+  ok = Mod:tab2file(Tab, FN),
+  ok = Mod:tab2file(Tab, FN ++ "2", []),
 
   % errors
-  {error, _} = Mod:tab2file(?SET, "mydir/test_tab3"),
-  _ = try Mod:tab2file(?SET, [1, 2, 3])
+  {error, _} = Mod:tab2file(Tab, "mydir/" ++ FN ++ "3"),
+  _ = try Mod:tab2file(Tab, [1, 2, 3])
   catch _:{badarg, _} -> ok
   end,
 
-  % delete table
-  true = Mod:delete(?SET),
-
   % tab info
-  ok = file:delete("test_tab2.1"),
-  {ok, TabInfo} = Mod:tabfile_info("test_tab"),
-  {error, _} = Mod:tabfile_info("test_tab2"),
-  {error, _} = Mod:tabfile_info(shards_lib:to_string(123)),
-  {error, _} = Mod:tabfile_info(shards_lib:to_string(1.2)),
+  ShardFN = case Scope of
+    g -> shards_lib:to_string(node()) ++ "." ++ FN ++ "2.0";
+    _ -> FN ++ "2.0"
+  end,
+  ok = file:delete(ShardFN),
+  {ok, TabInfo} = Mod:tabfile_info(FN),
+  {error, _} = Mod:tabfile_info(FN ++ "2"),
 
   % check tab info attrs
-  {ok, ShardTabInfo} = ets:tabfile_info("test_tab.0"),
+  {ok, ShardTabInfo} = ets:tabfile_info(?fn(FN ++ ".0", Scope)),
   {Items, _} = lists:unzip(ShardTabInfo),
   ok = lists:foreach(fun(Item) ->
     {Item, _} = lists:keyfind(Item, 1, TabInfo)
   end, Items),
+  NumShards = length(shards_lib:keyfind(shards, TabInfo)),
+  _ = case Scope of
+    g ->
+      {error, _} = shards_dist:tabfile_info("wrong_file"),
+      Nodes = lists:usort(Mod:get_nodes(Tab)),
+      Nodes = lists:usort(shards_lib:keyfind(nodes, TabInfo));
+    _ ->
+      ok
+  end,
+
+  % delete table
+  true = Mod:delete(Tab),
 
   % errors
   {error, _} = Mod:file2tab("wrong_file"),
-  {error, _} = Mod:file2tab("test_tab2"),
+  {error, _} = Mod:file2tab(FN ++ "2"),
+  _ = case Scope of
+    g -> {error, _} = shards_dist:file2tab("wrong_file");
+    _ -> ok
+  end,
 
   % restore table from files
-  {ok, ?SET} = Mod:file2tab("test_tab"),
-
-  % check
-  DefaultShards = length(Mod:info(?SET, shards)),
-  KVPairs = lookup_keys(Mod, ?SET, [k1, k2, k3, k4]),
+  {ok, Tab} = Mod:file2tab(FN, []),
+  NumShards = length(Mod:info(Tab, shards)),
+  KVPairs = lookup_keys(Mod, Tab, It),
 
   ok.
 
@@ -583,8 +629,10 @@ t_rename_({Scope, Tab, _}) ->
   ok.
 
 t_equivalent_ops(Config) ->
-  {_, Scope} = lists:keyfind(scope, 1, Config),
-  Mod = get_module(Scope, ?SET),
+  run_for_all_tables(Config, fun t_equivalent_ops_/1).
+
+t_equivalent_ops_({Scope, Tab, _EtsTab}) ->
+  Mod = get_module(Scope, Tab),
 
   MS = ets:fun2ms(fun({K, V}) -> {K, V} end),
 
@@ -600,18 +648,18 @@ t_equivalent_ops(Config) ->
   R4 = ets:test_ms({k1, 1}, MS),
   R4 = shards:test_ms({k1, 1}, MS),
 
-  Shards = shards:list(?SET),
+  Shards = shards:list(Tab),
   R5 = [ets:table(T) || T <- Shards],
-  R5 = Mod:table(?SET),
-  R5 = Mod:table(?SET, []),
+  R5 = Mod:table(Tab),
+  R5 = Mod:table(Tab, []),
 
-  true = Mod:setopts(?SET, [{heir, none}]),
-  true = shards:setopts(?SET, []),
+  true = Mod:setopts(Tab, [{heir, none}]),
+  true = shards:setopts(Tab, []),
 
-  true = Mod:safe_fixtable(?SET, true),
-  true = shards:safe_fixtable(?SET, false),
+  true = Mod:safe_fixtable(Tab, true),
+  true = shards:safe_fixtable(Tab, false),
 
-  true = Mod:give_away(?SET, self(), []),
+  true = Mod:give_away(Tab, self(), []),
 
   ok.
 
@@ -728,7 +776,7 @@ run_for_all_tables(Config, Fun) ->
   Tables = lists:zip(?SHARDS_TABS, ?ETS_TABS),
   Args = build_args(Tables, Config),
   lists:foreach(fun(X) ->
-    true = cleanup_shards(),
+    %true = cleanup_shards(),
     Fun(X)
   end, Args).
 

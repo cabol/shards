@@ -155,13 +155,23 @@ delete_all_objects(Tab) ->
 delete_object(Tab, Object) ->
   call(Tab, delete_object, [Tab, Object]).
 
-%% @equiv shards_local:file2tab/1
+%% @equiv file2tab(Filename, [])
 file2tab(Filename) ->
-  ?SHARDS:file2tab(Filename).
+  call_from_file(Filename, file2tab, [Filename]).
 
-%% @equiv shards_local:file2tab/2
+%% @doc
+%% Wrapper to `shards_local:file2tab/2' and `shards_dist:file2tab/2'.
+%%
+%% @see shards_local:file2tab/2.
+%% @see shards_dist:file2tab/2.
+%% @end
+-spec file2tab(Filename, Options) -> Response when
+  Filename :: shards_local:filename(),
+  Options  :: [Option],
+  Option   :: {verify, boolean()},
+  Response :: {ok, Tab :: atom()} | {error, Reason :: term()}.
 file2tab(Filename, Options) ->
-  ?SHARDS:file2tab(Filename, Options).
+  call_from_file(Filename, file2tab, [Filename, Options]).
 
 %% @doc
 %% Wrapper to `shards_local:first/2' and `shards_dist:first/2'.
@@ -222,14 +232,32 @@ give_away(Tab, Pid, GiftData) ->
 i() ->
   ?SHARDS:i().
 
-%% @equiv shards_local:info/2
+%% @doc
+%% Wrapper to `shards_local:info/2' and `shards_dist:info/2'.
+%%
+%% @see shards_local:info/2.
+%% @see shards_dist:info/2.
+%% @end
+-spec info(Tab) -> Result when
+  Tab      :: atom(),
+  InfoList :: [shards_local:info_tuple() | {nodes, [node()]}],
+  Result   :: InfoList | undefined.
 info(Tab) ->
   case whereis(Tab) of
     undefined -> undefined;
     _         -> call(Tab, info, [Tab])
   end.
 
-%% @equiv shards_local:info/3
+%% @doc
+%% Wrapper to `shards_local:info/3' and `shards_dist:info/3'.
+%%
+%% @see shards_local:info/3.
+%% @see shards_dist:info/3.
+%% @end
+-spec info(Tab, Item) -> Value when
+  Tab   :: atom(),
+  Item  :: shards_local:info_item() | nodes,
+  Value :: any() | undefined.
 info(Tab, Item) ->
   case whereis(Tab) of
     undefined -> undefined;
@@ -625,16 +653,7 @@ select_reverse(Continuation) ->
 setopts(Tab, Opts) ->
   call(Tab, setopts, [Tab, Opts]).
 
-%% @doc
-%% Wrapper to `shards_local:tab2file/3' and `shards_dist:tab2file/3'.
-%%
-%% @see shards_local:tab2file/3.
-%% @see shards_dist:tab2file/3.
-%% @end
--spec tab2file(Tab, Filename) -> Response when
-  Tab      :: atom(),
-  Filename :: string() | binary() | atom(),
-  Response :: ok | {error, Reason :: term()}.
+%% @equiv tab2file(Tab, Filename, [])
 tab2file(Tab, Filename) ->
   call(Tab, tab2file, [Tab, Filename]).
 
@@ -646,7 +665,7 @@ tab2file(Tab, Filename) ->
 %% @end
 -spec tab2file(Tab, Filename, Options) -> Response when
   Tab      :: atom(),
-  Filename :: string() | binary() | atom(),
+  Filename :: shards_local:filename(),
   Options  :: [Option],
   Option   :: {extended_info, [ExtInfo]} | {sync, boolean()},
   ExtInfo  :: md5sum | object_count,
@@ -666,9 +685,18 @@ tab2file(Tab, Filename, Options) ->
 tab2list(Tab) ->
   call(Tab, tab2list, [Tab]).
 
-%% @equiv shards_local:tabfile_info/1
+%% @doc
+%% Wrapper to `shards_local:tabfile_info/1' and `shards_dist:tabfile_info/1'.
+%%
+%% @see shards_local:tabfile_info/1.
+%% @see shards_dist:tabfile_info/1.
+%% @end
+-spec tabfile_info(Filename) -> Response when
+  Filename  :: shards_local:filename(),
+  TableInfo :: [shards_local:tabinfo_item() | {nodes, [node()]}],
+  Response  :: {ok, TableInfo} | {error, Reason :: term()}.
 tabfile_info(Filename) ->
-  ?SHARDS:tabfile_info(Filename).
+  call_from_file(Filename, tabfile_info, [Filename]).
 
 %% @doc
 %% Wrapper to `shards_local:table/2' and `shards_dist:table/2'.
@@ -820,3 +848,27 @@ call(Tab, Fun, Args) ->
   State = shards_state:get(Tab),
   Module = shards_state:module(State),
   apply(Module, Fun, Args ++ [State]).
+
+%% @private
+call_from_file(Filename, Fun, Args) ->
+  try
+    Metadata = tabfile_metadata(Filename),
+    {state, State} = lists:keyfind(state, 1, Metadata),
+    case shards_state:scope(State) of
+      g -> apply(shards_dist, Fun, Args);
+      _ -> apply(shards_local, Fun, Args)
+    end
+  catch
+    throw:Error -> Error
+  end.
+
+%% @private
+tabfile_metadata(Filename) ->
+  StrFilename = shards_lib:to_string(Filename),
+  try
+    shards_lib:read_tabfile(StrFilename)
+  catch
+    throw:{error, enoent} ->
+      NodeFilename = shards_lib:to_string(node()) ++ "." ++ StrFilename,
+      shards_lib:read_tabfile(NodeFilename)
+  end.

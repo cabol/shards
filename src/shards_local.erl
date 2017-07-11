@@ -210,10 +210,12 @@
   option/0,
   info_tuple/0,
   info_item/0,
+  tabinfo_item/0,
   continuation/0,
   filename/0
 ]).
 
+%% Macro to check if the given Filename has the right type
 -define(is_filename(_FN), is_list(_FN); is_binary(_FN); is_atom(_FN)).
 
 %%%===================================================================
@@ -286,7 +288,7 @@ delete_object(Tab, Object, State) when is_tuple(Object) ->
   _ = mapred(Tab, Key, {fun ets:delete_object/2, [Object]}, nil, State, d),
   true.
 
-%% @equiv file2tab(Filenames, [])
+%% @equiv file2tab(Filename, [])
 file2tab(Filename) ->
   file2tab(Filename, []).
 
@@ -299,23 +301,31 @@ file2tab(Filename) ->
 %% @end
 -spec file2tab(Filename, Options) -> Response when
   Filename :: filename(),
-  Tab      :: atom(),
   Options  :: [Option],
   Option   :: {verify, boolean()},
-  Reason   :: term(),
-  Response :: {ok, Tab} | {error, Reason}.
+  Response :: {ok, Tab :: atom()} | {error, Reason :: term()}.
 file2tab(Filename, Options) when ?is_filename(Filename) ->
   StrFilename = shards_lib:to_string(Filename),
   try
-    {Tab, ShardTabs} = read_tabfile(StrFilename),
+    Metadata = shards_lib:read_tabfile(StrFilename),
+    {name, Tab} = lists:keyfind(name, 1, Metadata),
+    {state, State} = lists:keyfind(state, 1, Metadata),
+    {shards, ShardTabs} = lists:keyfind(shards, 1, Metadata),
     Tab = new(Tab, [
-      {restore, ShardTabs, Options},
-      {n_shards, length(ShardTabs)}
+      {restore, ShardTabs, Options}
+      | state_to_tab_opts(State)
     ]),
     {ok, Tab}
   catch
-    _:Error -> Error
+    throw:Error -> Error;
+    error:Error -> Error
   end.
+
+%% private
+state_to_tab_opts(State) ->
+  Scope = shards_state:scope(State),
+  NewState = maps:remove(module, shards_state:to_map(State)),
+  maps:to_list(NewState#{scope => Scope}).
 
 %% @equiv first(Tab, shards_state:new())
 first(Tab) ->
@@ -431,6 +441,8 @@ info(Tab) ->
 %% If 2nd argument is `info_item()' this function behaves like
 %% `ets:info/2', but if it is the `shards_state:state()',
 %% it behaves like `ets:info/1'.
+%%
+%% This function also adds info about the shards `{shards, [atom()]}'.
 %%
 %% @see ets:info/1.
 %% @see ets:info/2.
@@ -930,7 +942,7 @@ rename(Tab, Name, State) ->
     ShardName = shards_lib:shard_name(Tab, Shard),
     NewShardName = shards_lib:shard_name(Name, Shard),
     NewShardName = do_rename(ShardName, NewShardName)
-  end, lists:seq(0, shards_state:n_shards(State) - 1)),
+  end, shards_lib:iterator(State)),
   do_rename(Tab, Name).
 
 %% @private
@@ -1180,27 +1192,39 @@ tab2file(Tab, Filename, State) ->
   Tab      :: atom(),
   Filename :: filename(),
   Options  :: [Option],
-  Option   :: {extended_info, [ExtInfo]} | {sync, boolean()},
+  Option   :: {extended_info, [ExtInfo]} | {sync, boolean()} | {nodes, [node()]},
   ExtInfo  :: md5sum | object_count,
   State    :: shards_state:state(),
   Response :: ok | {error, Reason :: term()}.
 tab2file(Tab, Filename, Options, State) when ?is_filename(Filename) ->
   StrFilename = shards_lib:to_string(Filename),
+  {Nodes, NewOpts} = case lists:keytake(nodes, 1, Options) of
+    {value, {nodes, Val}, Opts1} ->
+      {Val, Opts1};
+    _ ->
+      {[node()], Options}
+  end,
   ShardFilenamePairs = shards_lib:reduce_while(fun(Shard, Acc) ->
     ShardName = shards_lib:shard_name(Tab, Shard),
     ShardFilename = StrFilename ++ "." ++ integer_to_list(Shard),
-    case ets:tab2file(ShardName, ShardFilename, Options) of
+    case ets:tab2file(ShardName, ShardFilename, NewOpts) of
       ok ->
         {cont, [{ShardName, ShardFilename} | Acc]};
       {error, _} = Error ->
         {halt, Error}
     end
-  end, [], lists:seq(0, shards_state:n_shards(State) - 1)),
+  end, [], shards_lib:iterator(State)),
   case ShardFilenamePairs of
     {error, _} = Error ->
       Error;
     _ ->
-      write_tabfile(Tab, StrFilename, ShardFilenamePairs)
+      FileContent = [
+        {name, Tab},
+        {state, State},
+        {shards, ShardFilenamePairs},
+        {nodes, Nodes}
+      ],
+      shards_lib:write_tabfile(StrFilename, FileContent)
   end.
 
 %% @equiv tab2list(Tab, shards_state:new())
@@ -1220,7 +1244,8 @@ tab2list(Tab, State) ->
   mapred(Tab, fun ets:tab2list/1, fun erlang:'++'/2, State).
 
 %% @doc
-%% This operation is analogous to `ets:tabfile_info/1'.
+%% This operation is analogous to `ets:tabfile_info/1', but it
+%% adds info about the shards `{shards, [atom()]}'.
 %%
 %% @see ets:tabfile_info/1.
 %% @end
@@ -1231,7 +1256,9 @@ tab2list(Tab, State) ->
 tabfile_info(Filename) when ?is_filename(Filename) ->
   StrFilename = shards_lib:to_string(Filename),
   try
-    {Tab, ShardTabs} = read_tabfile(StrFilename),
+    Metadata = shards_lib:read_tabfile(StrFilename),
+    {name, Tab} = lists:keyfind(name, 1, Metadata),
+    {shards, ShardTabs} = lists:keyfind(shards, 1, Metadata),
     ShardsTabInfo = lists:foldl(fun({_, ShardFN}, Acc) ->
       case ets:tabfile_info(ShardFN) of
         {ok, TabInfo} -> [TabInfo | Acc];
@@ -1240,7 +1267,7 @@ tabfile_info(Filename) when ?is_filename(Filename) ->
     end, [], ShardTabs),
     {ok, shards_info(Tab, ShardsTabInfo)}
   catch
-    _:Error -> Error
+    throw:Error -> Error
   end.
 
 %% @equiv table(Tab, shards_state:new())
@@ -1386,7 +1413,7 @@ s_mapred(Tab, NumShards, {MapFun, Args}, {ReduceFun, AccIn}) ->
   lists:foldl(fun(Shard, Acc) ->
     MapRes = apply(MapFun, [shards_lib:shard_name(Tab, Shard) | Args]),
     ReduceFun(MapRes, Acc)
-  end, AccIn, lists:seq(0, NumShards - 1));
+  end, AccIn, shards_lib:iterator(NumShards));
 s_mapred(Tab, NumShards, MapFun, ReduceFun) ->
   {Map, Reduce} = mapred_funs(MapFun, ReduceFun),
   s_mapred(Tab, NumShards, Map, Reduce).
@@ -1397,7 +1424,7 @@ p_mapred(Tab, NumShards, {MapFun, Args}, {ReduceFun, AccIn}) ->
     AsyncTask = shards_task:async(fun() ->
       apply(MapFun, [shards_lib:shard_name(Tab, Shard) | Args])
     end), [AsyncTask | Acc]
-  end, [], lists:seq(0, NumShards - 1)),
+  end, [], shards_lib:iterator(NumShards)),
   lists:foldl(fun(Task, Acc) ->
     MapRes = shards_task:await(Task),
     ReduceFun(MapRes, Acc)
@@ -1420,11 +1447,11 @@ fold(Tab, NumShards, Fold, [Fun, Acc]) ->
   lists:foldl(fun(Shard, FoldAcc) ->
     ShardName = shards_lib:shard_name(Tab, Shard),
     apply(ets, Fold, [Fun, FoldAcc, ShardName])
-  end, Acc, lists:seq(0, NumShards - 1)).
+  end, Acc, shards_lib:iterator(NumShards)).
 
 %% @private
-shards_info(Tab, [FirstInfo | RestInfoLists]) ->
-  shards_info(Tab, [FirstInfo | RestInfoLists], []).
+shards_info(Tab, InfoLists) ->
+  shards_info(Tab, InfoLists, []).
 
 %% @private
 shards_info(Tab, [FirstInfo | RestInfoLists], ExtraAttrs) ->
@@ -1476,14 +1503,3 @@ q(F, {Tab, MatchSpec, Limit, Shard, Continuation}, QFun, I, Acc) ->
 %% @private
 q_fun() ->
   fun(L1, L0) -> L1 ++ L0 end.
-
-%% @private
-read_tabfile(Filename) ->
-  case file:read_file(Filename) of
-    {ok, Binary} -> binary_to_term(Binary);
-    Error0       -> throw(Error0)
-  end.
-
-%% @private
-write_tabfile(Tab, Filename, Terms) ->
-  file:write_file(Filename, term_to_binary({Tab, Terms})).

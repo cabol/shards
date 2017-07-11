@@ -8,15 +8,16 @@
 
 %% API
 -export([
-  get/1,
   new/0,
   new/1,
   new/2,
   new/3,
   new/4,
   new/5,
-  to_map/1,
-  from_map/1
+  get/1,
+  is_state/1,
+  from_map/1,
+  to_map/1
 ]).
 
 %% API – Getters & Setters
@@ -30,7 +31,8 @@
   pick_shard_fun/1,
   pick_shard_fun/2,
   pick_node_fun/1,
-  pick_node_fun/2
+  pick_node_fun/2,
+  scope/1
 ]).
 
 %%%===================================================================
@@ -157,15 +159,24 @@ new(Shards, Module, SupName, PickShardFun, PickNodeFun) ->
     pick_node_fun  = PickNodeFun}.
 
 %% @doc
-%% Converts the given `state' into a `map'.
+%% Returns the `state' for the given table `Tab'.
 %% @end
--spec to_map(state()) -> state_map().
-to_map(State) ->
-  #{module         => State#state.module,
-    sup_name       => State#state.sup_name,
-    n_shards       => State#state.n_shards,
-    pick_shard_fun => State#state.pick_shard_fun,
-    pick_node_fun  => State#state.pick_node_fun}.
+-spec get(Tab :: atom()) -> state().
+get(Tab) when is_atom(Tab) ->
+  case ets:lookup(Tab, state) of
+    [State] -> State;
+    _       -> error(badarg)
+  end.
+
+%% @doc
+%% Returns `true' in the given argument is a valid state, otherwise
+%% `false' is returned.
+%% @end
+-spec is_state(any()) -> boolean().
+is_state(#state{}) ->
+  true;
+is_state(_) ->
+  false.
 
 %% @doc
 %% Builds a new `state' from the given `Map'.
@@ -180,14 +191,15 @@ from_map(Map) ->
     pick_node_fun  = maps:get(pick_node_fun, Map, fun shards_lib:pick/3)}.
 
 %% @doc
-%% Returns the `state' for the given table `Tab'.
+%% Converts the given `state' into a `map'.
 %% @end
--spec get(Tab :: atom()) -> state().
-get(Tab) when is_atom(Tab) ->
-  case ets:lookup(Tab, state) of
-    [State] -> State;
-    _       -> error(badarg)
-  end.
+-spec to_map(state()) -> state_map().
+to_map(State) ->
+  #{module         => State#state.module,
+    sup_name       => State#state.sup_name,
+    n_shards       => State#state.n_shards,
+    pick_shard_fun => State#state.pick_shard_fun,
+    pick_node_fun  => State#state.pick_node_fun}.
 
 %%%===================================================================
 %%% API – Getters & Setters
@@ -242,3 +254,11 @@ pick_node_fun(Tab) when is_atom(Tab) ->
 -spec pick_node_fun(pick_fun(), state()) -> state().
 pick_node_fun(Fun, #state{} = State) when is_function(Fun, 3) ->
   State#state{pick_node_fun = Fun}.
+
+-spec scope(state() | atom()) -> l | g.
+scope(#state{module = shards_local}) ->
+  l;
+scope(#state{module = shards_dist}) ->
+  g;
+scope(Tab) when is_atom(Tab) ->
+  scope(?MODULE:get(Tab)).

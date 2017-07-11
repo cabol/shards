@@ -102,6 +102,7 @@ t_state_ops(_Config) ->
     {pick_node_fun, fun shards_test_helper:pick_node/3}
   ]),
   StateSet = shards_state:get(test_set),
+  true = shards_state:is_state(StateSet),
   DefaultShards = ?N_SHARDS,
   #{n_shards := DefaultShards} = shards_state:to_map(StateSet),
 
@@ -113,9 +114,11 @@ t_state_ops(_Config) ->
   Fun1 = shards_state:pick_shard_fun(test_set),
   Fun2 = fun shards_test_helper:pick_node/3,
   Fun2 = shards_state:pick_node_fun(test_set),
+  l = shards_state:scope(test_set),
 
   State0 = shards_state:new(),
   State1 = shards_state:module(shards_dist, State0),
+  g = shards_state:scope(State1),
   State2 = shards_state:n_shards(100, State1),
   Fun = fun(X, Y, Z) -> (X + Y + Z) rem Y end,
   State3 = shards_state:pick_shard_fun(Fun, State2),

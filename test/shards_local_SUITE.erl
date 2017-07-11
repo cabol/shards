@@ -24,7 +24,8 @@
     t_update_ops/1,
     t_fold_ops/1,
     t_info_ops/1,
-    t_tab2list_tab2file_file2tab/1,
+    t_tab2list/1,
+    t_tab2file_file2tab_tabfile_info/1,
     t_rename/1,
     t_equivalent_ops/1
   ]}

@@ -17,6 +17,8 @@
   delete/1, delete/3,
   delete_all_objects/2,
   delete_object/3,
+  file2tab/1, file2tab/2,
+  info/2, info/3,
   insert/3,
   insert_new/3,
   lookup/3,
@@ -31,18 +33,17 @@
   select_count/3,
   select_delete/3,
   select_reverse/3,
+  tab2file/3, tab2file/4,
+  tab2list/2,
+  tabfile_info/1,
   take/3,
-  update_counter/4,
-  update_counter/5,
+  update_counter/4, update_counter/5,
   update_element/4
 ]).
 
 %%%===================================================================
 %%% Types & Macros
 %%%===================================================================
-
-%% Macro to get the default module to use: `shards_local'.
--define(SHARDS, shards_local).
 
 %% @type option() = {nodes, [node()]} | shards_local:option().
 -type option() :: {nodes, [node()]} | shards_local:option().
@@ -51,6 +52,12 @@
 -export_type([
   option/0
 ]).
+
+%% Macro to get the default module to use: `shards_local'.
+-define(SHARDS, shards_local).
+
+%% Macro to check if the given Filename has the right type
+-define(is_filename(_FN), is_list(_FN); is_binary(_FN); is_atom(_FN)).
 
 %%%===================================================================
 %%% Extended API
@@ -129,6 +136,69 @@ delete_object(Tab, Object, State) when is_tuple(Object) ->
   _ = mapred(Tab, Key, Map, nil, State, d),
   true.
 
+%% @equiv file2tab(Filename, [])
+file2tab(Filename) ->
+  file2tab(Filename, []).
+
+-spec file2tab(Filename, Options) -> Response when
+  Filename :: shards_local:filename(),
+  Options  :: [Option],
+  Option   :: {verify, boolean()},
+  Response :: {ok, Tab :: atom()} | {error, Reason :: term()}.
+file2tab(Filename, Options) when ?is_filename(Filename) ->
+  StrFilename = shards_lib:to_string(Filename),
+  try
+    {Tab, Nodes} = tabfile_info_local(StrFilename),
+    Res = shards_lib:reduce_while(fun(Node, Acc) ->
+      NodeFilename = shards_lib:to_string(Node) ++ "." ++ StrFilename,
+      case rpc:call(Node, ?SHARDS, file2tab, [NodeFilename, Options]) of
+        {ok, Tab} ->
+          {cont, [Node | Acc]};
+        {error, _} = E ->
+          ok = lists:foreach(fun(N) ->
+            _ = rpc:call(N, ?SHARDS, delete, [Tab])
+          end, Acc),
+          {halt, E}
+      end
+    end, [], Nodes),
+    case Res of
+      {error, _} = ResErr ->
+        ResErr;
+      _ ->
+        _ = join(Tab, Nodes),
+        {ok, Tab}
+    end
+  catch
+    throw:Error -> Error
+  end.
+
+-spec info(Tab, State) -> Result when
+  Tab      :: atom(),
+  State    :: shards_state:state(),
+  InfoList :: [shards_local:info_tuple() | {nodes, [node()]}],
+  Result   :: InfoList | undefined.
+info(Tab, State) ->
+  case whereis(Tab) of
+    undefined ->
+      undefined;
+    _ ->
+      Map = {?SHARDS, info, [Tab, State]},
+      Reduce = fun(E, Acc) -> [E | Acc] end,
+      InfoLists = mapred(Tab, Map, Reduce, State, r),
+      shards_info(InfoLists, [memory], get_nodes(Tab))
+  end.
+
+-spec info(Tab, Item, State) -> Value when
+  Tab   :: atom(),
+  State :: shards_state:state(),
+  Item  :: shards_local:info_item() | nodes,
+  Value :: any() | undefined.
+info(Tab, Item, State) ->
+  case info(Tab, State) of
+    undefined -> undefined;
+    TabInfo   -> shards_lib:keyfind(Item, TabInfo)
+  end.
+
 -spec insert(Tab, ObjOrObjL, State) -> true when
   Tab       :: atom(),
   ObjOrObjL :: tuple() | [tuple()],
@@ -159,7 +229,7 @@ insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   case pick_node(PickNodeFun, Key, Nodes, r) of
     any ->
       Map = {?SHARDS, lookup, [Tab, Key, State]},
-      Reduce = fun lists:append/2,
+      Reduce = fun erlang:'++'/2,
       case mapred(Tab, Map, Reduce, State, r) of
         [] ->
           Node = pick_node(PickNodeFun, Key, Nodes, w),
@@ -179,7 +249,7 @@ insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   Result :: [tuple()].
 lookup(Tab, Key, State) ->
   Map = {?SHARDS, lookup, [Tab, Key, State]},
-  Reduce = fun lists:append/2,
+  Reduce = fun erlang:'++'/2,
   mapred(Tab, Key, Map, Reduce, State, r).
 
 -spec lookup_element(Tab, Key, Pos, State) -> Elem when
@@ -213,7 +283,7 @@ lookup_element(Tab, Key, Pos, State) ->
   Match   :: [term()].
 match(Tab, Pattern, State) ->
   Map = {?SHARDS, match, [Tab, Pattern, State]},
-  Reduce = fun lists:append/2,
+  Reduce = fun erlang:'++'/2,
   mapred(Tab, Map, Reduce, State, r).
 
 -spec match_delete(Tab, Pattern, State) -> true when
@@ -222,7 +292,7 @@ match(Tab, Pattern, State) ->
   State   :: shards_state:state().
 match_delete(Tab, Pattern, State) ->
   Map = {?SHARDS, match_delete, [Tab, Pattern, State]},
-  Reduce = {fun(Res, Acc) -> Acc and Res end, true},
+  Reduce = {fun erlang:'and'/2, true},
   mapred(Tab, Map, Reduce, State, delete).
 
 -spec match_object(Tab, Pattern, State) -> [Object] when
@@ -232,7 +302,7 @@ match_delete(Tab, Pattern, State) ->
   Object  :: tuple().
 match_object(Tab, Pattern, State) ->
   Map = {?SHARDS, match_object, [Tab, Pattern, State]},
-  Reduce = fun lists:append/2,
+  Reduce = fun erlang:'++'/2,
   mapred(Tab, Map, Reduce, State, r).
 
 -spec member(Tab, Key, State) -> boolean() when
@@ -286,7 +356,7 @@ rename(Tab, Name, State) ->
   Match     :: term().
 select(Tab, MatchSpec, State) ->
   Map = {?SHARDS, select, [Tab, MatchSpec, State]},
-  Reduce = fun lists:append/2,
+  Reduce = fun erlang:'++'/2,
   mapred(Tab, Map, Reduce, State, r).
 
 -spec select_count(Tab, MatchSpec, State) -> NumMatched when
@@ -316,8 +386,70 @@ select_delete(Tab, MatchSpec, State) ->
   Match     :: term().
 select_reverse(Tab, MatchSpec, State) ->
   Map = {?SHARDS, select_reverse, [Tab, MatchSpec, State]},
-  Reduce = fun lists:append/2,
+  Reduce = fun erlang:'++'/2,
   mapred(Tab, Map, Reduce, State, r).
+
+%% @equiv tab2file(Tab, Filename, [], State)
+tab2file(Tab, Filename, State) ->
+  tab2file(Tab, Filename, [], State).
+
+-spec tab2file(Tab, Filename, Options, State) -> Response when
+  Tab      :: atom(),
+  Filename :: shards_local:filename(),
+  Options  :: [Option],
+  Option   :: {extended_info, [ExtInfo]} | {sync, boolean()},
+  ExtInfo  :: md5sum | object_count,
+  State    :: shards_state:state(),
+  Response :: ok | {error, Reason :: term()}.
+tab2file(Tab, Filename, Options, State) when ?is_filename(Filename) ->
+  StrFilename = shards_lib:to_string(Filename),
+  Nodes = get_nodes(Tab),
+  shards_lib:reduce_while(fun(Node, Acc) ->
+    NodeFilename = shards_lib:to_string(Node) ++ "." ++ StrFilename,
+    NewOpts = lists:keystore(nodes, 1, Options, {nodes, Nodes}),
+    case rpc:call(Node, ?SHARDS, tab2file, [Tab, NodeFilename, NewOpts, State]) of
+      ok ->
+        {cont, Acc};
+      {error, _} = Error ->
+        {halt, Error}
+    end
+  end, ok, Nodes).
+
+-spec tab2list(Tab, State) -> [Object] when
+  Tab    :: atom(),
+  State  :: shards_state:state(),
+  Object :: tuple().
+tab2list(Tab, State) ->
+  Map = {?SHARDS, tab2list, [Tab, State]},
+  Reduce = fun erlang:'++'/2,
+  mapred(Tab, Map, Reduce, State, r).
+
+-spec tabfile_info(Filename) -> Response when
+  Filename  :: shards_local:filename(),
+  TableInfo :: [shards_local:tabinfo_item() | {nodes, [node()]}],
+  Response  :: {ok, TableInfo} | {error, Reason :: term()}.
+tabfile_info(Filename) when ?is_filename(Filename) ->
+  StrFilename = shards_lib:to_string(Filename),
+  try
+    {_Tab, Nodes} = tabfile_info_local(StrFilename),
+    TabInfoList = shards_lib:reduce_while(fun(Node, Acc) ->
+      NodeFilename = shards_lib:to_string(Node) ++ "." ++ StrFilename,
+      case rpc:call(Node, ?SHARDS, tabfile_info, [NodeFilename]) of
+        {ok, TabInfo} ->
+          {cont, [TabInfo | Acc]};
+        {error, _} = E ->
+          {halt, E}
+      end
+    end, [], Nodes),
+    case TabInfoList of
+      {error, _} = ResErr ->
+        ResErr;
+      _ ->
+        {ok, shards_info(TabInfoList, [], Nodes)}
+    end
+  catch
+    throw:Error -> Error
+  end.
 
 -spec take(Tab, Key, State) -> [Object] when
   Tab    :: atom(),
@@ -326,7 +458,7 @@ select_reverse(Tab, MatchSpec, State) ->
   Object :: tuple().
 take(Tab, Key, State) ->
   Map = {?SHARDS, take, [Tab, Key, State]},
-  Reduce = fun lists:append/2,
+  Reduce = fun erlang:'++'/2,
   mapred(Tab, Key, Map, Reduce, State, r).
 
 -spec update_counter(Tab, Key, UpdateOp, State) -> Result when
@@ -412,3 +544,21 @@ p_mapred(Tab, {MapMod, MapFun, MapArgs}, {RedFun, AccIn}) ->
   end, AccIn, Tasks);
 p_mapred(Tab, MapFun, ReduceFun) ->
   p_mapred(Tab, MapFun, {ReduceFun, []}).
+
+%% @private
+shards_info([FirstInfo | RestInfoLists], Attrs, Nodes) ->
+  lists:foldl(fun(InfoList, InfoListAcc) ->
+    shards_lib:keyupdate(fun
+      (K, V) ->
+        {K, V1} = lists:keyfind(K, 1, InfoList),
+        V + V1
+    end, [size] ++ Attrs, InfoListAcc)
+  end, [{nodes, Nodes} | FirstInfo], RestInfoLists).
+
+%% @private
+tabfile_info_local(Filename) ->
+  NodeFilename = shards_lib:to_string(node()) ++ "." ++ Filename,
+  TabInfo = shards_lib:read_tabfile(NodeFilename),
+  {name, Tab} = lists:keyfind(name, 1, TabInfo),
+  {nodes, Nodes} = lists:keyfind(nodes, 1, TabInfo),
+  {Tab, Nodes}.

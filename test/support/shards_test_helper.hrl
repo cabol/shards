@@ -35,3 +35,10 @@
 -define(has_default_opts(T_), T_ =:= ?SET).
 
 -define(N_SHARDS, erlang:system_info(schedulers_online)).
+
+-define(fn(FN_, S_),
+  case S_ of
+    g -> shards_lib:to_string(node()) ++ "." ++ shards_lib:to_string(FN_);
+    _ -> FN_
+  end
+).

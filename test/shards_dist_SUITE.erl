@@ -18,7 +18,10 @@
   {shards_test_helper, [
     t_basic_ops/1,
     t_update_ops/1,
-    t_rename/1
+    t_rename/1,
+    t_info_ops/1,
+    t_tab2list/1,
+    t_tab2file_file2tab_tabfile_info/1
   ]}
 ]).
 
@@ -50,6 +53,9 @@ groups() ->
     t_match_ops,
     t_select_ops,
     t_rename,
+    t_info_ops,
+    t_tab2list,
+    t_tab2file_file2tab_tabfile_info,
     t_eject_node_on_failure,
     t_delete_and_auto_setup_tab
   ]}].

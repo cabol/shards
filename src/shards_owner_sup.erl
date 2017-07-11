@@ -65,7 +65,6 @@ init({Name, Options}) ->
   true = ets:insert(Name, State),
 
   % create children
-  NumShards = shards_state:n_shards(State),
   Children = [begin
     % get a local name to shard
     LocalShardName = shards_lib:shard_name(Name, Shard),
@@ -73,7 +72,7 @@ init({Name, Options}) ->
     true = ets:insert(Name, {Shard, LocalShardName}),
     % shard worker spec
     ?worker(shards_owner, [LocalShardName, Opts], #{id => Shard})
-  end || Shard <- lists:seq(0, NumShards - 1)],
+  end || Shard <- shards_lib:iterator(State)],
 
   % init shards_dist pg2 group
   Module = shards_state:module(State),

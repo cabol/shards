@@ -11,12 +11,14 @@
 -export([
   t_shard_name/1,
   t_list_shards/1,
+  t_iterator/1,
   t_get_pid/1,
   t_pick/1,
   t_keyfind/1,
   t_keyupdate/1,
   t_reduce_while/1,
-  t_to_string/1
+  t_to_string/1,
+  t_read_write_tabfile/1
 ]).
 
 -define(EXCLUDED_FUNS, [
@@ -43,6 +45,11 @@ t_shard_name(_Config) ->
 
 t_list_shards(_Config) ->
   ['t.0', 't.1', 't.2', 't.3'] = shards_lib:list_shards(t, 4),
+  ok.
+
+t_iterator(_Config) ->
+  R = [0, 1, 2, 3] = shards_lib:iterator(4),
+  R = shards_lib:iterator(shards_state:new(4)),
   ok.
 
 t_get_pid(_Config) ->
@@ -80,6 +87,14 @@ t_reduce_while(_Config) ->
   end,
   R = shards_lib:reduce_while(Fun, [], new_tuple_list(10)),
   R = shards_lib:reduce_while(Fun, [], new_tuple_list(3)),
+
+  _ = try
+    shards_lib:reduce_while(fun({K, V}, Acc) ->
+      K = V + Acc
+    end, 0, new_tuple_list(10))
+  catch
+    _:_ -> ok
+  end,
   ok.
 
 t_to_string(_Config) ->
@@ -87,13 +102,25 @@ t_to_string(_Config) ->
   "hello" = shards_lib:to_string(<<"hello">>),
   "hello" = shards_lib:to_string(hello),
   "123" = shards_lib:to_string(123),
-  "123.4" = shards_lib:to_string("123.4"),
+  "123.4" = shards_lib:to_string(123.4),
   _ = try shards_lib:to_string([1, 2, 3])
   catch _:{badarg, _} -> ok
   end,
   _ = try shards_lib:to_string(self())
   catch _:{badarg, _} -> ok
   end,
+  ok.
+
+t_read_write_tabfile(_Config) ->
+  {error, _} = shards_lib:write_tabfile("dir/myfile", [{body, "Hello"}]),
+  ok = shards_lib:write_tabfile("myfile", [{body, "Hello"}]),
+
+  _ = try
+    shards_lib:read_tabfile("dir/myfile")
+  catch
+    _:_ -> ok
+  end,
+  [{body, "Hello"}] = shards_lib:read_tabfile("myfile"),
   ok.
 
 %%%===================================================================
