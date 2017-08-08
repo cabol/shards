@@ -311,10 +311,7 @@ file2tab(Filename, Options) when ?is_filename(Filename) ->
     {name, Tab} = lists:keyfind(name, 1, Metadata),
     {state, State} = lists:keyfind(state, 1, Metadata),
     {shards, ShardTabs} = lists:keyfind(shards, 1, Metadata),
-    Tab = new(Tab, [
-      {restore, ShardTabs, Options}
-      | state_to_tab_opts(State)
-    ]),
+    Tab = new(Tab, [{restore, ShardTabs, Options} | state_to_tab_opts(State)]),
     {ok, Tab}
   catch
     throw:Error -> Error;
@@ -624,13 +621,19 @@ lookup_element(Tab, Key, Pos, State) ->
   PickShardFun = shards_state:pick_shard_fun(State),
   case PickShardFun(Key, N, r) of
     any ->
-      LookupElem = fun(Tx, Kx, Px) ->
-        catch ets:lookup_element(Tx, Kx, Px)
-      end,
-      Filter = lists:filter(fun
-        ({'EXIT', _}) -> false;
-        (_)           -> true
-      end, mapred(Tab, {LookupElem, [Key, Pos]}, State)),
+      LookupElem =
+        fun(Tx, Kx, Px) ->
+          try
+            ets:lookup_element(Tx, Kx, Px)
+          catch
+            error:badarg -> {error, notfound}
+          end
+        end,
+      Filter =
+        lists:filter(fun
+          ({error, notfound}) -> false;
+          (_)                 -> true
+        end, mapred(Tab, {LookupElem, [Key, Pos]}, State)),
       case Filter of
         [] -> error(badarg);
         _  -> lists:append(Filter)
@@ -938,11 +941,12 @@ rename(Tab, Name) ->
   Name  :: atom(),
   State :: shards_state:state().
 rename(Tab, Name, State) ->
-  _ = lists:foreach(fun(Shard) ->
-    ShardName = shards_lib:shard_name(Tab, Shard),
-    NewShardName = shards_lib:shard_name(Name, Shard),
-    NewShardName = do_rename(ShardName, NewShardName)
-  end, shards_lib:iterator(State)),
+  ok =
+    lists:foreach(fun(Shard) ->
+      ShardName = shards_lib:shard_name(Tab, Shard),
+      NewShardName = shards_lib:shard_name(Name, Shard),
+      NewShardName = do_rename(ShardName, NewShardName)
+    end, shards_lib:iterator(State)),
   do_rename(Tab, Name).
 
 %% @private
@@ -1198,22 +1202,24 @@ tab2file(Tab, Filename, State) ->
   Response :: ok | {error, Reason :: term()}.
 tab2file(Tab, Filename, Options, State) when ?is_filename(Filename) ->
   StrFilename = shards_lib:to_string(Filename),
-  {Nodes, NewOpts} = case lists:keytake(nodes, 1, Options) of
-    {value, {nodes, Val}, Opts1} ->
-      {Val, Opts1};
-    _ ->
-      {[node()], Options}
-  end,
-  ShardFilenamePairs = shards_lib:reduce_while(fun(Shard, Acc) ->
-    ShardName = shards_lib:shard_name(Tab, Shard),
-    ShardFilename = StrFilename ++ "." ++ integer_to_list(Shard),
-    case ets:tab2file(ShardName, ShardFilename, NewOpts) of
-      ok ->
-        {cont, [{ShardName, ShardFilename} | Acc]};
-      {error, _} = Error ->
-        {halt, Error}
-    end
-  end, [], shards_lib:iterator(State)),
+  {Nodes, NewOpts} =
+    case lists:keytake(nodes, 1, Options) of
+      {value, {nodes, Val}, Opts1} ->
+        {Val, Opts1};
+      _ ->
+        {[node()], Options}
+    end,
+  ShardFilenamePairs =
+    shards_lib:reduce_while(fun(Shard, Acc) ->
+      ShardName = shards_lib:shard_name(Tab, Shard),
+      ShardFilename = StrFilename ++ "." ++ integer_to_list(Shard),
+      case ets:tab2file(ShardName, ShardFilename, NewOpts) of
+        ok ->
+          {cont, [{ShardName, ShardFilename} | Acc]};
+        {error, _} = Error ->
+          {halt, Error}
+      end
+    end, [], shards_lib:iterator(State)),
   case ShardFilenamePairs of
     {error, _} = Error ->
       Error;
@@ -1259,12 +1265,13 @@ tabfile_info(Filename) when ?is_filename(Filename) ->
     Metadata = shards_lib:read_tabfile(StrFilename),
     {name, Tab} = lists:keyfind(name, 1, Metadata),
     {shards, ShardTabs} = lists:keyfind(shards, 1, Metadata),
-    ShardsTabInfo = lists:foldl(fun({_, ShardFN}, Acc) ->
-      case ets:tabfile_info(ShardFN) of
-        {ok, TabInfo} -> [TabInfo | Acc];
-        Error         -> throw(Error)
-      end
-    end, [], ShardTabs),
+    ShardsTabInfo =
+      lists:foldl(fun({_, ShardFN}, Acc) ->
+        case ets:tabfile_info(ShardFN) of
+          {ok, TabInfo} -> [TabInfo | Acc];
+          Error         -> throw(Error)
+        end
+      end, [], ShardTabs),
     {ok, shards_info(Tab, ShardsTabInfo)}
   catch
     throw:Error -> Error
@@ -1420,11 +1427,12 @@ s_mapred(Tab, NumShards, MapFun, ReduceFun) ->
 
 %% @private
 p_mapred(Tab, NumShards, {MapFun, Args}, {ReduceFun, AccIn}) ->
-  Tasks = lists:foldl(fun(Shard, Acc) ->
-    AsyncTask = shards_task:async(fun() ->
-      apply(MapFun, [shards_lib:shard_name(Tab, Shard) | Args])
-    end), [AsyncTask | Acc]
-  end, [], shards_lib:iterator(NumShards)),
+  Tasks =
+    lists:foldl(fun(Shard, Acc) ->
+      AsyncTask = shards_task:async(fun() ->
+        apply(MapFun, [shards_lib:shard_name(Tab, Shard) | Args])
+      end), [AsyncTask | Acc]
+    end, [], shards_lib:iterator(NumShards)),
   lists:foldl(fun(Task, Acc) ->
     MapRes = shards_task:await(Task),
     ReduceFun(MapRes, Acc)
@@ -1435,10 +1443,11 @@ p_mapred(Tab, NumShards, MapFun, ReduceFun) ->
 
 %% @private
 mapred_funs(MapFun, ReduceFun) ->
-  Map = case is_function(MapFun) of
-    true -> {MapFun, []};
-    _    -> MapFun
-  end,
+  Map =
+    case is_function(MapFun) of
+      true -> {MapFun, []};
+      _    -> MapFun
+    end,
   Reduce = {ReduceFun, []},
   {Map, Reduce}.
 

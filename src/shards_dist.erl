@@ -70,12 +70,15 @@
   Nodes       :: [node()],
   JoinedNodes :: [node()].
 join(Tab, Nodes) ->
-  FilteredNodes = lists:filter(fun(Node) ->
-    not lists:member(Node, get_nodes(Tab))
-  end, Nodes),
-  _ = global:trans({?MODULE, Tab}, fun() ->
-    rpc:multicall(FilteredNodes, erlang, apply, [fun join_/1, [Tab]])
-  end),
+  FilteredNodes =
+    lists:filter(fun(Node) ->
+      not lists:member(Node, get_nodes(Tab))
+    end, Nodes),
+  Fun =
+    fun() ->
+      rpc:multicall(FilteredNodes, erlang, apply, [fun join_/1, [Tab]])
+    end,
+  _ = global:trans({?MODULE, Tab}, Fun),
   get_nodes(Tab).
 
 %% @private
@@ -88,12 +91,13 @@ join_(Tab) ->
   LeavedNodes :: [node()].
 leave(Tab, Nodes) ->
   Members = [{node(Pid), Pid} || Pid <- pg2:get_members(Tab)],
-  lists:foreach(fun(Node) ->
-    case lists:keyfind(Node, 1, Members) of
-      {Node, Pid} -> pg2:leave(Tab, Pid);
-      _           -> noop
-    end
-  end, Nodes),
+  ok =
+    lists:foreach(fun(Node) ->
+      case lists:keyfind(Node, 1, Members) of
+        {Node, Pid} -> pg2:leave(Tab, Pid);
+        _           -> noop
+      end
+    end, Nodes),
   get_nodes(Tab).
 
 -spec get_nodes(Tab) -> Nodes when
@@ -151,18 +155,17 @@ file2tab(Filename, Options) when ?is_filename(Filename) ->
   StrFilename = shards_lib:to_string(Filename),
   try
     {Tab, Nodes} = tabfile_info_local(StrFilename),
-    Res = shards_lib:reduce_while(fun(Node, Acc) ->
-      NodeFilename = shards_lib:to_string(Node) ++ "." ++ StrFilename,
-      case rpc:call(Node, ?SHARDS, file2tab, [NodeFilename, Options]) of
-        {ok, Tab} ->
-          {cont, [Node | Acc]};
-        {error, _} = E ->
-          ok = lists:foreach(fun(N) ->
-            _ = rpc:call(N, ?SHARDS, delete, [Tab])
-          end, Acc),
-          {halt, E}
-      end
-    end, [], Nodes),
+    Res =
+      shards_lib:reduce_while(fun(Node, Acc) ->
+        NodeFilename = shards_lib:to_string(Node) ++ "." ++ StrFilename,
+        case rpc:call(Node, ?SHARDS, file2tab, [NodeFilename, Options]) of
+          {ok, Tab} ->
+            {cont, [Node | Acc]};
+          {error, _} = E ->
+            ok = lists:foreach(fun(N) -> rpc:call(N, ?SHARDS, delete, [Tab]) end, Acc),
+            {halt, E}
+        end
+      end, [], Nodes),
     case Res of
       {error, _} = ResErr ->
         ResErr;
@@ -288,10 +291,11 @@ lookup_element(Tab, Key, Pos, State) ->
   case pick_node(PickNodeFun, Key, Nodes, r) of
     any ->
       Map = {?SHARDS, lookup_element, [Tab, Key, Pos, State]},
-      Filter = lists:filter(fun
-        ({badrpc, {'EXIT', _}}) -> false;
-        (_)                     -> true
-      end, mapred(Tab, Map, nil, State, r)),
+      Filter =
+        lists:filter(fun
+          ({badrpc, {'EXIT', _}}) -> false;
+          (_)                     -> true
+        end, mapred(Tab, Map, nil, State, r)),
       case Filter of
         [] -> error(badarg);
         _  -> lists:append(Filter)
@@ -354,9 +358,8 @@ new(Name, Options) ->
 %% @private
 new(Name, Options, Nodes) ->
   AllNodes = lists:usort([node() | Nodes]),
-  _ = global:trans({?MODULE, Name}, fun() ->
-    rpc:multicall(AllNodes, shards_local, new, [Name, Options])
-  end),
+  Fun = fun() -> rpc:multicall(AllNodes, shards_local, new, [Name, Options]) end,
+  _ = global:trans({?MODULE, Name}, Fun),
   _ = join(Name, AllNodes),
   Name.
 
@@ -456,15 +459,16 @@ tabfile_info(Filename) when ?is_filename(Filename) ->
   StrFilename = shards_lib:to_string(Filename),
   try
     {_Tab, Nodes} = tabfile_info_local(StrFilename),
-    TabInfoList = shards_lib:reduce_while(fun(Node, Acc) ->
-      NodeFilename = shards_lib:to_string(Node) ++ "." ++ StrFilename,
-      case rpc:call(Node, ?SHARDS, tabfile_info, [NodeFilename]) of
-        {ok, TabInfo} ->
-          {cont, [TabInfo | Acc]};
-        {error, _} = E ->
-          {halt, E}
-      end
-    end, [], Nodes),
+    TabInfoList =
+      shards_lib:reduce_while(fun(Node, Acc) ->
+        NodeFilename = shards_lib:to_string(Node) ++ "." ++ StrFilename,
+        case rpc:call(Node, ?SHARDS, tabfile_info, [NodeFilename]) of
+          {ok, TabInfo} ->
+            {cont, [TabInfo | Acc]};
+          {error, _} = E ->
+            {halt, E}
+        end
+      end, [], Nodes),
     case TabInfoList of
       {error, _} = ResErr ->
         ResErr;
@@ -557,11 +561,12 @@ mapred(Tab, Key, Map, Reduce, State, Op) ->
 
 %% @private
 p_mapred(Tab, {MapMod, MapFun, MapArgs}, {RedFun, AccIn}) ->
-  Tasks = lists:foldl(fun(Node, Acc) ->
-    AsyncTask = shards_task:async(fun() ->
-      rpc:call(Node, MapMod, MapFun, MapArgs)
-    end), [AsyncTask | Acc]
-  end, [], get_nodes(Tab)),
+  Tasks =
+    lists:foldl(fun(Node, Acc) ->
+      AsyncTask = shards_task:async(fun() ->
+        rpc:call(Node, MapMod, MapFun, MapArgs)
+      end), [AsyncTask | Acc]
+    end, [], get_nodes(Tab)),
   lists:foldl(fun(Task, Acc) ->
     MapRes = shards_task:await(Task),
     RedFun(MapRes, Acc)

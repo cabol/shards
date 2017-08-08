@@ -65,14 +65,15 @@ init({Name, Options}) ->
   true = ets:insert(Name, State),
 
   % create children
-  Children = [begin
-    % get a local name to shard
-    LocalShardName = shards_lib:shard_name(Name, Shard),
-    % save relationship between shard and shard name
-    true = ets:insert(Name, {Shard, LocalShardName}),
-    % shard worker spec
-    ?worker(shards_owner, [LocalShardName, Opts], #{id => Shard})
-  end || Shard <- shards_lib:iterator(State)],
+  Children =
+    [begin
+      % get a local name to shard
+      LocalShardName = shards_lib:shard_name(Name, Shard),
+      % save relationship between shard and shard name
+      true = ets:insert(Name, {Shard, LocalShardName}),
+      % shard worker spec
+      ?worker(shards_owner, [LocalShardName, Opts], #{id => Shard})
+     end || Shard <- shards_lib:iterator(State)],
 
   % init shards_dist pg2 group
   Module = shards_state:module(State),
@@ -97,11 +98,10 @@ child(Type, Module, Args, Spec) when is_map(Spec) ->
 %% @private
 supervise(Children, SupFlagsMap) ->
   ok = assert_unique_ids([Id || {Id, _, _, _, _, _} <- Children]),
-  SupFlags = {
-    maps:get(strategy, SupFlagsMap, one_for_one),
-    maps:get(intensity, SupFlagsMap, 1),
-    maps:get(period, SupFlagsMap, 5)
-  },
+  SupFlags =
+    {maps:get(strategy, SupFlagsMap, one_for_one),
+     maps:get(intensity, SupFlagsMap, 1),
+     maps:get(period, SupFlagsMap, 5)},
   {ok, {SupFlags, Children}}.
 
 %% @private
@@ -116,10 +116,11 @@ assert_unique_ids([Id | Rest]) ->
 %% @private
 parse_opts(Opts) ->
   StateMap = shards_state:to_map(shards_state:new()),
-  AccIn = StateMap#{
-    opts             => [],
-    restart_strategy => one_for_one
-  },
+  AccIn =
+    StateMap#{
+      opts             => [],
+      restart_strategy => one_for_one
+    },
   AccOut = parse_opts(Opts, AccIn),
   %% @TODO: this workaround must be fixed when a better strategy to support ordered_set be ready
   case maps:get(type, AccOut, set) of

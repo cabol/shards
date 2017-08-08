@@ -47,10 +47,11 @@ stop(ShardName) ->
 
 %% @hidden
 init({Name, Options}) ->
-  NewOpts = case lists:keyfind(restore, 1, Options) of
-    {restore, _, _} = Val -> Val;
-    false                 -> Options
-  end,
+  NewOpts =
+    case lists:keyfind(restore, 1, Options) of
+      {restore, _, _} = Val -> Val;
+      false                 -> Options
+    end,
   init(Name, NewOpts).
 
 %% @private
@@ -67,10 +68,11 @@ init(Name, Options) ->
 
 %% @private
 validate_options(Options) ->
-  Options1 = case lists:member(named_table, Options) of
-    true -> Options;
-    _    -> [named_table | Options]
-  end,
+  Options1 =
+    case lists:member(named_table, Options) of
+      true -> Options;
+      _    -> [named_table | Options]
+    end,
   case lists:member(public, Options1) of
     true -> Options1;
     _    -> [public | Options1]

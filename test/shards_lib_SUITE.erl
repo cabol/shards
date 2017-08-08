@@ -81,21 +81,21 @@ t_keyupdate(_Config) ->
   ok.
 
 t_reduce_while(_Config) ->
-  Fun = fun
-    ({_, V}, Acc) when V < 4 -> {halt, [V | Acc]};
-    ({_, V}, Acc)            -> {cont, [V | Acc]}
-  end,
+  Fun =
+    fun
+      ({_, V}, Acc) when V < 4 -> {halt, [V | Acc]};
+      ({_, V}, Acc)            -> {cont, [V | Acc]}
+    end,
   R = shards_lib:reduce_while(Fun, [], new_tuple_list(10)),
   R = shards_lib:reduce_while(Fun, [], new_tuple_list(3)),
 
-  _ = try
+  try
     shards_lib:reduce_while(fun({K, V}, Acc) ->
       K = V + Acc
     end, 0, new_tuple_list(10))
   catch
     _:_ -> ok
-  end,
-  ok.
+  end.
 
 t_to_string(_Config) ->
   "hello" = shards_lib:to_string("hello"),
@@ -103,23 +103,30 @@ t_to_string(_Config) ->
   "hello" = shards_lib:to_string(hello),
   "123" = shards_lib:to_string(123),
   "123.4" = shards_lib:to_string(123.4),
-  _ = try shards_lib:to_string([1, 2, 3])
-  catch _:{badarg, _} -> ok
-  end,
-  _ = try shards_lib:to_string(self())
-  catch _:{badarg, _} -> ok
-  end,
-  ok.
+
+  ok =
+    try
+      shards_lib:to_string([1, 2, 3])
+    catch
+      _:{badarg, _} -> ok
+    end,
+
+  try
+    shards_lib:to_string(self())
+  catch
+    _:{badarg, _} -> ok
+  end.
 
 t_read_write_tabfile(_Config) ->
   {error, _} = shards_lib:write_tabfile("dir/myfile", [{body, "Hello"}]),
   ok = shards_lib:write_tabfile("myfile", [{body, "Hello"}]),
 
-  _ = try
-    shards_lib:read_tabfile("dir/myfile")
-  catch
-    _:_ -> ok
-  end,
+  ok =
+    try
+      shards_lib:read_tabfile("dir/myfile")
+    catch
+      _:_ -> ok
+    end,
   [{body, "Hello"}] = shards_lib:read_tabfile("myfile"),
   ok.
 

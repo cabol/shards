@@ -256,33 +256,30 @@ t_start_link3(_Config) ->
 t_await_timeout(_Config) ->
   Task = #{ref => make_ref(), owner => self()},
 
-  try shards_task:await(Task, 0)
+  try
+    shards_task:await(Task, 0)
   catch
     exit:{timeout, {shards_task, await, [Task, 0]}} -> ok
-  end,
-
-  ok.
+  end.
 
 t_await_normal(_Config) ->
   Task = shards_task:async(fun() -> exit(normal) end),
 
-  try shards_task:await(Task)
+  try
+    shards_task:await(Task)
   catch
     exit:{normal, {shards_task, await, [Task, 5000]}} -> ok
-  end,
-
-  ok.
+  end.
 
 t_await_task_throw(_Config) ->
   process_flag(trap_exit, true),
   Task = shards_task:async(fun() -> throw(unknown) end),
 
-  try shards_task:await(Task)
+  try
+    shards_task:await(Task)
   catch
     exit:{{{nocatch, unknown}, _}, {shards_task, await, [Task, 5000]}} -> ok
-  end,
-
-  ok.
+  end.
 
 t_await_task_error(_Config) ->
   process_flag(trap_exit, true),
@@ -290,99 +287,96 @@ t_await_task_error(_Config) ->
     erlang:raise(error, <<"oops">>, erlang:get_stacktrace())
   end),
 
-  try shards_task:await(Task)
+  try
+    shards_task:await(Task)
   catch
     exit:{{<<"oops">>, _}, {shards_task, await, [Task, 5000]}} -> ok
-  end,
-
-  ok.
+  end.
 
 t_await_undef_module_error(_Config) ->
   process_flag(trap_exit, true),
   Task = shards_task:async(fun module_does_not_exist:undef/0),
 
-  try shards_task:await(Task)
+  try
+    shards_task:await(Task)
   catch
     exit:Ex ->
       {{undef, [{module_does_not_exist, undef, _, _} | _]},
-       {shards_task, await, [Task, 5000]}} = Ex
-  end,
-
-  ok.
+       {shards_task, await, [Task, 5000]}} = Ex,
+      ok
+  end.
 
 t_await_undef_fun_error(_Config) ->
   process_flag(trap_exit, true),
   Task = shards_task:async(fun ?MODULE:undef/0),
 
-  try shards_task:await(Task)
+  try
+    shards_task:await(Task)
   catch
     exit:Ex ->
       {{undef, [{?MODULE, undef, _, _} | _]},
-       {shards_task, await, [Task, 5000]}} = Ex
-  end,
-
-  ok.
+       {shards_task, await, [Task, 5000]}} = Ex,
+      ok
+  end.
 
 t_await_undef_mfa_error(_Config) ->
   process_flag(trap_exit, true),
   Task = shards_task:async(?MODULE, undef, []),
 
-  try shards_task:await(Task)
+  try
+    shards_task:await(Task)
   catch
     exit:Ex ->
       {{undef, [{?MODULE, undef, _, _} | _]},
-        {shards_task, await, [Task, 5000]}} = Ex
-  end,
-
-  ok.
+       {shards_task, await, [Task, 5000]}} = Ex,
+      ok
+  end.
 
 t_await_task_exit(_Config) ->
   process_flag(trap_exit, true),
   Task = shards_task:async(fun() -> exit(unknown) end),
 
-  try shards_task:await(Task)
+  try
+    shards_task:await(Task)
   catch
     exit:{unknown, {shards_task, await, [Task, 5000]}} -> ok
-  end,
-
-  ok.
+  end.
 
 t_await_noconnection(_Config) ->
   Ref  = make_ref(),
   Task = #{ref => Ref, pid => self(), owner => self()},
   self() ! {'DOWN', Ref, process, self(), noconnection},
 
-  try shards_task:await(Task)
+  try
+    shards_task:await(Task)
   catch
     exit:Ex ->
       Node = node(),
-      {nodedown, Node} = element(1, Ex)
-  end,
-
-  ok.
+      {nodedown, Node} = element(1, Ex),
+      ok
+  end.
 
 t_await_noconnection_from_named_monitor(_Config) ->
   Ref  = make_ref(),
   Task = #{ref => Ref, pid => nil, owner => self()},
   self() ! {'DOWN', Ref, process, {name, node}, noconnection},
 
-  try shards_task:await(Task)
+  try
+    shards_task:await(Task)
   catch
     exit:Ex ->
-      {nodedown, node} = element(1, Ex)
-  end,
-
-  ok.
+      {nodedown, node} = element(1, Ex),
+      ok
+  end.
 
 t_await_raises_from_non_owner_proc(_Config) ->
   Task = create_task_in_other_process(),
 
-  try shards_task:await(Task, 1)
+  try
+    shards_task:await(Task, 1)
   catch
     throw:{invalid_owner_error, Task} -> ok
-  end,
-
-  ok.
+  end.
 
 %%%===================================================================
 %%% Internal functions

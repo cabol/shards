@@ -82,9 +82,12 @@ t_shard_restarted_when_down(_Config) ->
   tab1 = shards:new(tab1, []),
   tab2 = shards:new(tab2, [{restart_strategy, one_for_all}]),
 
-  try shards_lib:get_pid(wrong)
-  catch _:badarg -> ok
-  end,
+  ok =
+    try
+      shards_lib:get_pid(wrong)
+    catch
+      _:badarg -> ok
+    end,
 
   % insert some values
   true = shards:insert(tab1, [{1, 1}, {2, 2}, {3, 3}]),
@@ -99,13 +102,14 @@ t_shard_restarted_when_down(_Config) ->
   exit(whereis(ShardToKillTab1), kill),
   timer:sleep(500),
 
-  Expected = [begin
-    Shard = shards_lib:pick(K, NumShards, w),
-    case Shard == ShardToKill of
-      true -> nil;
-      _    -> K
-    end
-  end || K <- [1, 2, 3]],
+  Expected =
+    [begin
+      Shard = shards_lib:pick(K, NumShards, w),
+      case Shard == ShardToKill of
+        true -> nil;
+        _    -> K
+      end
+     end || K <- [1, 2, 3]],
   assert_values(tab1, [1, 2, 3], Expected),
 
   ShardToKillTab2 = shards_lib:shard_name(tab2, ShardToKill),

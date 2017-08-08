@@ -98,9 +98,10 @@ t_create_state(_Config) ->
   ok.
 
 t_state_ops(_Config) ->
-  test_set = shards:new(test_set, [
-    {pick_node_fun, fun shards_test_helper:pick_node/3}
-  ]),
+  test_set =
+    shards:new(test_set, [
+      {pick_node_fun, fun shards_test_helper:pick_node/3}
+    ]),
   StateSet = shards_state:get(test_set),
   true = shards_state:is_state(StateSet),
   DefaultShards = ?N_SHARDS,

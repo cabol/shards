@@ -289,10 +289,11 @@ do_apply(Info, {Module, Fun, Args} = MFA) ->
 
 %% @private
 get_info(Self) ->
-  Info = case process_info(Self, registered_name) of
-    {registered_name, Name} -> Name;
-    []                      -> self()
-  end,
+  Info =
+    case process_info(Self, registered_name) of
+      {registered_name, Name} -> Name;
+      []                      -> self()
+    end,
   {node(), Info}.
 
 %% @private
@@ -340,12 +341,13 @@ get_running({Mod, Fun, Args}) ->
 
 %% @private
 get_reason({undef, [{Mod, Fun, Args, _Info} | _] = Stacktrace} = Reason) when is_atom(Mod) and is_atom(Fun) ->
-  FunExported = fun
-    (M, F, A) when is_list(A) ->
-      erlang:function_exported(M, F, length(A));
-    (M, F, A) when is_integer(A) ->
-      erlang:function_exported(M, F, A)
-  end,
+  FunExported =
+    fun
+      (M, F, A) when is_list(A) ->
+        erlang:function_exported(M, F, length(A));
+      (M, F, A) when is_integer(A) ->
+        erlang:function_exported(M, F, A)
+    end,
   case code:is_loaded(Mod) of
     false ->
       {module_could_not_be_loaded, Stacktrace};

@@ -73,12 +73,13 @@ list_shards(Tab, NumShards) ->
   StateOrNumShards :: shards_state:state() | pos_integer(),
   Iterator         :: [integer()].
 iterator(StateOrNumShards) ->
-  N = case shards_state:is_state(StateOrNumShards) of
-    true ->
-      shards_state:n_shards(StateOrNumShards);
-    false when is_integer(StateOrNumShards) ->
-      StateOrNumShards
-  end,
+  N =
+    case shards_state:is_state(StateOrNumShards) of
+      true ->
+        shards_state:n_shards(StateOrNumShards);
+      false when is_integer(StateOrNumShards) ->
+        StateOrNumShards
+    end,
   lists:seq(0, N - 1).
 
 %% @doc
@@ -141,10 +142,11 @@ keyupdate(Fun, Keys, TupleList) ->
   KVList2 :: kv_list().
 keyupdate(Fun, Keys, Init, KVList1) when is_function(Fun, 2) ->
   lists:foldl(fun(Key, Acc) ->
-    NewKV = case lists:keyfind(Key, 1, Acc) of
-      {Key, Value} -> {Key, Fun(Key, Value)};
-      false        -> {Key, Init}
-    end,
+    NewKV =
+      case lists:keyfind(Key, 1, Acc) of
+        {Key, Value} -> {Key, Fun(Key, Value)};
+        false        -> {Key, Init}
+      end,
     lists:keystore(Key, 1, Acc, NewKV)
   end, KVList1, Keys).
 
@@ -174,8 +176,8 @@ reduce_while(Fun, AccIn, List) when is_function(Fun, 2) ->
   catch
     throw:{halt, AccOut} ->
       AccOut;
-    _:Error ->
-      error(Error)
+    Kind:Reason ->
+      erlang:raise(Kind, Reason, erlang:get_stacktrace())
   end.
 
 %% @doc

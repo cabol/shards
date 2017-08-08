@@ -229,15 +229,16 @@ start_slaves([], Acc) ->
   lists:usort(Acc);
 start_slaves([Node | T], Acc) ->
   ErlFlags = "-pa ../../lib/*/ebin",
-  {ok, HostNode} = ct_slave:start(Node, [
-    {kill_if_fail, true},
-    {monitor_master, true},
-    {boot_timeout, 5000},
-    {init_timeout, 3000},
-    {startup_timeout, 5000},
-    {startup_functions, [{shards, start, []}]},
-    {erl_flags, ErlFlags}
-  ]),
+  {ok, HostNode} =
+    ct_slave:start(Node, [
+      {kill_if_fail, true},
+      {monitor_master, true},
+      {boot_timeout, 5000},
+      {init_timeout, 3000},
+      {startup_timeout, 5000},
+      {startup_functions, [{shards, start, []}]},
+      {erl_flags, ErlFlags}
+    ]),
   ok = ensure_shards_started(HostNode),
   start_slaves(T, [HostNode | Acc]).
 
@@ -271,15 +272,11 @@ get_remote_nodes(Nodes, Tab) ->
 setup_tabs(Config) ->
   {_, Nodes} = lists:keyfind(nodes, 1, Config),
   AllNodes = lists:usort([node() | Nodes]),
-
-  {_, []} = rpc:multicall(
-    AllNodes, shards_test_helper, init_shards, [g]),
+  {_, []} = rpc:multicall(AllNodes, shards_test_helper, init_shards, [g]),
   ok.
 
 cleanup_tabs(Config) ->
   {_, Nodes} = lists:keyfind(nodes, 1, Config),
   AllNodes = lists:usort([node() | Nodes]),
-
-  {_, _} = rpc:multicall(
-    AllNodes, shards_test_helper, cleanup_shards, []),
+  {_, _} = rpc:multicall(AllNodes, shards_test_helper, cleanup_shards, []),
   ok.
