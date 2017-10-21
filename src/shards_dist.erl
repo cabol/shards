@@ -65,19 +65,21 @@
 %%% Extended API
 %%%===================================================================
 
--spec join(Tab, Nodes) -> JoinedNodes when
-  Tab         :: atom(),
-  Nodes       :: [node()],
-  JoinedNodes :: [node()].
+-spec join(Tab, Nodes) -> CurrentNodes when
+  Tab          :: atom(),
+  Nodes        :: [node()],
+  CurrentNodes :: [node()].
 join(Tab, Nodes) ->
   FilteredNodes =
     lists:filter(fun(Node) ->
       not lists:member(Node, get_nodes(Tab))
     end, Nodes),
+
   Fun =
     fun() ->
       rpc:multicall(FilteredNodes, erlang, apply, [fun join_/1, [Tab]])
     end,
+
   _ = global:trans({?MODULE, Tab}, Fun),
   get_nodes(Tab).
 
@@ -85,12 +87,13 @@ join(Tab, Nodes) ->
 join_(Tab) ->
   pg2:join(Tab, shards_lib:get_pid(Tab)).
 
--spec leave(Tab, Nodes) -> LeavedNodes when
-  Tab         :: atom(),
-  Nodes       :: [node()],
-  LeavedNodes :: [node()].
+-spec leave(Tab, Nodes) -> CurrentNodes when
+  Tab          :: atom(),
+  Nodes        :: [node()],
+  CurrentNodes :: [node()].
 leave(Tab, Nodes) ->
   Members = [{node(Pid), Pid} || Pid <- pg2:get_members(Tab)],
+
   ok =
     lists:foreach(fun(Node) ->
       case lists:keyfind(Node, 1, Members) of
@@ -98,6 +101,7 @@ leave(Tab, Nodes) ->
         _           -> noop
       end
     end, Nodes),
+
   get_nodes(Tab).
 
 -spec get_nodes(Tab) -> Nodes when
@@ -155,6 +159,7 @@ file2tab(Filename, Options) when ?is_filename(Filename) ->
   StrFilename = shards_lib:to_string(Filename),
   try
     {Tab, Nodes} = tabfile_info_local(StrFilename),
+
     Res =
       shards_lib:reduce_while(fun(Node, Acc) ->
         NodeFilename = shards_lib:to_string(Node) ++ "." ++ StrFilename,
@@ -166,6 +171,7 @@ file2tab(Filename, Options) when ?is_filename(Filename) ->
             {halt, E}
         end
       end, [], Nodes),
+
     case Res of
       {error, _} = ResErr ->
         ResErr;
@@ -291,11 +297,13 @@ lookup_element(Tab, Key, Pos, State) ->
   case pick_node(PickNodeFun, Key, Nodes, r) of
     any ->
       Map = {?SHARDS, lookup_element, [Tab, Key, Pos, State]},
+
       Filter =
         lists:filter(fun
           ({badrpc, {'EXIT', _}}) -> false;
           (_)                     -> true
         end, mapred(Tab, Map, nil, State, r)),
+
       case Filter of
         [] -> error(badarg);
         _  -> lists:append(Filter)
@@ -459,6 +467,7 @@ tabfile_info(Filename) when ?is_filename(Filename) ->
   StrFilename = shards_lib:to_string(Filename),
   try
     {_Tab, Nodes} = tabfile_info_local(StrFilename),
+
     TabInfoList =
       shards_lib:reduce_while(fun(Node, Acc) ->
         NodeFilename = shards_lib:to_string(Node) ++ "." ++ StrFilename,
@@ -469,6 +478,7 @@ tabfile_info(Filename) when ?is_filename(Filename) ->
             {halt, E}
         end
       end, [], Nodes),
+
     case TabInfoList of
       {error, _} = ResErr ->
         ResErr;
@@ -567,6 +577,7 @@ p_mapred(Tab, {MapMod, MapFun, MapArgs}, {RedFun, AccIn}) ->
         rpc:call(Node, MapMod, MapFun, MapArgs)
       end), [AsyncTask | Acc]
     end, [], get_nodes(Tab)),
+
   lists:foldl(fun(Task, Acc) ->
     MapRes = shards_task:await(Task),
     RedFun(MapRes, Acc)

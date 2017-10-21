@@ -25,12 +25,13 @@ Therefore, one of the most common and proven strategies to deal with these probl
 is [Sharding/Partitioning](https://en.wikipedia.org/wiki/Partition_(database)) –
 the principle is pretty similar to [DHTs](https://en.wikipedia.org/wiki/Distributed_hash_table).
 
-Here is where **Shards** comes in. **Shards** makes it extremely easy to achieve
-all this, with **zero** effort. It provides an API compatible with [ETS](http://erlang.org/doc/man/ets.html) – with few exceptions. You can check
+Here is where **Shards** comes in. **Shards** makes very easy to achieve
+all these features with **zero** effort. It provides an API compatible with
+[ETS](http://erlang.org/doc/man/ets.html) – with few exceptions. You can check
 the list of compatible ETS functions that **Shards** provides [HERE](https://github.com/cabol/shards/issues/1).
 
 
-## Usage
+## Installation
 
 ### Erlang
 
@@ -421,7 +422,9 @@ And again, let's check it out from any node:
   basic functions have been implemented.
 
 
-## Examples and/or Projects using Shards
+## Important links
+
+* [Blog Post – including load tests results](http://cabol.github.io/posts/2016/04/14/sharding-support-for-ets.html).
 
 * [ExShards](https://github.com/cabol/ex_shards) – Elixir wrapper for
   `shards` with extra and nicer functions.
@@ -432,9 +435,6 @@ And again, let's check it out from any node:
 * [KVX](https://github.com/cabol/kvx) – Simple/basic Elixir in-memory Key/Value
   Store using `shards` (default adapter).
 
-* [ErlBus](https://github.com/cabol/erlbus) uses `shards` to scale-out
-  Topics/Pids table(s), which can be too large and with high concurrency level.
-
 * [Cacherl](https://github.com/ferigis/cacherl) uses `shards` to implement a
   Distributed Cache.
 
@@ -444,8 +444,6 @@ And again, let's check it out from any node:
     $ make test
 
 You can find tests results in `_build/test/logs`, and coverage in `_build/test/cover`.
-
- > **NOTE:** You can find some performance tests in this [BLOG POST](http://cabol.github.io/posts/2016/04/14/sharding-support-for-ets.html).
 
 
 ## Building Edoc

@@ -1,4 +1,4 @@
--module(shards_test_helper).
+-module(shards_test_helpers).
 
 %% Test Cases
 -export([
@@ -39,7 +39,7 @@
 ]).
 
 -include_lib("stdlib/include/ms_transform.hrl").
--include("shards_test_helper.hrl").
+-include("shards_test_helpers.hrl").
 
 %%%===================================================================
 %%% Tests Key Generator
@@ -206,6 +206,7 @@ t_select_ops_({Scope, Tab, EtsTab}) ->
   ok.
 
 t_paginated_ops(Config) ->
+  {_, Scope} = lists:keyfind(scope, 1, Config),
   MS = ets:fun2ms(fun({K, V}) -> {K, V} end),
   Ops = [
     {select, MS},
@@ -214,8 +215,8 @@ t_paginated_ops(Config) ->
     {match_object, '$1'}
   ],
   Tabs = ?SHARDS_TABS -- [?ORDERED_SET],
-  {_, Scope} = lists:keyfind(scope, 1, Config),
   Args = [{Scope, Tab, Op} || Tab <- Tabs, Op <- Ops],
+
   lists:foreach(fun(X) ->
     true = cleanup_shards(),
     t_paginated_ops_(X)
@@ -473,48 +474,43 @@ t_info_ops_({Scope, Tab, _EtsTab}) ->
   NumShards = length(shards_lib:keyfind(shards, Info1)),
   Tab = Mod:info(Tab, name),
   NumShards = length(Mod:info(Tab, shards)),
-  ok =
-    case Scope of
-      g ->
-        Nodes = lists:usort(Mod:get_nodes(Tab)),
-        Nodes = lists:usort(shards_lib:keyfind(nodes, Info1)),
-        Nodes = lists:usort(Mod:info(Tab, nodes)),
-        ok;
-      _ ->
-        ok
-    end,
+
+  _ = case Scope of
+    g ->
+      Nodes = lists:usort(Mod:get_nodes(Tab)),
+      Nodes = lists:usort(shards_lib:keyfind(nodes, Info1)),
+      Nodes = lists:usort(Mod:info(Tab, nodes)),
+      ok;
+    _ ->
+      ok
+  end,
 
   Shards1 = [Shard1 | _] = Mod:info(Tab, shards),
   {Items, _} = lists:unzip(ets:info(Shard1)),
-  ok =
-    lists:foreach(fun(Item) ->
-      {Item, _} = lists:keyfind(Item, 1, Info1)
-    end, Items),
+  ok = lists:foreach(fun(Item) ->
+    {Item, _} = lists:keyfind(Item, 1, Info1)
+  end, Items),
 
   % test info_shard/2,3
-  ok =
-    lists:foreach(fun(ShardName) ->
-      R1 = shards:info_shard(ShardName),
-      R1 = ets:info(ShardName)
-    end, Shards1),
-  ok =
-    lists:foreach(fun(ShardName) ->
-      R1 = shards:info_shard(ShardName, protection),
-      R1 = ets:info(ShardName, protection)
-    end, Shards1),
+  ok = lists:foreach(fun(ShardName) ->
+    R1 = shards:info_shard(ShardName),
+    R1 = ets:info(ShardName)
+  end, Shards1),
+  ok = lists:foreach(fun(ShardName) ->
+    R1 = shards:info_shard(ShardName, protection),
+    R1 = ets:info(ShardName, protection)
+  end, Shards1),
 
   % test info_shard/2,3
   Shards2 = shards:info(?DUPLICATE_BAG, shards),
-  ok =
-    lists:foreach(fun(ShardName) ->
-      R1 = shards:info_shard(ShardName),
-      R1 = ets:info(ShardName)
-    end, Shards2),
-  ok =
-    lists:foreach(fun(ShardName) ->
-      R1 = shards:info_shard(ShardName, protection),
-      R1 = ets:info(ShardName, protection)
-    end, Shards2),
+  ok = lists:foreach(fun(ShardName) ->
+    R1 = shards:info_shard(ShardName),
+    R1 = ets:info(ShardName)
+  end, Shards2),
+  ok = lists:foreach(fun(ShardName) ->
+    R1 = shards:info_shard(ShardName, protection),
+    R1 = ets:info(ShardName, protection)
+  end, Shards2),
 
   % test invalid values
   R2 = ets:info(undefined_tab),
@@ -553,7 +549,6 @@ t_tab2file_file2tab_tabfile_info(Config) ->
   run_for_all_tables(Config, fun t_tab2file_file2tab_tabfile_info_/1).
 
 t_tab2file_file2tab_tabfile_info_({Scope, Tab, _EtsTab}) ->
-  ct:log("==> ~p", [Tab]),
   Mod = get_module(Scope, Tab),
   FN = shards_lib:to_string(Tab) ++ "_test_tab",
 
@@ -589,21 +584,19 @@ t_tab2file_file2tab_tabfile_info_({Scope, Tab, _EtsTab}) ->
   % check tab info attrs
   {ok, ShardTabInfo} = ets:tabfile_info(?fn(FN ++ ".0", Scope)),
   {Items, _} = lists:unzip(ShardTabInfo),
-  ok =
-    lists:foreach(fun(Item) ->
-      {Item, _} = lists:keyfind(Item, 1, TabInfo)
-    end, Items),
+  ok = lists:foreach(fun(Item) ->
+    {Item, _} = lists:keyfind(Item, 1, TabInfo)
+  end, Items),
   NumShards = length(shards_lib:keyfind(shards, TabInfo)),
-  ok =
-    case Scope of
-      g ->
-        {error, _} = shards_dist:tabfile_info("wrong_file"),
-        Nodes = lists:usort(Mod:get_nodes(Tab)),
-        Nodes = lists:usort(shards_lib:keyfind(nodes, TabInfo)),
-        ok;
-      _ ->
-        ok
-    end,
+  _ = case Scope of
+    g ->
+      {error, _} = shards_dist:tabfile_info("wrong_file"),
+      Nodes = lists:usort(Mod:get_nodes(Tab)),
+      Nodes = lists:usort(shards_lib:keyfind(nodes, TabInfo)),
+      ok;
+    _ ->
+      ok
+  end,
 
   % delete table
   true = Mod:delete(Tab),
@@ -611,14 +604,13 @@ t_tab2file_file2tab_tabfile_info_({Scope, Tab, _EtsTab}) ->
   % errors
   {error, _} = Mod:file2tab("wrong_file"),
   {error, _} = Mod:file2tab(FN ++ "2"),
-  ok =
-    case Scope of
-      g ->
-        {error, _} = shards_dist:file2tab("wrong_file"),
-        ok;
-      _ ->
-        ok
-    end,
+  _ = case Scope of
+    g ->
+      {error, _} = shards_dist:file2tab("wrong_file"),
+      ok;
+    _ ->
+      ok
+  end,
 
   % restore table from files
   {ok, Tab} = Mod:file2tab(FN, []),

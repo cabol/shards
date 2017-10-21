@@ -29,10 +29,8 @@
 -export([
   sup_start/2,
   sup_start_link/2,
-  sup_start_link/4,
   sup_spawn_link/3,
-  sup_spawn_link/4,
-  reply/4,
+  reply/3,
   noreply/2
 ]).
 
@@ -145,10 +143,12 @@ start_link(Mod, Fun, Args) ->
   sup_start_link(get_info(self()), {Mod, Fun, Args}).
 
 %% @equiv async(erlang, apply, [Fun, []])
-async(Fun) -> async(erlang, apply, [Fun, []]).
+async(Fun) ->
+  async(erlang, apply, [Fun, []]).
 
 %% @equiv async(erlang, apply, [Fun, Args])
-async(Fun, Args) -> async(erlang, apply, [Fun, Args]).
+async(Fun, Args) ->
+  async(erlang, apply, [Fun, Args]).
 
 %% @doc
 %% Starts a task that must be awaited on.
@@ -166,7 +166,8 @@ async(Mod, Fun, Args) ->
   #{pid => Pid, ref => Ref, owner => Owner}.
 
 %% @equiv await(Task, 5000)
-await(Task) -> await(Task, 5000).
+await(Task) ->
+  await(Task, 5000).
 
 %% @doc
 %% Awaits a task reply.
@@ -218,33 +219,17 @@ sup_start_link(Info, Fun) ->
   {ok, proc_lib:spawn_link(?MODULE, noreply, [Info, Fun])}.
 
 %% @hidden
--spec sup_start_link(pid(), link(), proc_info(), callback()) -> {ok, pid()}.
-sup_start_link(Caller, Link, Info, Fun) ->
-  {ok, sup_spawn_link(Caller, Link, Info, Fun)}.
-
-%% @hidden
-%% @equiv sup_spawn_link(Caller, nolink, Info, Fun)
+-spec sup_spawn_link(pid(), proc_info(), callback()) -> pid().
 sup_spawn_link(Caller, Info, Fun) ->
-  sup_spawn_link(Caller, nolink, Info, Fun).
+  proc_lib:spawn_link(?MODULE, reply, [Caller, Info, Fun]).
 
 %% @hidden
--spec sup_spawn_link(pid(), link(), proc_info(), callback()) -> pid().
-sup_spawn_link(Caller, Link, Info, Fun) ->
-  proc_lib:spawn_link(?MODULE, reply, [Caller, Link, Info, Fun]).
-
-%% @hidden
--spec reply(pid(), link(), proc_info(), callback()) -> term() | no_return().
-reply(Caller, Link, Info, MFA) ->
-  initial_call(MFA),
-  case Link of
-    link ->
-      link(Caller),
-      reply(Caller, nil, ?TIMEOUT, Info, MFA);
-    monitor ->
-      MRef = monitor(process, Caller),
-      reply(Caller, MRef, ?TIMEOUT, Info, MFA);
-    nolink ->
-      reply(Caller, nil, infinity, Info, MFA)
+-spec reply(pid(), proc_info(), callback()) -> term() | no_return().
+reply(Caller, Info, MFA) ->
+  _ = initial_call(MFA),
+  receive
+    {Caller, Ref} ->
+      Caller ! {Ref, do_apply(Info, MFA)}
   end.
 
 %% @hidden
@@ -256,21 +241,6 @@ noreply(Info, MFA) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-%% @private
-reply(Caller, MRef, Timeout, Info, MFA) ->
-  receive
-    {Caller, Ref} ->
-      case MRef /= nil of
-        true -> demonitor(MRef, [flush]);
-        _    -> ok
-      end,
-      Caller ! {Ref, do_apply(Info, MFA)};
-    {'DOWN', MRef, _, _, Reason} ->
-      exit(Reason)
-  after
-    Timeout -> exit(timeout)
-  end.
 
 %% @private
 do_apply(Info, {Module, Fun, Args} = MFA) ->
@@ -288,13 +258,14 @@ do_apply(Info, {Module, Fun, Args} = MFA) ->
   end.
 
 %% @private
-get_info(Self) ->
-  Info =
-    case process_info(Self, registered_name) of
+get_info(Pid) ->
+  SelfOrName =
+    case process_info(Pid, registered_name) of
       {registered_name, Name} -> Name;
       []                      -> self()
     end,
-  {node(), Info}.
+
+  {node(), SelfOrName}.
 
 %% @private
 initial_call(MFA) ->
@@ -329,9 +300,7 @@ exit(Info, MFA, LogReason, Reason) ->
 
 %% @private
 get_from({Node, PidOrName}) when Node == node() ->
-  PidOrName;
-get_from(Other) ->
-  Other.
+  PidOrName.
 
 %% @private
 get_running({erlang, apply, [Fun, Args]}) when is_function(Fun, length(Args)) ->
@@ -348,6 +317,7 @@ get_reason({undef, [{Mod, Fun, Args, _Info} | _] = Stacktrace} = Reason) when is
       (M, F, A) when is_integer(A) ->
         erlang:function_exported(M, F, A)
     end,
+
   case code:is_loaded(Mod) of
     false ->
       {module_could_not_be_loaded, Stacktrace};
@@ -355,9 +325,7 @@ get_reason({undef, [{Mod, Fun, Args, _Info} | _] = Stacktrace} = Reason) when is
       case FunExported(Mod, Fun, Args) of
         false -> {function_not_exported, Stacktrace};
         _     -> Reason
-      end;
-    _ ->
-      Reason
+      end
   end;
 get_reason(Reason) ->
   Reason.

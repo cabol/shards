@@ -109,6 +109,14 @@
 %%% Types & Macros
 %%%===================================================================
 
+%% ETS Types
+-type access() :: public | protected | private.
+-type tab()    :: atom().
+-type type()   :: set | ordered_set | bag | duplicate_bag.
+-type cont()   :: '$end_of_table'
+                | {tab(), integer(), integer(), ets:comp_match_spec(), list(), integer()}
+                | {tab(), _, _, integer(), ets:comp_match_spec(), list(), integer(), integer()}.
+
 %% @type tweaks() = {write_concurrency, boolean()}
 %%                | {read_concurrency, boolean()}
 %%                | compressed.
@@ -131,14 +139,14 @@
                     | {pick_node_fun, shards_state:pick_fun()}
                     | {restart_strategy, one_for_one | one_for_all}.
 
-%% @type option() = ets:type() | ets:access() | named_table
+%% @type option() = type() | access() | named_table
 %%                | {keypos, pos_integer()}
 %%                | {heir, pid(), HeirData :: term()}
 %%                | {heir, none} | tweaks()
 %%                | shards_opt().
 %%
 %% Create table options – used by `new/2'.
--type option() :: ets:type() | ets:access() | named_table
+-type option() :: type() | access() | named_table
                 | {keypos, pos_integer()}
                 | {heir, pid(), HeirData :: term()}
                 | {heir, none} | tweaks()
@@ -153,9 +161,9 @@
                     | {named_table, boolean()}
                     | {node, node()}
                     | {owner, pid()}
-                    | {protection, ets:access()}
+                    | {protection, access()}
                     | {size, non_neg_integer()}
-                    | {type, ets:type()}
+                    | {type, type()}
                     | {write_concurrency, boolean()}
                     | {read_concurrency, boolean()}
                     | {shards, [atom()]}.
@@ -169,8 +177,8 @@
 
 %% ETS TabInfo Item
 -type tabinfo_item() :: {name, atom()}
-                      | {type, ets:type()}
-                      | {protection, ets:access()}
+                      | {type, type()}
+                      | {protection, access()}
                       | {named_table, boolean()}
                       | {keypos, non_neg_integer()}
                       | {size, non_neg_integer()}
@@ -183,7 +191,7 @@
 %%  MatchSpec    :: ets:match_spec(),
 %%  Limit        :: pos_integer(),
 %%  Shard        :: non_neg_integer(),
-%%  Continuation :: ets:continuation()
+%%  Continuation :: cont()
 %% }.
 %%
 %% Defines the convention to `ets:select/1,3' continuation:
@@ -199,7 +207,7 @@
   MatchSpec    :: ets:match_spec(),
   Limit        :: pos_integer(),
   Shard        :: non_neg_integer(),
-  Continuation :: ets:continuation()
+  Continuation :: cont()
 }.
 
 %% @type filename() = string() | binary() | atom().
@@ -619,29 +627,32 @@ lookup_element(Tab, Key, Pos) ->
 lookup_element(Tab, Key, Pos, State) ->
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
-  case PickShardFun(Key, N, r) of
-    any ->
-      LookupElem =
-        fun(Tx, Kx, Px) ->
-          try
-            ets:lookup_element(Tx, Kx, Px)
-          catch
-            error:badarg -> {error, notfound}
-          end
-        end,
-      Filter =
-        lists:filter(fun
-          ({error, notfound}) -> false;
-          (_)                 -> true
-        end, mapred(Tab, {LookupElem, [Key, Pos]}, State)),
-      case Filter of
-        [] -> error(badarg);
-        _  -> lists:append(Filter)
-      end;
-    Shard ->
-      ShardName = shards_lib:shard_name(Tab, Shard),
-      ets:lookup_element(ShardName, Key, Pos)
-  end.
+  lookup_element(Tab, PickShardFun(Key, N, r), Key, Pos, State).
+
+%% @private
+lookup_element(Tab, any, Key, Pos, State) ->
+  LookupElem =
+    fun(Tx, Kx, Px) ->
+      try
+        ets:lookup_element(Tx, Kx, Px)
+      catch
+        error:badarg -> {error, notfound}
+      end
+    end,
+
+  Filter =
+    lists:filter(fun
+      ({error, notfound}) -> false;
+      (_)                 -> true
+    end, mapred(Tab, {LookupElem, [Key, Pos]}, State)),
+
+  case Filter of
+    [] -> error(badarg);
+    _  -> lists:append(Filter)
+  end;
+lookup_element(Tab, Shard, Key, Pos, _State) ->
+  ShardName = shards_lib:shard_name(Tab, Shard),
+  ets:lookup_element(ShardName, Key, Pos).
 
 match(Tab, Pattern) ->
   match(Tab, Pattern, shards_state:new()).
@@ -941,12 +952,11 @@ rename(Tab, Name) ->
   Name  :: atom(),
   State :: shards_state:state().
 rename(Tab, Name, State) ->
-  ok =
-    lists:foreach(fun(Shard) ->
-      ShardName = shards_lib:shard_name(Tab, Shard),
-      NewShardName = shards_lib:shard_name(Name, Shard),
-      NewShardName = do_rename(ShardName, NewShardName)
-    end, shards_lib:iterator(State)),
+  ok = lists:foreach(fun(Shard) ->
+    ShardName = shards_lib:shard_name(Tab, Shard),
+    NewShardName = shards_lib:shard_name(Name, Shard),
+    NewShardName = do_rename(ShardName, NewShardName)
+  end, shards_lib:iterator(State)),
   do_rename(Tab, Name).
 
 %% @private
@@ -1202,6 +1212,7 @@ tab2file(Tab, Filename, State) ->
   Response :: ok | {error, Reason :: term()}.
 tab2file(Tab, Filename, Options, State) when ?is_filename(Filename) ->
   StrFilename = shards_lib:to_string(Filename),
+
   {Nodes, NewOpts} =
     case lists:keytake(nodes, 1, Options) of
       {value, {nodes, Val}, Opts1} ->
@@ -1209,6 +1220,7 @@ tab2file(Tab, Filename, Options, State) when ?is_filename(Filename) ->
       _ ->
         {[node()], Options}
     end,
+
   ShardFilenamePairs =
     shards_lib:reduce_while(fun(Shard, Acc) ->
       ShardName = shards_lib:shard_name(Tab, Shard),
@@ -1220,6 +1232,7 @@ tab2file(Tab, Filename, Options, State) when ?is_filename(Filename) ->
           {halt, Error}
       end
     end, [], shards_lib:iterator(State)),
+
   case ShardFilenamePairs of
     {error, _} = Error ->
       Error;
@@ -1433,6 +1446,7 @@ p_mapred(Tab, NumShards, {MapFun, Args}, {ReduceFun, AccIn}) ->
         apply(MapFun, [shards_lib:shard_name(Tab, Shard) | Args])
       end), [AsyncTask | Acc]
     end, [], shards_lib:iterator(NumShards)),
+
   lists:foldl(fun(Task, Acc) ->
     MapRes = shards_task:await(Task),
     ReduceFun(MapRes, Acc)
@@ -1448,8 +1462,8 @@ mapred_funs(MapFun, ReduceFun) ->
       true -> {MapFun, []};
       _    -> MapFun
     end,
-  Reduce = {ReduceFun, []},
-  {Map, Reduce}.
+
+  {Map, {ReduceFun, []}}.
 
 %% @private
 fold(Tab, NumShards, Fold, [Fun, Acc]) ->

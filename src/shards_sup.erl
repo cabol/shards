@@ -26,13 +26,9 @@
 start_link() ->
   start_link(?MODULE).
 
--spec start_link(Name :: atom()) -> supervisor:startlink_ret().
+-spec start_link(Name :: atom()) -> {ok, pid()} | ignore | {error, term()}.
 start_link(Name) ->
   supervisor:start_link({local, Name}, ?MODULE, {Name}).
-
-%%%===================================================================
-%%% shards_supervisor callbacks
-%%%===================================================================
 
 -spec start_child(SupName, TabName, Options) -> Return when
   SupName :: atom(),

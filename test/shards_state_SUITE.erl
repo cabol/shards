@@ -1,6 +1,7 @@
 -module(shards_state_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
+-include("support/shards_test_helpers.hrl").
 
 %% Common Test
 -export([
@@ -22,8 +23,6 @@
   init_per_suite,
   end_per_suite
 ]).
-
--include("support/shards_test_helper.hrl").
 
 %%%===================================================================
 %%% Common Test
@@ -100,7 +99,7 @@ t_create_state(_Config) ->
 t_state_ops(_Config) ->
   test_set =
     shards:new(test_set, [
-      {pick_node_fun, fun shards_test_helper:pick_node/3}
+      {pick_node_fun, fun shards_test_helpers:pick_node/3}
     ]),
   StateSet = shards_state:get(test_set),
   true = shards_state:is_state(StateSet),
@@ -113,7 +112,7 @@ t_state_ops(_Config) ->
   DefaultShards = shards_state:n_shards(test_set),
   Fun1 = fun shards_lib:pick/3,
   Fun1 = shards_state:pick_shard_fun(test_set),
-  Fun2 = fun shards_test_helper:pick_node/3,
+  Fun2 = fun shards_test_helpers:pick_node/3,
   Fun2 = shards_state:pick_node_fun(test_set),
   l = shards_state:scope(test_set),
 

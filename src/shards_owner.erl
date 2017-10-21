@@ -28,7 +28,7 @@
 %%% API
 %%%===================================================================
 
--spec start_link(atom(), atom()) -> gen:start_ret().
+-spec start_link(atom(), atom()) -> {ok, pid()} | ignore | {error, term()}.
 start_link(Name, Options) ->
   gen_server:start_link({local, Name}, ?MODULE, {Name, Options}, []).
 
@@ -47,11 +47,14 @@ stop(ShardName) ->
 
 %% @hidden
 init({Name, Options}) ->
+  _ = process_flag(trap_exit, true),
+
   NewOpts =
     case lists:keyfind(restore, 1, Options) of
       {restore, _, _} = Val -> Val;
       false                 -> Options
     end,
+
   init(Name, NewOpts).
 
 %% @private
@@ -73,6 +76,7 @@ validate_options(Options) ->
       true -> Options;
       _    -> [named_table | Options]
     end,
+
   case lists:member(public, Options1) of
     true -> Options1;
     _    -> [public | Options1]

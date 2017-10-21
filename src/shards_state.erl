@@ -147,7 +147,8 @@ new(Shards, Module, SupName, PickShardFun) ->
     n_shards       = Shards,
     module         = Module,
     sup_name       = SupName,
-    pick_shard_fun = PickShardFun}.
+    pick_shard_fun = PickShardFun
+  }.
 
 -spec new(pos_integer(), module(), atom(), pick_fun(), pick_fun()) -> state().
 new(Shards, Module, SupName, PickShardFun, PickNodeFun) ->
@@ -156,7 +157,8 @@ new(Shards, Module, SupName, PickShardFun, PickNodeFun) ->
     module         = Module,
     sup_name       = SupName,
     pick_shard_fun = PickShardFun,
-    pick_node_fun  = PickNodeFun}.
+    pick_node_fun  = PickNodeFun
+  }.
 
 %% @doc
 %% Returns the `state' for the given table `Tab'.
@@ -188,18 +190,21 @@ from_map(Map) ->
     sup_name       = maps:get(sup_name, Map, shards_sup),
     n_shards       = maps:get(n_shards, Map, ?N_SHARDS),
     pick_shard_fun = maps:get(pick_shard_fun, Map, fun shards_lib:pick/3),
-    pick_node_fun  = maps:get(pick_node_fun, Map, fun shards_lib:pick/3)}.
+    pick_node_fun  = maps:get(pick_node_fun, Map, fun shards_lib:pick/3)
+  }.
 
 %% @doc
 %% Converts the given `state' into a `map'.
 %% @end
 -spec to_map(state()) -> state_map().
 to_map(State) ->
-  #{module         => State#state.module,
+  #{
+    module         => State#state.module,
     sup_name       => State#state.sup_name,
     n_shards       => State#state.n_shards,
     pick_shard_fun => State#state.pick_shard_fun,
-    pick_node_fun  => State#state.pick_node_fun}.
+    pick_node_fun  => State#state.pick_node_fun
+  }.
 
 %%%===================================================================
 %%% API – Getters & Setters

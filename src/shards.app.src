@@ -1,9 +1,12 @@
 {application, shards, [
-  {description, "ETS with Sharding support."},
-  {vsn, "0.5.0"},
+  {description, "Sharding support for ETS tables out-of-box"},
+  {vsn, "0.5.1"},
   {registered, []},
   {mod, {shards_app, []}},
-  {applications, [kernel, stdlib]},
+  {applications, [
+    kernel,
+    stdlib
+  ]},
   {env,[]},
   {modules, []},
   {maintainers, ["Carlos A Bolanos"]},

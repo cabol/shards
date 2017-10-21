@@ -1,6 +1,7 @@
 -module(shards_dist_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
+-include("support/shards_test_helpers.hrl").
 
 %% Common Test
 -export([
@@ -15,7 +16,7 @@
 %% Common Test Cases
 -include_lib("mixer/include/mixer.hrl").
 -mixin([
-  {shards_test_helper, [
+  {shards_test_helpers, [
     t_basic_ops/1,
     t_update_ops/1,
     t_fold_ops/1,
@@ -35,9 +36,14 @@
   t_delete_and_auto_setup_tab/1
 ]).
 
--include("support/shards_test_helper.hrl").
-
--define(SLAVES, [a, b, c, d, e, f]).
+-define(SLAVES, [
+  'a@127.0.0.1',
+  'b@127.0.0.1',
+  'c@127.0.0.1',
+  'd@127.0.0.1',
+  'e@127.0.0.1',
+  'f@127.0.0.1'
+]).
 
 %%%===================================================================
 %%% Common Test
@@ -107,7 +113,7 @@ t_join_leave_ops(Config) ->
   Members = pg2:get_members(?SET),
 
   % stop F node
-  _ = stop_slaves([f]),
+  _ = stop_slaves(['f@127.0.0.1']),
 
   % check nodes
   6 = length(shards:get_nodes(?SET)),
@@ -151,20 +157,20 @@ t_match_ops(Config) ->
   Tabs = ?SHARDS_TABS -- [?ORDERED_SET],
   EtsTabs = ?ETS_TABS -- [?ETS_ORDERED_SET],
   Tables = lists:zip(Tabs, EtsTabs),
-  Args = shards_test_helper:build_args(Tables, Config),
+  Args = shards_test_helpers:build_args(Tables, Config),
   lists:foreach(fun(X) ->
-    true = shards_test_helper:cleanup_shards(),
-    shards_test_helper:t_match_ops_(X)
+    true = shards_test_helpers:cleanup_shards(),
+    shards_test_helpers:t_match_ops_(X)
   end, Args).
 
 t_select_ops(Config) ->
   Tabs = ?SHARDS_TABS -- [?ORDERED_SET],
   EtsTabs = ?ETS_TABS -- [?ETS_ORDERED_SET],
   Tables = lists:zip(Tabs, EtsTabs),
-  Args = shards_test_helper:build_args(Tables, Config),
+  Args = shards_test_helpers:build_args(Tables, Config),
   lists:foreach(fun(X) ->
-    true = shards_test_helper:cleanup_shards(),
-    shards_test_helper:t_select_ops_(X)
+    true = shards_test_helpers:cleanup_shards(),
+    shards_test_helpers:t_select_ops_(X)
   end, Args).
 
 t_eject_node_on_failure(Config) ->
@@ -174,15 +180,15 @@ t_eject_node_on_failure(Config) ->
   6 = length(UpNodes),
 
   % add new node
-  NewNodes = [Z] = start_slaves([z]),
-  ok = rpc:call(Z, shards_test_helper, init_shards, [g]),
+  NewNodes = [Z] = start_slaves(['z@127.0.0.1']),
+  ok = rpc:call(Z, shards_test_helpers, init_shards, [g]),
   UpNodes1 = shards:join(?SET, NewNodes),
   _ = timer:sleep(500),
   UpNodes1 = shards:get_nodes(?SET),
 
   % insert some data on that node
   Z = lists:last(UpNodes1),
-  Z = lists:nth(shards_test_helper:pick_node(2, length(UpNodes1), r) + 1, UpNodes1),
+  Z = lists:nth(shards_test_helpers:pick_node(2, length(UpNodes1), r) + 1, UpNodes1),
   true = shards:insert(?SET, {2, 2}),
   _ = timer:sleep(500),
 
@@ -197,7 +203,7 @@ t_eject_node_on_failure(Config) ->
   6 = length(UpNodes2),
 
   % stop failure node
-  _ = stop_slaves([z]),
+  _ = stop_slaves(['z@127.0.0.1']),
 
   ok.
 
@@ -272,11 +278,11 @@ get_remote_nodes(Nodes, Tab) ->
 setup_tabs(Config) ->
   {_, Nodes} = lists:keyfind(nodes, 1, Config),
   AllNodes = lists:usort([node() | Nodes]),
-  {_, []} = rpc:multicall(AllNodes, shards_test_helper, init_shards, [g]),
+  {_, []} = rpc:multicall(AllNodes, shards_test_helpers, init_shards, [g]),
   ok.
 
 cleanup_tabs(Config) ->
   {_, Nodes} = lists:keyfind(nodes, 1, Config),
   AllNodes = lists:usort([node() | Nodes]),
-  {_, _} = rpc:multicall(AllNodes, shards_test_helper, cleanup_shards, []),
+  {_, _} = rpc:multicall(AllNodes, shards_test_helpers, cleanup_shards, []),
   ok.

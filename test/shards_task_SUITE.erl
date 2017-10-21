@@ -7,9 +7,15 @@
 
 %% Tests
 -export([
-  t_async1/1, t_async2/1, t_async3/1,
-  t_start1/1, t_start2/1, t_start3/1,
-  t_start_link1/1, t_start_link2/1, t_start_link3/1
+  t_async1/1,
+  t_async2/1,
+  t_async3/1,
+  t_start1/1,
+  t_start2/1,
+  t_start3/1,
+  t_start_link1/1,
+  t_start_link2/1,
+  t_start_link3/1
 ]).
 
 %% Test Errors
@@ -24,20 +30,23 @@
   t_await_task_exit/1,
   t_await_noconnection/1,
   t_await_noconnection_from_named_monitor/1,
-  t_await_raises_from_non_owner_proc/1
+  t_await_raises_from_non_owner_proc/1,
+  t_start_link_exit/1
 ]).
 
 %% Others
 -export([
   wait_and_send/2,
-  create_task_in_other_process/0
+  create_task_in_other_process/0,
+  exit_fun/0
 ]).
 
 -define(EXCLUDED_FUNS, [
   module_info,
   all,
   wait_and_send,
-  create_task_in_other_process
+  create_task_in_other_process,
+  exit_fun
 ]).
 
 %%%===================================================================
@@ -47,16 +56,6 @@
 all() ->
   Exports = ?MODULE:module_info(exports),
   [F || {F, _} <- Exports, not lists:member(F, ?EXCLUDED_FUNS)].
-
-wait_and_send(Caller, Atom) ->
-  Caller ! ready,
-  receive true -> true end,
-  Caller ! Atom.
-
-create_task_in_other_process() ->
-  Caller = self(),
-  spawn(fun() -> Caller ! shards_task:async(fun() -> nil end) end),
-  receive Task -> Task end.
 
 %%%===================================================================
 %%% Exported Tests Functions
@@ -238,7 +237,9 @@ t_start_link2(_Config) ->
   ok.
 
 t_start_link3(_Config) ->
-  {ok, Pid} = shards_task:start_link(?MODULE, wait_and_send, [self(), done]),
+  _ = register(ct, self()),
+
+  {ok, Pid} = shards_task:start_link(fun ?MODULE:wait_and_send/2, [self(), done]),
 
   {links, Links} = process_info(self(), links),
   true = lists:member(Pid, Links),
@@ -272,7 +273,7 @@ t_await_normal(_Config) ->
   end.
 
 t_await_task_throw(_Config) ->
-  process_flag(trap_exit, true),
+  _ = process_flag(trap_exit, true),
   Task = shards_task:async(fun() -> throw(unknown) end),
 
   try
@@ -282,10 +283,11 @@ t_await_task_throw(_Config) ->
   end.
 
 t_await_task_error(_Config) ->
-  process_flag(trap_exit, true),
-  Task = shards_task:async(fun() ->
-    erlang:raise(error, <<"oops">>, erlang:get_stacktrace())
-  end),
+  _ = process_flag(trap_exit, true),
+  Task =
+    shards_task:async(fun() ->
+      erlang:raise(error, <<"oops">>, erlang:get_stacktrace())
+    end),
 
   try
     shards_task:await(Task)
@@ -294,7 +296,7 @@ t_await_task_error(_Config) ->
   end.
 
 t_await_undef_module_error(_Config) ->
-  process_flag(trap_exit, true),
+  _ = process_flag(trap_exit, true),
   Task = shards_task:async(fun module_does_not_exist:undef/0),
 
   try
@@ -307,7 +309,7 @@ t_await_undef_module_error(_Config) ->
   end.
 
 t_await_undef_fun_error(_Config) ->
-  process_flag(trap_exit, true),
+  _ = process_flag(trap_exit, true),
   Task = shards_task:async(fun ?MODULE:undef/0),
 
   try
@@ -320,7 +322,7 @@ t_await_undef_fun_error(_Config) ->
   end.
 
 t_await_undef_mfa_error(_Config) ->
-  process_flag(trap_exit, true),
+  _ = process_flag(trap_exit, true),
   Task = shards_task:async(?MODULE, undef, []),
 
   try
@@ -333,7 +335,7 @@ t_await_undef_mfa_error(_Config) ->
   end.
 
 t_await_task_exit(_Config) ->
-  process_flag(trap_exit, true),
+  _ = process_flag(trap_exit, true),
   Task = shards_task:async(fun() -> exit(unknown) end),
 
   try
@@ -377,6 +379,31 @@ t_await_raises_from_non_owner_proc(_Config) ->
   catch
     throw:{invalid_owner_error, Task} -> ok
   end.
+
+t_start_link_exit(_Config) ->
+  _ = process_flag(trap_exit, true),
+  try
+    shards_task:start_link(fun ?MODULE:exit_fun/0)
+  catch
+    exit:undef -> ok
+  end.
+
+%%%===================================================================
+%%% Helpers
+%%%===================================================================
+
+wait_and_send(Caller, Atom) ->
+  Caller ! ready,
+  receive true -> true end,
+  Caller ! Atom.
+
+create_task_in_other_process() ->
+  Caller = self(),
+  spawn(fun() -> Caller ! shards_task:async(fun() -> nil end) end),
+  receive Task -> Task end.
+
+exit_fun() ->
+  exit(undef).
 
 %%%===================================================================
 %%% Internal functions

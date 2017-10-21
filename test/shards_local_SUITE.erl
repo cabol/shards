@@ -1,6 +1,7 @@
 -module(shards_local_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
+-include("support/shards_test_helpers.hrl").
 
 %% Common Test
 -export([
@@ -14,7 +15,7 @@
 %% Common Test Cases
 -include_lib("mixer/include/mixer.hrl").
 -mixin([
-  {shards_test_helper, [
+  {shards_test_helpers, [
     t_basic_ops/1,
     t_match_ops/1,
     t_select_ops/1,
@@ -34,10 +35,9 @@
 %% Test Cases
 -export([
   t_shard_restarted_when_down/1,
-  t_custom_supervisor/1
+  t_custom_supervisor/1,
+  t_shards_owner_unhandled_callbacks/1
 ]).
-
--include("support/shards_test_helper.hrl").
 
 -define(EXCLUDED_FUNS, [
   module_info,
@@ -65,12 +65,12 @@ end_per_suite(Config) ->
   Config.
 
 init_per_testcase(_, Config) ->
-  _ = shards_test_helper:init_shards(l),
-  true = shards_test_helper:cleanup_shards(),
+  _ = shards_test_helpers:init_shards(l),
+  true = shards_test_helpers:cleanup_shards(),
   Config.
 
 end_per_testcase(_, Config) ->
-  _ = shards_test_helper:delete_shards(),
+  _ = shards_test_helpers:delete_shards(),
   Config.
 
 %%%===================================================================
@@ -102,14 +102,13 @@ t_shard_restarted_when_down(_Config) ->
   exit(whereis(ShardToKillTab1), kill),
   timer:sleep(500),
 
-  Expected =
-    [begin
-      Shard = shards_lib:pick(K, NumShards, w),
-      case Shard == ShardToKill of
-        true -> nil;
-        _    -> K
-      end
-     end || K <- [1, 2, 3]],
+  Expected = [begin
+    Shard = shards_lib:pick(K, NumShards, w),
+    case Shard == ShardToKill of
+      true -> nil;
+      _    -> K
+    end
+  end || K <- [1, 2, 3]],
   assert_values(tab1, [1, 2, 3], Expected),
 
   ShardToKillTab2 = shards_lib:shard_name(tab2, ShardToKill),
@@ -132,6 +131,22 @@ t_custom_supervisor(_Config) ->
   assert_values(test, [1, 2, 3], [1, 2, 3]),
 
   true = shards:delete(test),
+
+  ok.
+
+t_shards_owner_unhandled_callbacks(_Config) ->
+  tab1 = shards:new(tab1, []),
+  Shard = shards_lib:shard_name(tab1, 1),
+
+  ok = gen_server:call(Shard, hello),
+  ok = gen_server:cast(Shard, hello),
+  _ = Shard ! hello,
+  _ = shards_owner:code_change(1, #{}, #{}),
+  _ = timer:sleep(500),
+  ok = shards_owner:stop(Shard),
+
+  % delete tables
+  true = shards:delete(tab1),
 
   ok.
 
