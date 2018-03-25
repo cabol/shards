@@ -604,6 +604,7 @@ t_tab2file_file2tab_tabfile_info_({Scope, Tab, _EtsTab}) ->
   % errors
   {error, _} = Mod:file2tab("wrong_file"),
   {error, _} = Mod:file2tab(FN ++ "2"),
+  {error, _} = Mod:file2tab([1, 2, 3]),
   _ = case Scope of
     g ->
       {error, _} = shards_dist:file2tab("wrong_file"),

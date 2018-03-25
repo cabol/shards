@@ -59,7 +59,7 @@
 -define(SHARDS, shards_local).
 
 %% Macro to check if the given Filename has the right type
--define(is_filename(_FN), is_list(_FN); is_binary(_FN); is_atom(_FN)).
+-define(is_filename(FN_), is_list(FN_); is_binary(FN_); is_atom(FN_)).
 
 %%%===================================================================
 %%% Extended API
@@ -156,8 +156,8 @@ file2tab(Filename) ->
   Option   :: {verify, boolean()},
   Response :: {ok, Tab :: atom()} | {error, Reason :: term()}.
 file2tab(Filename, Options) when ?is_filename(Filename) ->
-  StrFilename = shards_lib:to_string(Filename),
   try
+    StrFilename = shards_lib:to_string(Filename),
     {Tab, Nodes} = tabfile_info_local(StrFilename),
 
     Res =
@@ -259,6 +259,7 @@ insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   Key = hd(tuple_to_list(ObjOrObjL)),
   Nodes = get_nodes(Tab),
   PickNodeFun = shards_state:pick_node_fun(State),
+
   case pick_node(PickNodeFun, Key, Nodes, r) of
     any ->
       Map = {?SHARDS, lookup, [Tab, Key, State]},
@@ -294,6 +295,7 @@ lookup(Tab, Key, State) ->
 lookup_element(Tab, Key, Pos, State) ->
   Nodes = get_nodes(Tab),
   PickNodeFun = shards_state:pick_node_fun(State),
+
   case pick_node(PickNodeFun, Key, Nodes, r) of
     any ->
       Map = {?SHARDS, lookup_element, [Tab, Key, Pos, State]},
@@ -439,6 +441,7 @@ tab2file(Tab, Filename, State) ->
 tab2file(Tab, Filename, Options, State) when ?is_filename(Filename) ->
   StrFilename = shards_lib:to_string(Filename),
   Nodes = get_nodes(Tab),
+
   shards_lib:reduce_while(fun(Node, Acc) ->
     NodeFilename = shards_lib:to_string(Node) ++ "." ++ StrFilename,
     NewOpts = lists:keystore(nodes, 1, Options, {nodes, Nodes}),
@@ -464,8 +467,8 @@ tab2list(Tab, State) ->
   TableInfo :: [shards_local:tabinfo_item() | {nodes, [node()]}],
   Response  :: {ok, TableInfo} | {error, Reason :: term()}.
 tabfile_info(Filename) when ?is_filename(Filename) ->
-  StrFilename = shards_lib:to_string(Filename),
   try
+    StrFilename = shards_lib:to_string(Filename),
     {_Tab, Nodes} = tabfile_info_local(StrFilename),
 
     TabInfoList =
@@ -594,10 +597,9 @@ fold(Fold, Function, Acc0, Tab, State) ->
 %% @private
 shards_info([FirstInfo | RestInfoLists], Attrs, Nodes) ->
   lists:foldl(fun(InfoList, InfoListAcc) ->
-    shards_lib:keyupdate(fun
-      (K, V) ->
-        {K, V1} = lists:keyfind(K, 1, InfoList),
-        V + V1
+    shards_lib:keyupdate(fun(K, V) ->
+      {K, V1} = lists:keyfind(K, 1, InfoList),
+      V + V1
     end, [size] ++ Attrs, InfoListAcc)
   end, [{nodes, Nodes} | FirstInfo], RestInfoLists).
 

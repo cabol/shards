@@ -264,7 +264,6 @@ get_info(Pid) ->
       {registered_name, Name} -> Name;
       []                      -> self()
     end,
-
   {node(), SelfOrName}.
 
 %% @private

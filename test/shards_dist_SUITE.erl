@@ -234,7 +234,6 @@ start_slaves(Slaves) ->
 start_slaves([], Acc) ->
   lists:usort(Acc);
 start_slaves([Node | T], Acc) ->
-  ErlFlags = "-pa ../../lib/*/ebin",
   {ok, HostNode} =
     ct_slave:start(Node, [
       {kill_if_fail, true},
@@ -243,7 +242,7 @@ start_slaves([Node | T], Acc) ->
       {init_timeout, 3000},
       {startup_timeout, 5000},
       {startup_functions, [{shards, start, []}]},
-      {erl_flags, ErlFlags}
+      {erl_flags, "-pa ../../lib/*/ebin"}
     ]),
   ok = ensure_shards_started(HostNode),
   start_slaves(T, [HostNode | Acc]).

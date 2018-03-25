@@ -80,7 +80,6 @@ iterator(StateOrNumShards) ->
       false when is_integer(StateOrNumShards) ->
         StateOrNumShards
     end,
-
   lists:seq(0, N - 1).
 
 %% @doc
@@ -148,7 +147,6 @@ keyupdate(Fun, Keys, Init, KVList1) when is_function(Fun, 2) ->
         {Key, Value} -> {Key, Fun(Key, Value)};
         false        -> {Key, Init}
       end,
-
     lists:keystore(Key, 1, Acc, NewKV)
   end, KVList1, Keys).
 

@@ -2,7 +2,7 @@ REBAR = $(shell which rebar3)
 
 EPMD_PROC_NUM = $(shell ps -ef | grep epmd | grep -v "grep")
 
-.PHONY: all check_rebar compile clean distclean dialyzer tests shell doc
+.PHONY: all check_rebar compile clean distclean dialyzer test shell doc
 
 all: check_rebar compile
 

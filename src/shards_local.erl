@@ -20,6 +20,7 @@
 %%% A good example of that are the query-based functions, which
 %%% returns multiple results, and in case of `ordered_set', with
 %%% a particular order. E.g.:
+%%%
 %%% <ul>
 %%% <li>`select/2', `select/3', `select/1'</li>
 %%% <li>`select_reverse/2', `select_reverse/3', `select_reverse/1'</li>
@@ -27,6 +28,7 @@
 %%% <li>`match_object/2', `match_object/3', `match_object/1'</li>
 %%% <li>etc...</li>
 %%% </ul>
+%%%
 %%% For those cases, the order what results are returned is not
 %%% guaranteed to be the same as the original ETS functions.
 %%%
@@ -224,7 +226,7 @@
 ]).
 
 %% Macro to check if the given Filename has the right type
--define(is_filename(_FN), is_list(_FN); is_binary(_FN); is_atom(_FN)).
+-define(is_filename(FN_), is_list(FN_); is_binary(FN_); is_atom(FN_)).
 
 %%%===================================================================
 %%% ETS API
@@ -313,8 +315,8 @@ file2tab(Filename) ->
   Option   :: {verify, boolean()},
   Response :: {ok, Tab :: atom()} | {error, Reason :: term()}.
 file2tab(Filename, Options) when ?is_filename(Filename) ->
-  StrFilename = shards_lib:to_string(Filename),
   try
+    StrFilename = shards_lib:to_string(Filename),
     Metadata = shards_lib:read_tabfile(StrFilename),
     {name, Tab} = lists:keyfind(name, 1, Metadata),
     {state, State} = lists:keyfind(state, 1, Metadata),
@@ -322,8 +324,12 @@ file2tab(Filename, Options) when ?is_filename(Filename) ->
     Tab = new(Tab, [{restore, ShardTabs, Options} | state_to_tab_opts(State)]),
     {ok, Tab}
   catch
-    throw:Error -> Error;
-    error:Error -> Error
+    throw:Error ->
+      Error;
+    error:{error, _} = Error ->
+      Error;
+    error:{badarg, Arg} ->
+      {error, {read_error, {file_error, Arg, enoent}}}
   end.
 
 %% private
@@ -546,6 +552,7 @@ insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
   Key = hd(tuple_to_list(ObjOrObjL)),
   N = shards_state:n_shards(State),
   PickShardFun = shards_state:pick_shard_fun(State),
+
   case PickShardFun(Key, N, r) of
     any ->
       Map = {fun ets:lookup/2, [Key]},
@@ -952,11 +959,12 @@ rename(Tab, Name) ->
   Name  :: atom(),
   State :: shards_state:state().
 rename(Tab, Name, State) ->
-  ok = lists:foreach(fun(Shard) ->
-    ShardName = shards_lib:shard_name(Tab, Shard),
-    NewShardName = shards_lib:shard_name(Name, Shard),
-    NewShardName = do_rename(ShardName, NewShardName)
-  end, shards_lib:iterator(State)),
+  ok =
+    lists:foreach(fun(Shard) ->
+      ShardName = shards_lib:shard_name(Tab, Shard),
+      NewShardName = shards_lib:shard_name(Name, Shard),
+      NewShardName = do_rename(ShardName, NewShardName)
+    end, shards_lib:iterator(State)),
   do_rename(Tab, Name).
 
 %% @private
@@ -1273,8 +1281,8 @@ tab2list(Tab, State) ->
   TableInfo :: [tabinfo_item()],
   Response  :: {ok, TableInfo} | {error, Reason :: term()}.
 tabfile_info(Filename) when ?is_filename(Filename) ->
-  StrFilename = shards_lib:to_string(Filename),
   try
+    StrFilename = shards_lib:to_string(Filename),
     Metadata = shards_lib:read_tabfile(StrFilename),
     {name, Tab} = lists:keyfind(name, 1, Metadata),
     {shards, ShardTabs} = lists:keyfind(shards, 1, Metadata),
@@ -1462,7 +1470,6 @@ mapred_funs(MapFun, ReduceFun) ->
       true -> {MapFun, []};
       _    -> MapFun
     end,
-
   {Map, {ReduceFun, []}}.
 
 %% @private
@@ -1480,6 +1487,7 @@ shards_info(Tab, InfoLists) ->
 shards_info(Tab, [FirstInfo | RestInfoLists], ExtraAttrs) ->
   {name, InitShard} = lists:keyfind(name, 1, FirstInfo),
   FirstInfo1 = lists:keystore(name, 1, FirstInfo, {name, Tab}),
+
   lists:foldl(fun(InfoList, InfoListAcc) ->
     shards_lib:keyupdate(fun
       (shards, Shards) ->

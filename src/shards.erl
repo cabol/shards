@@ -852,23 +852,27 @@ call(Tab, Fun, Args) ->
 %% @private
 call_from_file(Filename, Fun, Args) ->
   try
-    Metadata = tabfile_metadata(Filename),
+    StrFilename = shards_lib:to_string(Filename),
+    Metadata = tabfile_metadata(StrFilename),
     {state, State} = lists:keyfind(state, 1, Metadata),
+
     case shards_state:scope(State) of
       g -> apply(shards_dist, Fun, Args);
       _ -> apply(shards_local, Fun, Args)
     end
   catch
-    throw:Error -> Error
+    throw:Error ->
+      Error;
+    error:{badarg, Arg} ->
+      {error, {read_error, {file_error, Arg, enoent}}}
   end.
 
 %% @private
 tabfile_metadata(Filename) ->
-  StrFilename = shards_lib:to_string(Filename),
   try
-    shards_lib:read_tabfile(StrFilename)
+    shards_lib:read_tabfile(Filename)
   catch
     throw:{error, enoent} ->
-      NodeFilename = shards_lib:to_string(node()) ++ "." ++ StrFilename,
+      NodeFilename = shards_lib:to_string(node()) ++ "." ++ Filename,
       shards_lib:read_tabfile(NodeFilename)
   end.

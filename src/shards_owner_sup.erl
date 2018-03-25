@@ -72,16 +72,17 @@ init({Name, Options}) ->
   true = ets:insert(Name, State),
 
   % create children
-  Children = [begin
-    % get a local name to shard
-    LocalShardName = shards_lib:shard_name(Name, Shard),
+  Children =
+    [begin
+      % get a local name to shard
+      LocalShardName = shards_lib:shard_name(Name, Shard),
 
-    % save relationship between shard and shard name
-    true = ets:insert(Name, {Shard, LocalShardName}),
+      % save relationship between shard and shard name
+      true = ets:insert(Name, {Shard, LocalShardName}),
 
-    % shard worker spec
-    ?worker(shards_owner, [LocalShardName, Opts], #{id => Shard})
-  end || Shard <- shards_lib:iterator(State)],
+      % shard worker spec
+      ?worker(shards_owner, [LocalShardName, Opts], #{id => Shard})
+    end || Shard <- shards_lib:iterator(State)],
 
   % init shards_dist pg2 group
   Module = shards_state:module(State),
