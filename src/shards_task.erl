@@ -242,6 +242,24 @@ noreply(Info, MFA) ->
 %%% Internal functions
 %%%===================================================================
 
+-ifdef(OTP_RELEASE).
+%% OTP 21 or higher
+%% @private
+do_apply(Info, {Module, Fun, Args} = MFA) ->
+  try
+    apply(Module, Fun, Args)
+  catch
+    error:Value:Stacktrace ->
+      Reason = {Value, Stacktrace},
+      exit(Info, MFA, Reason, Reason);
+    throw:Value:Stacktrace ->
+      Reason = {{nocatch, Value}, Stacktrace},
+      exit(Info, MFA, {{nocatch, Value}, Stacktrace}, Reason);
+    exit:Value:Stacktrace ->
+      exit(Info, MFA, {Value, Stacktrace}, Value)
+  end.
+-else.
+%% OTP 20 or lower
 %% @private
 do_apply(Info, {Module, Fun, Args} = MFA) ->
   try
@@ -256,6 +274,7 @@ do_apply(Info, {Module, Fun, Args} = MFA) ->
     exit:Value ->
       exit(Info, MFA, {Value, erlang:get_stacktrace()}, Value)
   end.
+-endif.
 
 %% @private
 get_info(Pid) ->

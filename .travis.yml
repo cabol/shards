@@ -1,9 +1,10 @@
 language: erlang
 otp_release:
-  - 20.0
+  - 21.0
+  - 20.3
   - 19.3
   - 18.3
 before_script:
   - epmd -daemon
 script:
-  - make local_test
+  - make ci

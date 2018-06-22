@@ -2,6 +2,8 @@ REBAR = $(shell which rebar3)
 
 EPMD_PROC_NUM = $(shell ps -ef | grep epmd | grep -v "grep")
 
+LOCAL_SUITES = "test/shards_local_SUITE,test/shards_state_SUITE,test/shards_lib_SUITE,test/shards_task_SUITE"
+
 .PHONY: all check_rebar compile clean distclean dialyzer test shell doc
 
 all: check_rebar compile
@@ -43,11 +45,16 @@ test: check_rebar check_epmd
 	rm -rf test/*.beam
 
 local_test: check_rebar check_epmd
-	$(REBAR) do ct --suite=test/shards_local_SUITE,test/shards_state_SUITE,test/shards_lib_SUITE,test/shards_task_SUITE, cover
+	$(REBAR) do ct --suite=$(LOCAL_SUITES), cover
 	rm -rf test/*.beam
 
 dist_test: check_rebar check_epmd
 	$(REBAR) do ct --name ct@127.0.0.1 --suite=test/shards_dist_SUITE, cover
+	rm -rf test/*.beam
+
+## The option '--readable=false' is added due to the compatibility issue of rebar3 with OTP 21
+ci: check_rebar check_epmd
+	$(REBAR) do ct --readable=false --suite=$(LOCAL_SUITES), cover
 	rm -rf test/*.beam
 
 shell: check_rebar

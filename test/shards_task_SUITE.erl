@@ -286,7 +286,7 @@ t_await_task_error(_Config) ->
   _ = process_flag(trap_exit, true),
   Task =
     shards_task:async(fun() ->
-      erlang:raise(error, <<"oops">>, erlang:get_stacktrace())
+      error(<<"oops">>)
     end),
 
   try
