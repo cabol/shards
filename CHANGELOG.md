@@ -1,5 +1,13 @@
 # Change Log
 
+## [v0.5.1](https://github.com/cabol/shards/tree/v0.5.1) (2018-06-26)
+[Full Changelog](https://github.com/cabol/shards/compare/v0.5.0...v0.5.1)
+
+**Closed issues:**
+
+- Issues on Erlang v21 [\#40](https://github.com/cabol/shards/issues/40)
+- Improve test coverage \(ideally 100%\) [\#38](https://github.com/cabol/shards/issues/38)
+
 ## [v0.5.0](https://github.com/cabol/shards/tree/v0.5.0) (2017-07-11)
 [Full Changelog](https://github.com/cabol/shards/compare/v0.4.2...v0.5.0)
 
