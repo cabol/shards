@@ -30,19 +30,18 @@ start_link() ->
 start_link(Name) ->
   supervisor:start_link({local, Name}, ?MODULE, {Name}).
 
--spec start_child(SupName, TabName, Options) -> Return when
-  SupName :: atom(),
-  TabName :: atom(),
-  Options :: [shards_local:option()],
-  Return  :: supervisor:startchild_ret().
+-spec start_child(
+        SupName :: atom(),
+        TabName :: atom(),
+        Options :: [shards_local:option()]
+      ) -> supervisor:startchild_ret().
 start_child(SupName, TabName, Options) ->
   supervisor:start_child(SupName, [TabName, Options]).
 
--spec terminate_child(SupName, Tab) -> Return when
-  SupName :: atom(),
-  Tab     :: pid() | atom(),
-  Error   :: not_found | simple_one_for_one,
-  Return  :: ok | {error, Error}.
+-spec terminate_child(
+        SupName :: atom(),
+        Tab     :: pid() | atom()
+      ) -> ok | {error, Error :: not_found | simple_one_for_one}.
 terminate_child(SupName, Tab) when is_atom(Tab) ->
   terminate_child(SupName, shards_lib:get_pid(Tab));
 terminate_child(SupName, Tab) when is_pid(Tab) ->

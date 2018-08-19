@@ -53,6 +53,7 @@
 %%% Common Test
 %%%===================================================================
 
+-spec all() -> [atom()].
 all() ->
   Exports = ?MODULE:module_info(exports),
   [F || {F, _} <- Exports, not lists:member(F, ?EXCLUDED_FUNS)].
@@ -61,6 +62,7 @@ all() ->
 %%% Exported Tests Functions
 %%%===================================================================
 
+-spec t_async1(shards_ct:config()) -> any().
 t_async1(_Config) ->
   Parent = self(),
   Fun = fun() -> wait_and_send(Parent, done) end,
@@ -85,12 +87,11 @@ t_async1(_Config) ->
   Pid ! true,
 
   % Assert response and monitoring messages
-  done = wait_for_msg(5000),
-  {Ref, done} = wait_for_msg(5000),
-  {'DOWN', Ref, _, _, normal} = wait_for_msg(5000),
+  done = shards_ct:wait_for_msg(5000),
+  {Ref, done} = shards_ct:wait_for_msg(5000),
+  {'DOWN', Ref, _, _, normal} = shards_ct:wait_for_msg(5000).
 
-  ok.
-
+-spec t_async2(shards_ct:config()) -> any().
 t_async2(_Config) ->
   Parent = self(),
   Fun = fun(Atom) -> wait_and_send(Parent, Atom) end,
@@ -116,10 +117,9 @@ t_async2(_Config) ->
 
   % Assert response and monitoring messages
   done = shards_task:await(Task),
-  done = wait_for_msg(5000),
+  done = shards_ct:wait_for_msg(5000).
 
-  ok.
-
+-spec t_async3(shards_ct:config()) -> any().
 t_async3(_Config) ->
   Task = shards_task:async(?MODULE, wait_and_send, [self(), done]),
 
@@ -142,10 +142,9 @@ t_async3(_Config) ->
 
   % Assert response and monitoring messages
   done = shards_task:await(Task),
-  done = wait_for_msg(5000),
+  done = shards_ct:wait_for_msg(5000).
 
-  ok.
-
+-spec t_start1(shards_ct:config()) -> any().
 t_start1(_Config) ->
   Parent = self(),
   Fun = fun() -> wait_and_send(Parent, done) end,
@@ -160,10 +159,9 @@ t_start1(_Config) ->
   {?MODULE, FunName, 0} = proc_lib:translate_initial_call(Pid),
 
   Pid ! true,
-  done = wait_for_msg(5000),
+  done = shards_ct:wait_for_msg(5000).
 
-  ok.
-
+-spec t_start2(shards_ct:config()) -> any().
 t_start2(_Config) ->
   Parent = self(),
   Fun = fun(Atom) -> wait_and_send(Parent, Atom) end,
@@ -178,10 +176,9 @@ t_start2(_Config) ->
   {?MODULE, FunName, 1} = proc_lib:translate_initial_call(Pid),
 
   Pid ! true,
-  done = wait_for_msg(5000),
+  done = shards_ct:wait_for_msg(5000).
 
-  ok.
-
+-spec t_start3(shards_ct:config()) -> any().
 t_start3(_Config) ->
   {ok, Pid} = shards_task:start(?MODULE, wait_and_send, [self(), done]),
 
@@ -196,10 +193,9 @@ t_start3(_Config) ->
   Pid ! true,
 
   Pid ! true,
-  done = wait_for_msg(5000),
+  done = shards_ct:wait_for_msg(5000).
 
-  ok.
-
+-spec t_start_link1(shards_ct:config()) -> any().
 t_start_link1(_Config) ->
   Parent = self(),
   Fun = fun() -> wait_and_send(Parent, done) end,
@@ -214,10 +210,9 @@ t_start_link1(_Config) ->
   {?MODULE, FunName, 0} = proc_lib:translate_initial_call(Pid),
 
   Pid ! true,
-  done = wait_for_msg(5000),
+  done = shards_ct:wait_for_msg(5000).
 
-  ok.
-
+-spec t_start_link2(shards_ct:config()) -> any().
 t_start_link2(_Config) ->
   Parent = self(),
   Fun = fun(Atom) -> wait_and_send(Parent, Atom) end,
@@ -232,10 +227,9 @@ t_start_link2(_Config) ->
   {?MODULE, FunName, 1} = proc_lib:translate_initial_call(Pid),
 
   Pid ! true,
-  done = wait_for_msg(5000),
+  done = shards_ct:wait_for_msg(5000).
 
-  ok.
-
+-spec t_start_link3(shards_ct:config()) -> any().
 t_start_link3(_Config) ->
   _ = register(ct, self()),
 
@@ -250,10 +244,9 @@ t_start_link3(_Config) ->
 
   % Run the task
   Pid ! true,
-  done = wait_for_msg(5000),
+  done = shards_ct:wait_for_msg(5000).
 
-  ok.
-
+-spec t_await_timeout(shards_ct:config()) -> any().
 t_await_timeout(_Config) ->
   Task = #{ref => make_ref(), owner => self()},
 
@@ -263,6 +256,7 @@ t_await_timeout(_Config) ->
     exit:{timeout, {shards_task, await, [Task, 0]}} -> ok
   end.
 
+-spec t_await_normal(shards_ct:config()) -> any().
 t_await_normal(_Config) ->
   Task = shards_task:async(fun() -> exit(normal) end),
 
@@ -272,6 +266,7 @@ t_await_normal(_Config) ->
     exit:{normal, {shards_task, await, [Task, 5000]}} -> ok
   end.
 
+-spec t_await_task_throw(shards_ct:config()) -> any().
 t_await_task_throw(_Config) ->
   _ = process_flag(trap_exit, true),
   Task = shards_task:async(fun() -> throw(unknown) end),
@@ -282,6 +277,7 @@ t_await_task_throw(_Config) ->
     exit:{{{nocatch, unknown}, _}, {shards_task, await, [Task, 5000]}} -> ok
   end.
 
+-spec t_await_task_error(shards_ct:config()) -> any().
 t_await_task_error(_Config) ->
   _ = process_flag(trap_exit, true),
   Task =
@@ -295,6 +291,7 @@ t_await_task_error(_Config) ->
     exit:{{<<"oops">>, _}, {shards_task, await, [Task, 5000]}} -> ok
   end.
 
+-spec t_await_undef_module_error(shards_ct:config()) -> any().
 t_await_undef_module_error(_Config) ->
   _ = process_flag(trap_exit, true),
   Task = shards_task:async(fun module_does_not_exist:undef/0),
@@ -303,11 +300,13 @@ t_await_undef_module_error(_Config) ->
     shards_task:await(Task)
   catch
     exit:Ex ->
-      {{undef, [{module_does_not_exist, undef, _, _} | _]},
-       {shards_task, await, [Task, 5000]}} = Ex,
-      ok
+      {
+        {undef, [{module_does_not_exist, undef, _, _} | _]},
+        {shards_task, await, [Task, 5000]}
+      } = Ex
   end.
 
+-spec t_await_undef_fun_error(shards_ct:config()) -> any().
 t_await_undef_fun_error(_Config) ->
   _ = process_flag(trap_exit, true),
   Task = shards_task:async(fun ?MODULE:undef/0),
@@ -316,11 +315,13 @@ t_await_undef_fun_error(_Config) ->
     shards_task:await(Task)
   catch
     exit:Ex ->
-      {{undef, [{?MODULE, undef, _, _} | _]},
-       {shards_task, await, [Task, 5000]}} = Ex,
-      ok
+      {
+        {undef, [{?MODULE, undef, _, _} | _]},
+        {shards_task, await, [Task, 5000]}
+      } = Ex
   end.
 
+-spec t_await_undef_mfa_error(shards_ct:config()) -> any().
 t_await_undef_mfa_error(_Config) ->
   _ = process_flag(trap_exit, true),
   Task = shards_task:async(?MODULE, undef, []),
@@ -329,11 +330,13 @@ t_await_undef_mfa_error(_Config) ->
     shards_task:await(Task)
   catch
     exit:Ex ->
-      {{undef, [{?MODULE, undef, _, _} | _]},
-       {shards_task, await, [Task, 5000]}} = Ex,
-      ok
+      {
+        {undef, [{?MODULE, undef, _, _} | _]},
+        {shards_task, await, [Task, 5000]}
+      } = Ex
   end.
 
+-spec t_await_task_exit(shards_ct:config()) -> any().
 t_await_task_exit(_Config) ->
   _ = process_flag(trap_exit, true),
   Task = shards_task:async(fun() -> exit(unknown) end),
@@ -344,6 +347,7 @@ t_await_task_exit(_Config) ->
     exit:{unknown, {shards_task, await, [Task, 5000]}} -> ok
   end.
 
+-spec t_await_noconnection(shards_ct:config()) -> any().
 t_await_noconnection(_Config) ->
   Ref  = make_ref(),
   Task = #{ref => Ref, pid => self(), owner => self()},
@@ -354,10 +358,10 @@ t_await_noconnection(_Config) ->
   catch
     exit:Ex ->
       Node = node(),
-      {nodedown, Node} = element(1, Ex),
-      ok
+      {nodedown, Node} = element(1, Ex)
   end.
 
+-spec t_await_noconnection_from_named_monitor(shards_ct:config()) -> any().
 t_await_noconnection_from_named_monitor(_Config) ->
   Ref  = make_ref(),
   Task = #{ref => Ref, pid => nil, owner => self()},
@@ -367,10 +371,10 @@ t_await_noconnection_from_named_monitor(_Config) ->
     shards_task:await(Task)
   catch
     exit:Ex ->
-      {nodedown, node} = element(1, Ex),
-      ok
+      {nodedown, node} = element(1, Ex)
   end.
 
+-spec t_await_raises_from_non_owner_proc(shards_ct:config()) -> any().
 t_await_raises_from_non_owner_proc(_Config) ->
   Task = create_task_in_other_process(),
 
@@ -380,6 +384,7 @@ t_await_raises_from_non_owner_proc(_Config) ->
     throw:{invalid_owner_error, Task} -> ok
   end.
 
+-spec t_start_link_exit(shards_ct:config()) -> any().
 t_start_link_exit(_Config) ->
   _ = process_flag(trap_exit, true),
   try
@@ -392,26 +397,18 @@ t_start_link_exit(_Config) ->
 %%% Helpers
 %%%===================================================================
 
+%% @hidden
 wait_and_send(Caller, Atom) ->
   Caller ! ready,
   receive true -> true end,
   Caller ! Atom.
 
+%% @hidden
 create_task_in_other_process() ->
   Caller = self(),
   spawn(fun() -> Caller ! shards_task:async(fun() -> nil end) end),
   receive Task -> Task end.
 
+%% @hidden
 exit_fun() ->
   exit(undef).
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
-
-wait_for_msg(Timeout) ->
-  receive
-    Msg -> Msg
-  after
-    Timeout -> {error, timeout}
-  end.

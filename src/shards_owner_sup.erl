@@ -29,16 +29,12 @@
 %%% API functions
 %%%===================================================================
 
--spec start_link(Name, Options) -> Response when
-  Name     :: atom(),
-  Options  :: [term()],
-  Response :: {ok, pid()} | ignore | {error, term()}.
+-spec start_link(Name :: atom(), Options :: [term()]) ->
+        {ok, pid()} | ignore | {error, term()}.
 start_link(Name, Options) ->
   supervisor:start_link(?MODULE, {Name, Options}).
 
--spec child_spec(Name) -> ChildSpec when
-  Name      :: atom(),
-  ChildSpec :: supervisor:child_spec().
+-spec child_spec(Name :: atom()) -> supervisor:child_spec().
 child_spec(Name) ->
   {
     Name,
@@ -56,12 +52,13 @@ child_spec(Name) ->
 %% @hidden
 init({Name, Options}) ->
   % ETS table to store state info.
-  Name = ets:new(Name, [
-    set,
-    named_table,
-    public,
-    {read_concurrency, true}
-  ]),
+  Name =
+    ets:new(Name, [
+      set,
+      named_table,
+      public,
+      {read_concurrency, true}
+    ]),
 
   % parse options and build metadata, local and dist state
   ParsedOpts = #{
@@ -72,17 +69,16 @@ init({Name, Options}) ->
   true = ets:insert(Name, State),
 
   % create children
-  Children =
-    [begin
-      % get a local name to shard
-      LocalShardName = shards_lib:shard_name(Name, Shard),
+  Children = [begin
+    % get a local name to shard
+    LocalShardName = shards_lib:shard_name(Name, Shard),
 
-      % save relationship between shard and shard name
-      true = ets:insert(Name, {Shard, LocalShardName}),
+    % save relationship between shard and shard name
+    true = ets:insert(Name, {Shard, LocalShardName}),
 
-      % shard worker spec
-      ?worker(shards_owner, [LocalShardName, Opts], #{id => Shard})
-    end || Shard <- shards_lib:iterator(State)],
+    % shard worker spec
+    ?worker(shards_owner, [LocalShardName, Opts], #{id => Shard})
+  end || Shard <- shards_lib:iterator(State)],
 
   % init shards_dist pg2 group
   Module = shards_state:module(State),
@@ -118,11 +114,14 @@ supervise(Children, SupFlagsMap) ->
 %% @private
 parse_opts(Opts) ->
   StateMap = shards_state:to_map(shards_state:new()),
+  
   AccIn = StateMap#{
     opts             => [],
     restart_strategy => one_for_one
   },
+  
   AccOut = parse_opts(Opts, AccIn),
+  
   %% @TODO: this workaround must be fixed when a better strategy to support ordered_set be ready
   case maps:get(type, AccOut, set) of
     ordered_set -> AccOut#{n_shards := 1};

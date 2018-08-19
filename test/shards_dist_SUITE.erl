@@ -1,7 +1,7 @@
 -module(shards_dist_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
--include("support/shards_test_helpers.hrl").
+-include("support/shards_ct.hrl").
 
 %% Common Test
 -export([
@@ -16,8 +16,7 @@
 %% Common Test Cases
 -include_lib("mixer/include/mixer.hrl").
 -mixin([
-  {shards_test_helpers, [
-    t_basic_ops/1,
+  {shards_tests, [
     t_update_ops/1,
     t_fold_ops/1,
     t_rename/1,
@@ -30,6 +29,7 @@
 %% Tests Cases
 -export([
   t_join_leave_ops/1,
+  t_basic_ops/1,
   t_match_ops/1,
   t_select_ops/1,
   t_eject_node_on_failure/1,
@@ -49,37 +49,47 @@
 %%% Common Test
 %%%===================================================================
 
+-spec all() -> [{group, atom()}].
 all() ->
   [{group, dist_test_group}].
 
+-spec groups() -> [any()].
 groups() ->
-  [{dist_test_group, [sequence], [
-    t_join_leave_ops,
-    t_basic_ops,
-    t_update_ops,
-    t_fold_ops,
-    t_match_ops,
-    t_select_ops,
-    t_rename,
-    t_info_ops,
-    t_tab2list,
-    t_tab2file_file2tab_tabfile_info,
-    t_eject_node_on_failure,
-    t_delete_and_auto_setup_tab
-  ]}].
+  [
+    {dist_test_group, [sequence], [
+      t_join_leave_ops,
+      t_basic_ops,
+      t_update_ops,
+      t_fold_ops,
+      t_match_ops,
+      t_select_ops,
+      t_rename,
+      t_info_ops,
+      t_tab2list,
+      t_tab2file_file2tab_tabfile_info,
+      t_eject_node_on_failure,
+      t_delete_and_auto_setup_tab
+    ]}
+  ].
 
+-spec init_per_suite(shards_ct:config()) -> shards_ct:config().
 init_per_suite(Config) ->
-  _ = shards:start(),
+  ok = start_primary_node(),
+  ok = shards:start(),
+  ok = allow_boot(),
   Nodes = start_slaves(?SLAVES),
   [{nodes, Nodes}, {scope, g} | Config].
 
+-spec end_per_suite(shards_ct:config()) -> shards_ct:config().
 end_per_suite(Config) ->
   _ = shards:stop(),
   Config.
 
+-spec init_per_testcase(atom(), shards_ct:config()) -> shards_ct:config().
 init_per_testcase(_, Config) ->
   Config.
 
+-spec end_per_testcase(atom(), shards_ct:config()) -> shards_ct:config().
 end_per_testcase(_, Config) ->
   _ = cleanup_tabs(Config),
   Config.
@@ -88,6 +98,7 @@ end_per_testcase(_, Config) ->
 %%% Tests Cases
 %%%===================================================================
 
+-spec t_join_leave_ops(shards_ct:config()) -> any().
 t_join_leave_ops(Config) ->
   {_, Nodes} = lists:keyfind(nodes, 1, Config),
   AllNodes = lists:usort([node() | Nodes]),
@@ -149,30 +160,21 @@ t_join_leave_ops(Config) ->
 
   % check nodes
   6 = length(shards:get_nodes(?SET)),
-  6 = length(shards:get_nodes(?DUPLICATE_BAG)),
+  6 = length(shards:get_nodes(?DUPLICATE_BAG)).
 
-  ok.
+-spec t_basic_ops(shards_ct:config()) -> any().
+t_basic_ops(Config) ->
+  exec_test(t_basic_ops_, Config).
 
+-spec t_match_ops(shards_ct:config()) -> any().
 t_match_ops(Config) ->
-  Tabs = ?SHARDS_TABS -- [?ORDERED_SET],
-  EtsTabs = ?ETS_TABS -- [?ETS_ORDERED_SET],
-  Tables = lists:zip(Tabs, EtsTabs),
-  Args = shards_test_helpers:build_args(Tables, Config),
-  lists:foreach(fun(X) ->
-    true = shards_test_helpers:cleanup_shards(),
-    shards_test_helpers:t_match_ops_(X)
-  end, Args).
+  exec_test(t_match_ops_, Config).
 
+-spec t_select_ops(shards_ct:config()) -> any().
 t_select_ops(Config) ->
-  Tabs = ?SHARDS_TABS -- [?ORDERED_SET],
-  EtsTabs = ?ETS_TABS -- [?ETS_ORDERED_SET],
-  Tables = lists:zip(Tabs, EtsTabs),
-  Args = shards_test_helpers:build_args(Tables, Config),
-  lists:foreach(fun(X) ->
-    true = shards_test_helpers:cleanup_shards(),
-    shards_test_helpers:t_select_ops_(X)
-  end, Args).
+  exec_test(t_select_ops_, Config).
 
+-spec t_eject_node_on_failure(shards_ct:config()) -> any().
 t_eject_node_on_failure(Config) ->
   ok = cleanup_tabs(Config),
 
@@ -181,14 +183,14 @@ t_eject_node_on_failure(Config) ->
 
   % add new node
   NewNodes = [Z] = start_slaves(['z@127.0.0.1']),
-  ok = rpc:call(Z, shards_test_helpers, init_shards, [g]),
+  ok = rpc:call(Z, shards_tests, init_shards, [g]),
   UpNodes1 = shards:join(?SET, NewNodes),
   _ = timer:sleep(500),
   UpNodes1 = shards:get_nodes(?SET),
 
   % insert some data on that node
   Z = lists:last(UpNodes1),
-  Z = lists:nth(shards_test_helpers:pick_node(2, length(UpNodes1), r) + 1, UpNodes1),
+  Z = lists:nth(shards_tests:pick_node(2, length(UpNodes1), r) + 1, UpNodes1),
   true = shards:insert(?SET, {2, 2}),
   _ = timer:sleep(500),
 
@@ -203,10 +205,9 @@ t_eject_node_on_failure(Config) ->
   6 = length(UpNodes2),
 
   % stop failure node
-  _ = stop_slaves(['z@127.0.0.1']),
+  stop_slaves(['z@127.0.0.1']).
 
-  ok.
-
+-spec t_delete_and_auto_setup_tab(shards_ct:config()) -> any().
 t_delete_and_auto_setup_tab(Config) ->
   ok = cleanup_tabs(Config),
 
@@ -220,68 +221,99 @@ t_delete_and_auto_setup_tab(Config) ->
   [] = A = B = C = CT = D = E,
 
   ?SET = shards:new(?SET, [{scope, g}, {nodes, UpNodes}]),
-  6 = length(shards:get_nodes(?SET)),
-
-  ok.
+  6 = length(shards:get_nodes(?SET)).
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
+%% @private
+start_primary_node() ->
+  {ok, _} = net_kernel:start(['ct@127.0.0.1']),
+  true = erlang:set_cookie(node(), shards),
+  ok.
+
+%% @private
+allow_boot() ->
+  _ = erl_boot_server:start([]),
+  {ok, IPv4} = inet:parse_ipv4_address("127.0.0.1"),
+  erl_boot_server:add_slave(IPv4).
+
+%% @private
 start_slaves(Slaves) ->
   start_slaves(Slaves, []).
 
+%% @private
 start_slaves([], Acc) ->
   lists:usort(Acc);
 start_slaves([Node | T], Acc) ->
-  {ok, HostNode} =
-    ct_slave:start(Node, [
-      {kill_if_fail, true},
-      {monitor_master, true},
-      {boot_timeout, 5000},
-      {init_timeout, 3000},
-      {startup_timeout, 5000},
-      {startup_functions, [{shards, start, []}]},
-      {erl_flags, "-pa ../../lib/*/ebin"}
-    ]),
-  ok = ensure_shards_started(HostNode),
-  start_slaves(T, [HostNode | Acc]).
+  start_slaves(T, [spawn_node(Node) | Acc]).
 
-ensure_shards_started(Node) ->
-  Res = rpc:call(Node, shards, i, []),
-  ensure_shards_started(Node, Res, 10).
+%% @private
+spawn_node(Node) ->
+  Cookie = atom_to_list(erlang:get_cookie()),
+  InetLoaderArgs = "-loader inet -hosts 127.0.0.1 -setcookie " ++ Cookie,
 
-ensure_shards_started(_Node, ok, _) ->
-  ok;
-ensure_shards_started(Node, _, N) when N =< 0 ->
-  error({startup_node_error, Node});
-ensure_shards_started(Node, _, N) when N > 0 ->
-  timer:sleep(500),
-  Res = rpc:call(Node, shards, i, []),
-  ensure_shards_started(Node, Res, N - 1).
+  {ok, Node} =
+    slave:start(
+      "127.0.0.1",
+      node_name(Node),
+      InetLoaderArgs
+    ),
 
+  ok = rpc:block_call(Node, code, add_paths, [code:get_path()]),
+  {ok, _} = rpc:block_call(Node, application, ensure_all_started, [shards]),
+  ok = load_support_files(Node),
+  Node.
+
+%% @private
+node_name(Node) ->
+  [Name, _] = binary:split(atom_to_binary(Node, utf8), <<"@">>),
+  binary_to_atom(Name, utf8).
+
+%% @private
+load_support_files(Node) ->
+  {module, shards_tests} = rpc:block_call(Node, code, load_file, [shards_tests]),
+  ok.
+
+%% @private
 stop_slaves(Slaves) ->
   stop_slaves(Slaves, []).
 
+%% @private
 stop_slaves([], Acc) ->
   lists:usort(Acc);
 stop_slaves([Node | T], Acc) ->
-  {ok, _Name} = ct_slave:stop(Node),
+  ok = slave:stop(Node),
   pang = net_adm:ping(Node),
   stop_slaves(T, [Node | Acc]).
 
+%% @private
 get_remote_nodes(Nodes, Tab) ->
   {ResL, _} = rpc:multicall(Nodes, shards, get_nodes, [Tab]),
   ResL.
 
+%% @private
 setup_tabs(Config) ->
   {_, Nodes} = lists:keyfind(nodes, 1, Config),
   AllNodes = lists:usort([node() | Nodes]),
-  {_, []} = rpc:multicall(AllNodes, shards_test_helpers, init_shards, [g]),
+  {_, []} = rpc:multicall(AllNodes, shards_tests, init_shards, [g]),
   ok.
 
+%% @private
 cleanup_tabs(Config) ->
   {_, Nodes} = lists:keyfind(nodes, 1, Config),
   AllNodes = lists:usort([node() | Nodes]),
-  {_, _} = rpc:multicall(AllNodes, shards_test_helpers, cleanup_shards, []),
+  {_, _} = rpc:multicall(AllNodes, shards_tests, cleanup_shards, []),
   ok.
+
+%% @private
+exec_test(TestCase, Config) ->
+  Tabs = ?SHARDS_TABS -- [?ORDERED_SET],
+  EtsTabs = ?ETS_TABS -- [?ETS_ORDERED_SET],
+  Tables = lists:zip(Tabs, EtsTabs),
+  Args = shards_tests:build_args(Tables, Config),
+  lists:foreach(fun(X) ->
+    true = shards_tests:cleanup_shards(),
+    shards_tests:TestCase(X)
+  end, Args).

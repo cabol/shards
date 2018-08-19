@@ -41,10 +41,10 @@
 %%%===================================================================
 
 %% @type task() = #{
-%%   pid   => pid() | nil,
-%%   ref   => ref() | nil,
-%%   owner => pid() | nil
-%% }.
+%%         pid   => pid() | nil,
+%%         ref   => ref() | nil,
+%%         owner => pid() | nil
+%%       }.
 %%
 %% Task definition.
 %%
@@ -56,10 +56,10 @@
 %% <li>`owner': the PID of the process that started the task.</li>
 %% </ul>
 -type task() :: #{
-  pid   => pid() | nil,
-  ref   => reference() | nil,
-  owner => pid() | nil
-}.
+        pid   => pid() | nil,
+        ref   => reference() | nil,
+        owner => pid() | nil
+      }.
 
 %% @type link() = link | monitor | nolink.
 %%
@@ -196,6 +196,7 @@ await(#{ref := Ref} = Task, Timeout) ->
     {Ref, Reply} ->
       demonitor(Ref, [flush]),
       Reply;
+    
     {'DOWN', Ref, _, Proc, Reason} ->
       exit({reason(Reason, Proc), {?MODULE, await, [Task, Timeout]}})
   after
@@ -252,9 +253,11 @@ do_apply(Info, {Module, Fun, Args} = MFA) ->
     error:Value:Stacktrace ->
       Reason = {Value, Stacktrace},
       exit(Info, MFA, Reason, Reason);
+    
     throw:Value:Stacktrace ->
       Reason = {{nocatch, Value}, Stacktrace},
       exit(Info, MFA, {{nocatch, Value}, Stacktrace}, Reason);
+    
     exit:Value:Stacktrace ->
       exit(Info, MFA, {Value, Stacktrace}, Value)
   end.
@@ -268,9 +271,11 @@ do_apply(Info, {Module, Fun, Args} = MFA) ->
     error:Value ->
       Reason = {Value, erlang:get_stacktrace()},
       exit(Info, MFA, Reason, Reason);
+    
     throw:Value ->
       Reason = {{nocatch, Value}, erlang:get_stacktrace()},
       exit(Info, MFA, Reason, Reason);
+    
     exit:Value ->
       exit(Info, MFA, {Value, erlang:get_stacktrace()}, Value)
   end.
@@ -283,6 +288,7 @@ get_info(Pid) ->
       {registered_name, Name} -> Name;
       []                      -> self()
     end,
+  
   {node(), SelfOrName}.
 
 %% @private
@@ -313,7 +319,8 @@ exit(Info, MFA, LogReason, Reason) ->
     "**      arguments == ~p~n" ++
     "** Reason for termination == ~n" ++
     "** ~p~n" ++
-    "\e[0m", [self(), get_from(Info), Fun, Args, get_reason(LogReason)]),
+    "\e[0m", [self(), get_from(Info), Fun, Args, get_reason(LogReason)]
+  ),
   exit(Reason).
 
 %% @private
@@ -328,17 +335,18 @@ get_running({Mod, Fun, Args}) ->
 
 %% @private
 get_reason({undef, [{Mod, Fun, Args, _Info} | _] = Stacktrace} = Reason) when is_atom(Mod) and is_atom(Fun) ->
-  FunExported =
-    fun
-      (M, F, A) when is_list(A) ->
-        erlang:function_exported(M, F, length(A));
-      (M, F, A) when is_integer(A) ->
-        erlang:function_exported(M, F, A)
-    end,
+  FunExported = fun
+    (M, F, A) when is_list(A) ->
+      erlang:function_exported(M, F, length(A));
+    
+    (M, F, A) when is_integer(A) ->
+      erlang:function_exported(M, F, A)
+  end,
 
   case code:is_loaded(Mod) of
     false ->
       {module_could_not_be_loaded, Stacktrace};
+    
     _ when is_list(Args); is_integer(Args) ->
       case FunExported(Mod, Fun, Args) of
         false -> {function_not_exported, Stacktrace};

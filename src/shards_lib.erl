@@ -9,6 +9,7 @@
 -export([
   shard_name/2,
   list_shards/2,
+  key_from_object/1,
   iterator/1,
   get_pid/1,
   pick/3,
@@ -37,10 +38,8 @@
 %% <li>`Shard': Shard number – from `0' to `(NumShards - 1)'</li>
 %% </ul>
 %% @end
--spec shard_name(Tab, Shard) -> ShardName when
-  Tab       :: atom(),
-  Shard     :: non_neg_integer(),
-  ShardName :: atom().
+-spec shard_name(Tab :: atom(), Shard :: non_neg_integer()) ->
+        ShardName :: atom().
 shard_name(Tab, Shard) ->
   Bin = <<(atom_to_binary(Tab, utf8))/binary, ".", (integer_to_binary(Shard))/binary>>,
   binary_to_atom(Bin, utf8).
@@ -53,12 +52,22 @@ shard_name(Tab, Shard) ->
 %% <li>`NumShards': Number of shards.</li>
 %% </ul>
 %% @end
--spec list_shards(Tab, NumShards) -> ShardNames when
-  Tab        :: atom(),
-  NumShards  :: pos_integer(),
-  ShardNames :: [atom()].
+-spec list_shards(Tab :: atom(), NumShards :: pos_integer()) ->
+        ShardNames :: [atom()].
 list_shards(Tab, NumShards) ->
   [shard_name(Tab, Shard) || Shard <- iterator(NumShards)].
+
+%% @doc
+%% Returns the key for the given object or list of objects.
+%% <ul>
+%% <li>`ObjOrObjs': Object or list of objects.</li>
+%% </ul>
+%% @end
+-spec key_from_object(ObjOrObjs :: tuple() | [tuple()]) -> Key :: any().
+key_from_object(ObjOrObjs) when is_list(ObjOrObjs) ->
+  element(1, hd(ObjOrObjs));
+key_from_object(ObjOrObjs) when is_tuple(ObjOrObjs) ->
+  element(1, ObjOrObjs).
 
 %% @doc
 %% Returns a sequence of integers that starts with `0' and contains the
@@ -69,17 +78,18 @@ list_shards(Tab, NumShards) ->
 %% <li>`StateOrNumShards': A valid shards state or number of shards.</li>
 %% </ul>
 %% @end
--spec iterator(StateOrNumShards) -> Iterator when
-  StateOrNumShards :: shards_state:state() | pos_integer(),
-  Iterator         :: [integer()].
+-spec iterator(StateOrNumShards :: shards_state:state() | pos_integer()) ->
+        Iterator :: [integer()] .
 iterator(StateOrNumShards) ->
   N =
     case shards_state:is_state(StateOrNumShards) of
       true ->
         shards_state:n_shards(StateOrNumShards);
+
       false when is_integer(StateOrNumShards) ->
         StateOrNumShards
     end,
+
   lists:seq(0, N - 1).
 
 %% @doc
@@ -104,11 +114,11 @@ get_pid(Name) ->
 %% <li>`Result': Returns a number between `0..Range-1'.</li>
 %% </ul>
 %% @end
--spec pick(Key, Range, Op) -> Result when
-  Key    :: shards_state:key(),
-  Range  :: shards_state:range(),
-  Op     :: shards_state:op(),
-  Result :: non_neg_integer().
+-spec pick(
+        Key   :: shards_state:key(),
+        Range :: shards_state:range(),
+        Op    :: atom()
+      ) -> Result :: non_neg_integer().
 pick(Key, NumShards, _) ->
   erlang:phash2(Key, NumShards).
 
@@ -134,12 +144,12 @@ keyupdate(Fun, Keys, TupleList) ->
 %% Updates the given `Keys' by the result of calling `Fun(OldValue)'.
 %% If `Key' doesn't exist, then `Init' is set.
 %% @end
--spec keyupdate(Fun, Keys, Init, KVList1) -> KVList2 when
-  Fun     :: fun((Key :: any(), Value :: any()) -> any()),
-  Keys    :: [any()],
-  Init    :: any(),
-  KVList1 :: kv_list(),
-  KVList2 :: kv_list().
+-spec keyupdate(
+        Fun     :: fun((Key :: any(), Value :: any()) -> any()),
+        Keys    :: [any()],
+        Init    :: any(),
+        KVList1 :: kv_list()
+      ) -> KVList2 :: kv_list().
 keyupdate(Fun, Keys, Init, KVList1) when is_function(Fun, 2) ->
   lists:foldl(fun(Key, Acc) ->
     NewKV =
@@ -147,6 +157,7 @@ keyupdate(Fun, Keys, Init, KVList1) when is_function(Fun, 2) ->
         {Key, Value} -> {Key, Fun(Key, Value)};
         false        -> {Key, Init}
       end,
+
     lists:keystore(Key, 1, Acc, NewKV)
   end, KVList1, Keys).
 
@@ -159,30 +170,39 @@ keyupdate(Fun, Keys, Init, KVList1) when is_function(Fun, 2) ->
 %% <li>`Result': Accumulator.</li>
 %% </ul>
 %% @end
--spec reduce_while(Fun, AccIn, List) -> Result when
-  Fun    :: fun((Elem :: any(), Acc :: any()) -> FunRes),
-  FunRes :: {cont | halt, AccOut :: any()},
-  AccIn  :: any(),
-  List   :: [any()],
-  Result :: any().
+-spec reduce_while(
+        Fun       :: fun((Elem :: any(), Acc :: any()) -> FunRes),
+        AccIn     :: any(),
+        ListOrMap :: [any()] | map()
+      ) -> Result :: any()
+      when FunRes :: {cont | halt, AccOut :: any()}.
 reduce_while(Fun, AccIn, List) when is_function(Fun, 2) ->
   try
-    lists:foldl(fun(Elem, Acc) ->
-      case Fun(Elem, Acc) of
-        {cont, AccOut} -> AccOut;
-        {halt, AccOut} -> throw({halt, AccOut})
-      end
-    end, AccIn, List)
+    do_fold(Fun, AccIn, List)
   catch
     throw:{halt, AccOut} -> AccOut
   end.
 
+%% @private
+do_fold(Fun, AccIn, List) when is_list(List) ->
+  lists:foldl(fun(Elem, Acc) ->
+    case Fun(Elem, Acc) of
+      {cont, AccOut} -> AccOut;
+      {halt, AccOut} -> throw({halt, AccOut})
+    end
+  end, AccIn, List);
+do_fold(Fun, AccIn, Map) when is_map(Map) ->
+  maps:fold(fun(Key, Value, Acc) ->
+    case Fun({Key, Value}, Acc) of
+      {cont, AccOut} -> AccOut;
+      {halt, AccOut} -> throw({halt, AccOut})
+    end
+  end, AccIn, Map).
+
 %% @doc
 %% Converts the input data to a string.
 %% @end
--spec to_string(Data) -> Result when
-  Data   :: binary() | number() | atom() | list(),
-  Result :: string() | no_return().
+-spec to_string(Data :: any()) -> string() | no_return().
 to_string(Data) when is_binary(Data) ->
   binary_to_list(Data);
 to_string(Data) when is_integer(Data) ->

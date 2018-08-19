@@ -1,4 +1,7 @@
--module(shards_test_helpers).
+-module(shards_tests).
+
+-include_lib("stdlib/include/ms_transform.hrl").
+-include("../support/shards_ct.hrl").
 
 %% Test Cases
 -export([
@@ -17,7 +20,9 @@
   t_equivalent_ops/1
 ]).
 
+%% Test Cases Helpers
 -export([
+  t_basic_ops_/1,
   t_match_ops_/1,
   t_select_ops_/1
 ]).
@@ -38,21 +43,24 @@
   pick_node_dist/3
 ]).
 
--include_lib("stdlib/include/ms_transform.hrl").
--include("shards_test_helpers.hrl").
-
 %%%===================================================================
 %%% Tests Key Generator
 %%%===================================================================
 
+%% @doc This is a shards_state:pick_fun().
+%% @hidden
 pick_shard(Key, N, w) ->
   erlang:phash2({Key, os:timestamp()}, N);
 pick_shard(_, _, _) ->
   any.
 
+%% @doc This is a shards_state:pick_fun().
+%% @hidden
 pick_node(Key, Nodes, _) ->
   jchash:compute(erlang:phash2(Key), Nodes).
 
+%% @doc This is a shards_state:pick_fun().
+%% @hidden
 pick_node_dist(Key, Nodes, w) ->
   NewKey = {Key, os:timestamp()},
   jchash:compute(erlang:phash2(NewKey), Nodes);
@@ -63,9 +71,11 @@ pick_node_dist(_, _, _) ->
 %%% Test Cases
 %%%===================================================================
 
+-spec t_basic_ops(shards_ct:config()) -> any().
 t_basic_ops(Config) ->
   run_for_all_tables(Config, fun t_basic_ops_/1).
 
+%% @private
 t_basic_ops_({Scope, Tab, EtsTab}) ->
   Mod = get_module(Scope, Tab),
 
@@ -85,9 +95,31 @@ t_basic_ops_({Scope, Tab, EtsTab}) ->
 
   % insert new
   false = ets:insert_new(EtsTab, [Obj1, {k3, <<"V3">>}]),
-  [false, true] = Mod:insert_new(Tab, [Obj1, {k3, <<"V3">>}]),
   true = ets:insert_new(EtsTab, {k3, <<"V3">>}),
-  false = Mod:insert_new(Tab, {k3, <<"V3">>}),
+  true = Mod:insert_new(Tab, [{1, 1}, {2, 2}, {3, 3}]),
+
+  case Tab of
+    ?ORDERED_SET ->
+      {false, [
+        {kx, 1, a, "hi"},
+        {k3, <<"V3">>}
+      ]} = Mod:insert_new(Tab, [Obj1, {k3, <<"V3">>}]),
+      true = Mod:insert_new(Tab, {k3, <<"V3">>});
+
+    ?SHARDED_DUPLICATE_BAG ->
+      {false, [{kx, 1, a, "hi"} | Rest]} = Mod:insert_new(Tab, [Obj1, {k3, <<"V3">>}]),
+      case Rest of
+        [] ->
+          false = Mod:insert_new(Tab, {k3, <<"V3">>});
+
+        [_K3] ->
+          true = Mod:insert_new(Tab, {k3, <<"V3">>})
+      end;
+
+    _ ->
+      {false, [{kx, 1, a, "hi"}]} = Mod:insert_new(Tab, [Obj1, {k3, <<"V3">>}]),
+      false = Mod:insert_new(Tab, {k3, <<"V3">>})
+  end,
 
   % lookup element
   case Tab of
@@ -99,12 +131,10 @@ t_basic_ops_({Scope, Tab, EtsTab}) ->
       SortR3 = lists:usort(R0),
       SortR3 = lists:usort(R01),
 
-      ok =
-        try
-          Mod:lookup_element(Tab, wrong, 2)
-        catch
-          _:badarg -> ok
-        end;
+      shards_ct:assert_error(fun() ->
+        Mod:lookup_element(Tab, wrong, 2)
+      end, badarg);
+
     _ ->
       R0 = ets:lookup_element(EtsTab, k1, 2),
       R0 = Mod:lookup_element(Tab, k1, 2)
@@ -135,13 +165,13 @@ t_basic_ops_({Scope, Tab, EtsTab}) ->
   [] = Mod:lookup(Tab, k1),
 
   % delete all
-  true = Mod:delete_all_objects(Tab),
+  true = Mod:delete_all_objects(Tab).
 
-  ok.
-
+-spec t_match_ops(shards_ct:config()) -> any().
 t_match_ops(Config) ->
   run_for_all_tables(Config, fun t_match_ops_/1).
 
+%% @private
 t_match_ops_({Scope, Tab, EtsTab}) ->
   Mod = get_module(Scope, Tab),
 
@@ -165,13 +195,13 @@ t_match_ops_({Scope, Tab, EtsTab}) ->
   true = ets:match_delete(EtsTab, {'$1', 2}),
   true = Mod:match_delete(Tab, {'$1', 2}),
   R3 = maybe_sort(EtsTab, ets:match_object(EtsTab, '$1')),
-  R3 = maybe_sort(Tab, Mod:match_object(Tab, '$1')),
+  R3 = maybe_sort(Tab, Mod:match_object(Tab, '$1')).
 
-  ok.
-
+-spec t_select_ops(shards_ct:config()) -> any().
 t_select_ops(Config) ->
   run_for_all_tables(Config, fun t_select_ops_/1).
 
+%% @private
 t_select_ops_({Scope, Tab, EtsTab}) ->
   Mod = get_module(Scope, Tab),
 
@@ -201,10 +231,9 @@ t_select_ops_({Scope, Tab, EtsTab}) ->
   L2 = ets:select_delete(EtsTab, MS2),
   L2 = Mod:select_delete(Tab, MS2),
   R11 = maybe_sort(EtsTab, ets:select(EtsTab, MS1)),
-  R11 = maybe_sort(Tab, Mod:select(Tab, MS1)),
+  R11 = maybe_sort(Tab, Mod:select(Tab, MS1)).
 
-  ok.
-
+-spec t_paginated_ops(shards_ct:config()) -> any().
 t_paginated_ops(Config) ->
   {_, Scope} = lists:keyfind(scope, 1, Config),
   MS = ets:fun2ms(fun({K, V}) -> {K, V} end),
@@ -222,6 +251,7 @@ t_paginated_ops(Config) ->
     t_paginated_ops_(X)
   end, Args).
 
+%% @private
 t_paginated_ops_({Scope, Tab, {Op, Q}}) ->
   Mod = get_module(Scope, Tab),
 
@@ -265,10 +295,9 @@ t_paginated_ops_({Scope, Tab, {Op, Q}}) ->
   4 = length(R4),
   {R44, Calls3} = select_by({Mod, Op}, C3, 4),
   Calls3 = round(Len / 4),
-  R2 = R44 ++ R4,
+  R2 = R44 ++ R4.
 
-  ok.
-
+-spec t_paginated_ops_ordered_set(shards_ct:config()) -> any().
 t_paginated_ops_ordered_set(_Config) ->
   MS = ets:fun2ms(fun({K, V}) -> {K, V} end),
   Ops = [
@@ -277,12 +306,14 @@ t_paginated_ops_ordered_set(_Config) ->
     {match, '$1'},
     {match_object, '$1'}
   ],
+
   Args = [Op || Op <- Ops],
   lists:foreach(fun(X) ->
     true = cleanup_shards(),
     t_paginated_ops_ordered_set_(X)
   end, Args).
 
+%% @private
 t_paginated_ops_ordered_set_({Op, Q}) ->
   % insert some values
   KVPairs = [
@@ -317,13 +348,13 @@ t_paginated_ops_ordered_set_({Op, Q}) ->
   4 = length(R4),
   {R44, Calls3} = select_by({ets, Op}, EC3, 4),
   {R44, Calls3} = select_by({shards, Op}, C3, 4),
-  Calls3 = round(Len / 4),
+  Calls3 = round(Len / 4).
 
-  ok.
-
+-spec t_first_last_next_prev_ops(shards_ct:config()) -> any().
 t_first_last_next_prev_ops(Config) ->
   run_for_all_tables(Config, fun t_first_last_next_prev_ops_/1).
 
+%% @private
 t_first_last_next_prev_ops_({_, ?SHARDED_DUPLICATE_BAG, _}) ->
   '$end_of_table' = shards:first(?SHARDED_DUPLICATE_BAG),
   '$end_of_table' = shards:last(?SHARDED_DUPLICATE_BAG),
@@ -340,14 +371,10 @@ t_first_last_next_prev_ops_({_, ?SHARDED_DUPLICATE_BAG, _}) ->
   true = shards:insert(?SHARDED_DUPLICATE_BAG, KVPairs),
 
   % check first-next against select
-  ok =
-    try
-      first_next_traversal(shards, ?SHARDED_DUPLICATE_BAG, 10, [])
-    catch
-      _:bad_pick_fun_ret -> ok
-    end,
+  shards_ct:assert_error(fun() ->
+    first_next_traversal(shards, ?SHARDED_DUPLICATE_BAG, 10, [])
+  end, bad_pick_fun_ret);
 
-  ok;
 t_first_last_next_prev_ops_({_, ?ORDERED_SET, _}) ->
   '$end_of_table' = shards:first(?ORDERED_SET),
   '$end_of_table' = shards:last(?ORDERED_SET),
@@ -374,9 +401,8 @@ t_first_last_next_prev_ops_({_, ?ORDERED_SET, _}) ->
   L2 = [Last2 | _] = last_prev_traversal(ets, ?ETS_ORDERED_SET, 10, []),
   L2 = last_prev_traversal(shards, ?ORDERED_SET, 10, []),
   '$end_of_table' = ets:prev(?ETS_ORDERED_SET, Last2),
-  '$end_of_table' = shards:prev(?ORDERED_SET, Last2),
+  '$end_of_table' = shards:prev(?ORDERED_SET, Last2);
 
-  ok;
 t_first_last_next_prev_ops_({Scope, Tab, _}) ->
   Mod = get_module(Scope, Tab),
 
@@ -407,10 +433,9 @@ t_first_last_next_prev_ops_({Scope, Tab, _}) ->
   L3 = [Last3 | _] = last_prev_traversal(Mod, Tab, 10, []),
   '$end_of_table' = Mod:prev(Tab, Last3),
   {L33, _} = Mod:select(Tab, MS, 10),
-  L3 = L1 = [K || {K, _} <- L33],
+  L3 = L1 = [K || {K, _} <- L33].
 
-  ok.
-
+-spec t_update_ops(shards_ct:config()) -> any().
 t_update_ops(Config) ->
   {_, Scope} = lists:keyfind(scope, 1, Config),
   Mod = get_module(Scope, ?SET),
@@ -429,13 +454,13 @@ t_update_ops(Config) ->
   _ = ets:insert(?ETS_SET, {elem0, 0}),
   _ = Mod:insert(?SET, {elem0, 0}),
   R3 = ets:update_element(?ETS_SET, elem0, {2, 10}),
-  R3 = Mod:update_element(?SET, elem0, {2, 10}),
+  R3 = Mod:update_element(?SET, elem0, {2, 10}).
 
-  ok.
-
+-spec t_fold_ops(shards_ct:config()) -> any().
 t_fold_ops(Config) ->
   run_for_all_tables(Config, fun t_fold_ops_/1).
 
+%% @private
 t_fold_ops_({Scope, Tab, EtsTab}) ->
   Mod = get_module(Scope, Tab),
 
@@ -453,13 +478,13 @@ t_fold_ops_({Scope, Tab, EtsTab}) ->
   % foldr
   Foldr = fun({_, V}, Acc) -> [V | Acc] end,
   R2 = lists:usort(Mod:foldr(Foldr, [], Tab)),
-  R2 = lists:usort(ets:foldr(Foldr, [], EtsTab)),
+  R2 = lists:usort(ets:foldr(Foldr, [], EtsTab)).
 
-  ok.
-
+-spec t_info_ops(shards_ct:config()) -> any().
 t_info_ops(Config) ->
   run_for_all_tables(Config, fun t_info_ops_/1).
 
+%% @private
 t_info_ops_({Scope, Tab, _EtsTab}) ->
   Mod = get_module(Scope, Tab),
 
@@ -481,6 +506,7 @@ t_info_ops_({Scope, Tab, _EtsTab}) ->
       Nodes = lists:usort(shards_lib:keyfind(nodes, Info1)),
       Nodes = lists:usort(Mod:info(Tab, nodes)),
       ok;
+
     _ ->
       ok
   end,
@@ -496,6 +522,7 @@ t_info_ops_({Scope, Tab, _EtsTab}) ->
     R1 = shards:info_shard(ShardName),
     R1 = ets:info(ShardName)
   end, Shards1),
+
   ok = lists:foreach(fun(ShardName) ->
     R1 = shards:info_shard(ShardName, protection),
     R1 = ets:info(ShardName, protection)
@@ -507,6 +534,7 @@ t_info_ops_({Scope, Tab, _EtsTab}) ->
     R1 = shards:info_shard(ShardName),
     R1 = ets:info(ShardName)
   end, Shards2),
+
   ok = lists:foreach(fun(ShardName) ->
     R1 = shards:info_shard(ShardName, protection),
     R1 = ets:info(ShardName, protection)
@@ -522,13 +550,13 @@ t_info_ops_({Scope, Tab, _EtsTab}) ->
   R3 = ets:info(undefined_tab, name),
   R3 = shards:info(undefined_tab, name),
   R3 = shards_local:info(undefined_tab, name, nil),
-  R3 = shards:info_shard(undefined_tab, name),
+  R3 = shards:info_shard(undefined_tab, name).
 
-  ok.
-
+-spec t_tab2list(shards_ct:config()) -> any().
 t_tab2list(Config) ->
   run_for_all_tables(Config, fun t_tab2list_/1).
 
+%% @private
 t_tab2list_({Scope, Tab, EtsTab}) ->
   Mod = get_module(Scope, Tab),
 
@@ -541,13 +569,13 @@ t_tab2list_({Scope, Tab, EtsTab}) ->
   % check tab2list/1
   R1 = lists:usort(Mod:tab2list(Tab)),
   R1 = lists:usort(ets:tab2list(EtsTab)),
-  100 = length(R1),
+  100 = length(R1).
 
-  ok.
-
+-spec t_tab2file_file2tab_tabfile_info(shards_ct:config()) -> any().
 t_tab2file_file2tab_tabfile_info(Config) ->
   run_for_all_tables(Config, fun t_tab2file_file2tab_tabfile_info_/1).
 
+%% @private
 t_tab2file_file2tab_tabfile_info_({Scope, Tab, _EtsTab}) ->
   Mod = get_module(Scope, Tab),
   FN = shards_lib:to_string(Tab) ++ "_test_tab",
@@ -564,12 +592,10 @@ t_tab2file_file2tab_tabfile_info_({Scope, Tab, _EtsTab}) ->
 
   % errors
   {error, _} = Mod:tab2file(Tab, "mydir/" ++ FN ++ "3"),
-  ok =
-    try
-      Mod:tab2file(Tab, [1, 2, 3])
-    catch
-      _:{badarg, _} -> ok
-    end,
+
+  shards_ct:assert_error(fun() ->
+    Mod:tab2file(Tab, [1, 2, 3])
+  end, {badarg, [1,2,3]}),
 
   % tab info
   ShardFN =
@@ -577,6 +603,7 @@ t_tab2file_file2tab_tabfile_info_({Scope, Tab, _EtsTab}) ->
       g -> shards_lib:to_string(node()) ++ "." ++ FN ++ "2.0";
       _ -> FN ++ "2.0"
     end,
+
   ok = file:delete(ShardFN),
   {ok, TabInfo} = Mod:tabfile_info(FN),
   {error, _} = Mod:tabfile_info(FN ++ "2"),
@@ -584,16 +611,20 @@ t_tab2file_file2tab_tabfile_info_({Scope, Tab, _EtsTab}) ->
   % check tab info attrs
   {ok, ShardTabInfo} = ets:tabfile_info(?fn(FN ++ ".0", Scope)),
   {Items, _} = lists:unzip(ShardTabInfo),
+
   ok = lists:foreach(fun(Item) ->
     {Item, _} = lists:keyfind(Item, 1, TabInfo)
   end, Items),
+
   NumShards = length(shards_lib:keyfind(shards, TabInfo)),
-  _ = case Scope of
+
+  case Scope of
     g ->
       {error, _} = shards_dist:tabfile_info("wrong_file"),
       Nodes = lists:usort(Mod:get_nodes(Tab)),
       Nodes = lists:usort(shards_lib:keyfind(nodes, TabInfo)),
       ok;
+
     _ ->
       ok
   end,
@@ -605,10 +636,12 @@ t_tab2file_file2tab_tabfile_info_({Scope, Tab, _EtsTab}) ->
   {error, _} = Mod:file2tab("wrong_file"),
   {error, _} = Mod:file2tab(FN ++ "2"),
   {error, _} = Mod:file2tab([1, 2, 3]),
-  _ = case Scope of
+
+  case Scope of
     g ->
       {error, _} = shards_dist:file2tab("wrong_file"),
       ok;
+
     _ ->
       ok
   end,
@@ -616,23 +649,20 @@ t_tab2file_file2tab_tabfile_info_({Scope, Tab, _EtsTab}) ->
   % restore table from files
   {ok, Tab} = Mod:file2tab(FN, []),
   NumShards = length(Mod:info(Tab, shards)),
-  KVPairs = lookup_keys(Mod, Tab, It),
+  KVPairs = lookup_keys(Mod, Tab, It).
 
-  ok.
-
+-spec t_rename(shards_ct:config()) -> any().
 t_rename(Config) ->
   run_for_all_tables(Config, fun t_rename_/1).
 
+%% @private
 t_rename_({Scope, Tab, _}) ->
   Mod = get_module(Scope, Tab),
 
   % rename non existent table
-  ok =
-    try
-      Mod:rename(wrong, new_name)
-    catch
-      _:badarg -> ok
-    end,
+  shards_ct:assert_error(fun() ->
+    Mod:rename(wrong, new_name)
+  end, badarg),
 
   % insert some values
   L = lists:seq(1, 100),
@@ -647,13 +677,13 @@ t_rename_({Scope, Tab, _}) ->
 
   % rename it back
   Tab = Mod:rename(foo, Tab),
-  R1 = lists:sort(lookup_keys(Mod, Tab, L)),
+  R1 = lists:sort(lookup_keys(Mod, Tab, L)).
 
-  ok.
-
+-spec t_equivalent_ops(shards_ct:config()) -> any().
 t_equivalent_ops(Config) ->
   run_for_all_tables(Config, fun t_equivalent_ops_/1).
 
+%% @private
 t_equivalent_ops_({Scope, Tab, _EtsTab}) ->
   Mod = get_module(Scope, Tab),
 
@@ -682,21 +712,31 @@ t_equivalent_ops_({Scope, Tab, _EtsTab}) ->
   true = Mod:safe_fixtable(Tab, true),
   true = shards:safe_fixtable(Tab, false),
 
-  true = Mod:give_away(Tab, self(), []),
-
-  ok.
+  true = Mod:give_away(Tab, self(), []).
 
 %%%===================================================================
 %%% Helpers
 %%%===================================================================
 
+-spec init_shards(shards_state:scope()) -> ok | no_return().
 init_shards(Scope) ->
   _ = init_shards_new(Scope),
 
   set = shards_local:info(?SET, type),
-  duplicate_bag = shards_local:info(?DUPLICATE_BAG, type, shards_state:get(?DUPLICATE_BAG)),
-  ordered_set = shards_local:info(?ORDERED_SET, type, shards_state:get(?ORDERED_SET)),
-  duplicate_bag = shards_local:info(?SHARDED_DUPLICATE_BAG, type, shards_state:get(?SHARDED_DUPLICATE_BAG)),
+
+  duplicate_bag =
+    shards_local:info(?DUPLICATE_BAG, type, shards_state:get(?DUPLICATE_BAG)),
+
+  ordered_set =
+    shards_local:info(?ORDERED_SET, type, shards_state:get(?ORDERED_SET)),
+
+  duplicate_bag =
+    shards_local:info(
+      ?SHARDED_DUPLICATE_BAG,
+      type,
+      shards_state:get(?SHARDED_DUPLICATE_BAG)
+    ),
+
   _ = shards_created(?SHARDS_TABS),
 
   _ = ets:new(?ETS_SET, [set, public, named_table]),
@@ -718,14 +758,12 @@ init_shards_new(Scope) ->
     end,
 
   % test badarg
-  ok =
-    try
-      shards:new(?SET, [{scope, Scope}, wrongarg])
-    catch
-      _:{badarg, _} -> ok
-    end,
+  shards_ct:assert_error(fun() ->
+    shards:new(?SET, [{scope, Scope}, wrongarg])
+  end, badarg),
 
   DefaultShards = ?N_SHARDS,
+
   ?SET =
     shards:new(?SET, [
       named_table,
@@ -733,7 +771,9 @@ init_shards_new(Scope) ->
       {scope, Scope},
       {pick_node_fun, fun ?MODULE:pick_node/3}
     ]),
+
   StateSet = shards:state(?SET),
+
   #{module := Mod,
     n_shards := DefaultShards
   } = shards_state:to_map(StateSet),
@@ -745,7 +785,9 @@ init_shards_new(Scope) ->
       duplicate_bag,
       {pick_node_fun, fun ?MODULE:pick_node/3}
     ]),
+
   StateDupBag = shards:state(?DUPLICATE_BAG),
+
   #{module := Mod,
     n_shards := 5
   } = shards_state:to_map(StateDupBag),
@@ -755,7 +797,9 @@ init_shards_new(Scope) ->
       {scope, Scope},
       ordered_set
     ]),
+
   StateOrderedSet = shards:state(?ORDERED_SET),
+
   #{module := Mod,
     n_shards := 1
   } = shards_state:to_map(StateOrderedSet),
@@ -768,11 +812,14 @@ init_shards_new(Scope) ->
       {pick_shard_fun, fun ?MODULE:pick_shard/3},
       {pick_node_fun, fun ?MODULE:pick_node_dist/3}
     ]),
+
   StateShardedDupBag = shards:state(?SHARDED_DUPLICATE_BAG),
+
   #{module := Mod,
     n_shards := 5
   } = shards_state:to_map(StateShardedDupBag).
 
+-spec cleanup_shards() -> true | no_return().
 cleanup_shards() ->
   L = lists:duplicate(4, true),
   L = [shards:delete_all_objects(Tab) || Tab <- ?SHARDS_TABS],
@@ -781,6 +828,7 @@ cleanup_shards() ->
   All = [[] = shards:match(Tab, '$1') || Tab <- ?SHARDS_TABS],
   true.
 
+-spec delete_shards() -> ok | no_return().
 delete_shards() ->
   L = lists:duplicate(4, true),
   L = [shards:delete(Tab) || Tab <- ?SHARDS_TABS],
@@ -790,10 +838,12 @@ delete_shards() ->
   {_, 0} = lists:keyfind(active, 1, Count),
   ok.
 
+-spec build_args([any()], shards_ct:config()) -> [any()].
 build_args(Args, Config) ->
   {_, Scope} = lists:keyfind(scope, 1, Config),
   [{Scope, X, Y} || {X, Y} <- Args].
 
+-spec get_module(shards_state:scope(), atom()) -> shards_local | shards.
 get_module(l, Tab) when ?has_default_opts(Tab) ->
   shards_local;
 get_module(_, _) ->
@@ -803,6 +853,7 @@ get_module(_, _) ->
 %%% Internal functions
 %%%===================================================================
 
+%% @private
 run_for_all_tables(Config, Fun) ->
   Tables = lists:zip(?SHARDS_TABS, ?ETS_TABS),
   Args = build_args(Tables, Config),
@@ -810,6 +861,7 @@ run_for_all_tables(Config, Fun) ->
     Fun(X)
   end, Args).
 
+%% @private
 lookup_keys(Mod, Tab, Keys) ->
   lists:foldr(fun(Key, Acc) ->
     case Mod:lookup(Tab, Key) of
@@ -818,11 +870,13 @@ lookup_keys(Mod, Tab, Keys) ->
     end
   end, [], Keys).
 
+%% @private
 maybe_sort(Tab, List) when Tab == ?ORDERED_SET; Tab == ?ETS_ORDERED_SET ->
   List;
 maybe_sort(_Tab, List) ->
   lists:usort(List).
 
+%% @private
 shards_created(TabL) when is_list(TabL) ->
   lists:foreach(fun shards_created/1, TabL);
 shards_created(Tab) ->
@@ -830,14 +884,17 @@ shards_created(Tab) ->
     true = lists:member(Shard, shards:all())
   end, shards:list(Tab)).
 
+%% @private
 select_by({Mod, Fun} = ModFun, Continuation, Limit) ->
   select_by(ModFun, Mod:Fun(Continuation), Limit, {[], 1}).
 
+%% @private
 select_by(_, '$end_of_table', _, Acc) ->
   Acc;
 select_by({Mod, Fun} = ModFun, {L, Continuation}, Limit, {Acc, Calls}) ->
   select_by(ModFun, Mod:Fun(Continuation), Limit, {L ++ Acc, Calls + 1}).
 
+%% @private
 first_next_traversal(_, _, 0, Acc) ->
   Acc;
 first_next_traversal(_, _, _, ['$end_of_table' | Acc]) ->
@@ -847,6 +904,7 @@ first_next_traversal(Mod, Tab, Limit, []) ->
 first_next_traversal(Mod, Tab, Limit, [Key | _] = Acc) ->
   first_next_traversal(Mod, Tab, Limit - 1, [Mod:next(Tab, Key) | Acc]).
 
+%% @private
 last_prev_traversal(_, _, 0, Acc) ->
   Acc;
 last_prev_traversal(_, _, _, ['$end_of_table' | Acc]) ->

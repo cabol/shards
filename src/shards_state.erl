@@ -32,7 +32,9 @@
   pick_shard_fun/2,
   pick_node_fun/1,
   pick_node_fun/2,
-  scope/1
+  scope/1,
+  eval_pick_shard/2,
+  eval_pick_shard/3
 ]).
 
 %%%===================================================================
@@ -71,6 +73,11 @@
 %% The function returns a value for `Key' within the range 0..Range-1.
 -type pick_fun() :: fun((key(), range(), op()) -> non_neg_integer() | any).
 
+%% @type scope() = l | g.
+%%
+%% Defines the scope, if it is local `l' or global `g'.
+-type scope() :: l | g.
+
 %% State definition
 -record(state, {
   module         = shards_local          :: module(),
@@ -86,12 +93,12 @@
 -type state() :: #state{}.
 
 %% @type state_map() = #{
-%%   module         => module(),
-%%   sup_name       => atom(),
-%%   n_shards       => pos_integer(),
-%%   pick_shard_fun => pick_fun(),
-%%   pick_node_fun  => pick_fun()
-%% }.
+%%         module         => module(),
+%%         sup_name       => atom(),
+%%         n_shards       => pos_integer(),
+%%         pick_shard_fun => pick_fun(),
+%%         pick_node_fun  => pick_fun()
+%%       }.
 %%
 %% Defines the map representation of the `shards' state:
 %% <ul>
@@ -103,12 +110,12 @@
 %% <li>`pick_node_fun': Function callback to pick/compute the node.</li>
 %% </ul>
 -type state_map() :: #{
-  module         => module(),
-  sup_name       => atom(),
-  n_shards       => pos_integer(),
-  pick_shard_fun => pick_fun(),
-  pick_node_fun  => pick_fun()
-}.
+        module         => module(),
+        sup_name       => atom(),
+        n_shards       => pos_integer(),
+        pick_shard_fun => pick_fun(),
+        pick_node_fun  => pick_fun()
+      }.
 
 %% Exported types
 -export_type([
@@ -117,6 +124,7 @@
   n_shards/0,
   range/0,
   pick_fun/0,
+  scope/0,
   state/0,
   state_map/0
 ]).
@@ -207,7 +215,7 @@ to_map(State) ->
   }.
 
 %%%===================================================================
-%%% API – Getters & Setters
+%%% API
 %%%===================================================================
 
 -spec module(state() | atom()) -> module().
@@ -260,10 +268,18 @@ pick_node_fun(Tab) when is_atom(Tab) ->
 pick_node_fun(Fun, #state{} = State) when is_function(Fun, 3) ->
   State#state{pick_node_fun = Fun}.
 
--spec scope(state() | atom()) -> l | g.
+-spec scope(state() | atom()) -> scope().
 scope(#state{module = shards_local}) ->
   l;
 scope(#state{module = shards_dist}) ->
   g;
 scope(Tab) when is_atom(Tab) ->
   scope(?MODULE:get(Tab)).
+
+%% @equiv eval_pick_shard(Key, w, State)
+eval_pick_shard(Key, State) ->
+  eval_pick_shard(Key, w, State).
+
+-spec eval_pick_shard(key(), op(), state()) -> non_neg_integer() | any.
+eval_pick_shard(Key, Op, #state{pick_shard_fun = PickShardFun, n_shards = Shards}) ->
+  PickShardFun(Key, Shards, Op).

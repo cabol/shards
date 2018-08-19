@@ -126,9 +126,7 @@ delete(Tab) ->
 %% @see shards_local:delete/3.
 %% @see shards_dist:delete/3.
 %% @end
--spec delete(Tab, Key) -> true when
-  Tab   :: atom(),
-  Key   :: term().
+-spec delete(Tab :: atom(), Key :: term()) -> true.
 delete(Tab, Key) ->
   call(Tab, delete, [Tab, Key]).
 
@@ -149,9 +147,7 @@ delete_all_objects(Tab) ->
 %% @see shards_local:delete_object/3.
 %% @see shards_dist:delete_object/3.
 %% @end
--spec delete_object(Tab, Object) -> true when
-  Tab    :: atom(),
-  Object :: tuple().
+-spec delete_object(Tab :: atom(), Object :: tuple()) -> true.
 delete_object(Tab, Object) ->
   call(Tab, delete_object, [Tab, Object]).
 
@@ -165,11 +161,11 @@ file2tab(Filename) ->
 %% @see shards_local:file2tab/2.
 %% @see shards_dist:file2tab/2.
 %% @end
--spec file2tab(Filename, Options) -> Response when
-  Filename :: shards_local:filename(),
-  Options  :: [Option],
-  Option   :: {verify, boolean()},
-  Response :: {ok, Tab :: atom()} | {error, Reason :: term()}.
+-spec file2tab(
+        Filename :: shards_local:filename(),
+        Options  :: [Option]
+      ) -> {ok, Tab :: atom()} | {error, Reason :: term()}
+      when Option :: {verify, boolean()}.
 file2tab(Filename, Options) ->
   call_from_file(Filename, file2tab, [Filename, Options]).
 
@@ -189,13 +185,12 @@ first(Tab) ->
 %% @see shards_local:foldl/4.
 %% @see shards_dist:foldl/4.
 %% @end
--spec foldl(Function, Acc0, Tab) -> Acc1 when
-  Function :: fun((Element :: term(), AccIn) -> AccOut),
-  Tab      :: atom(),
-  Acc0     :: term(),
-  Acc1     :: term(),
-  AccIn    :: term(),
-  AccOut   :: term().
+-spec foldl(
+        Fun :: fun((Element :: term(), Acc) -> Acc),
+        Acc :: term(),
+        Tab :: atom()
+      ) -> Acc
+      when Acc :: term().
 foldl(Function, Acc0, Tab) ->
   call(Tab, foldl, [Function, Acc0, Tab]).
 
@@ -205,13 +200,12 @@ foldl(Function, Acc0, Tab) ->
 %% @see shards_local:foldr/4.
 %% @see shards_dist:foldr/4.
 %% @end
--spec foldr(Function, Acc0, Tab) -> Acc1 when
-  Function :: fun((Element :: term(), AccIn) -> AccOut),
-  Tab      :: atom(),
-  Acc0     :: term(),
-  Acc1     :: term(),
-  AccIn    :: term(),
-  AccOut   :: term().
+-spec foldr(
+        Fun :: fun((Element :: term(), Acc) -> Acc),
+        Acc :: term(),
+        Tab :: atom()
+      ) -> Acc
+      when Acc :: term().
 foldr(Function, Acc0, Tab) ->
   call(Tab, foldr, [Function, Acc0, Tab]).
 
@@ -221,10 +215,7 @@ foldr(Function, Acc0, Tab) ->
 %% @see shards_local:give_away/4.
 %% @see shards_dist:give_away/4.
 %% @end
--spec give_away(Tab, Pid, GiftData) -> true when
-  Tab      :: atom(),
-  Pid      :: pid(),
-  GiftData :: term().
+-spec give_away(Tab :: atom(), Pid :: pid(), GiftData :: term()) -> true.
 give_away(Tab, Pid, GiftData) ->
   call(Tab, give_away, [Tab, Pid, GiftData]).
 
@@ -238,10 +229,9 @@ i() ->
 %% @see shards_local:info/2.
 %% @see shards_dist:info/2.
 %% @end
--spec info(Tab) -> Result when
-  Tab      :: atom(),
-  InfoList :: [shards_local:info_tuple() | {nodes, [node()]}],
-  Result   :: InfoList | undefined.
+-spec info(Tab :: atom()) ->
+        InfoList | undefined
+      when InfoList :: [shards_local:info_tuple() | {nodes, [node()]}].
 info(Tab) ->
   case whereis(Tab) of
     undefined -> undefined;
@@ -254,10 +244,10 @@ info(Tab) ->
 %% @see shards_local:info/3.
 %% @see shards_dist:info/3.
 %% @end
--spec info(Tab, Item) -> Value when
-  Tab   :: atom(),
-  Item  :: shards_local:info_item() | nodes,
-  Value :: any() | undefined.
+-spec info(
+        Tab   :: atom(),
+        Item  :: shards_local:info_item() | nodes
+      ) -> any() | undefined.
 info(Tab, Item) ->
   case whereis(Tab) of
     undefined -> undefined;
@@ -278,9 +268,7 @@ info_shard(ShardTab, Item) ->
 %% @see shards_local:insert/3.
 %% @see shards_dist:insert/3.
 %% @end
--spec insert(Tab, ObjOrObjL) -> true when
-  Tab       :: atom(),
-  ObjOrObjL :: tuple() | [tuple()].
+-spec insert(Tab :: atom(), ObjOrObjL :: tuple() | [tuple()]) -> true.
 insert(Tab, ObjectOrObjects) ->
   call(Tab, insert, [Tab, ObjectOrObjects]).
 
@@ -290,10 +278,10 @@ insert(Tab, ObjectOrObjects) ->
 %% @see shards_local:insert_new/3.
 %% @see shards_dist:insert_new/3.
 %% @end
--spec insert_new(Tab, ObjOrObjL) -> Result when
-  Tab       :: atom(),
-  ObjOrObjL :: tuple() | [tuple()],
-  Result    :: boolean() | [boolean()].
+-spec insert_new(
+        Tab       :: atom(),
+        ObjOrObjL :: tuple() | [tuple()]
+      ) -> boolean() | [boolean()].
 insert_new(Tab, ObjectOrObjects) ->
   call(Tab, insert_new, [Tab, ObjectOrObjects]).
 
@@ -317,10 +305,7 @@ last(Tab) ->
 %% @see shards_local:lookup/3.
 %% @see shards_dist:lookup/3.
 %% @end
--spec lookup(Tab, Key) -> Result when
-  Tab    :: atom(),
-  Key    :: term(),
-  Result :: [tuple()].
+-spec lookup(Tab :: atom(), Key :: term()) -> Result :: [tuple()].
 lookup(Tab, Key) ->
   call(Tab, lookup, [Tab, Key]).
 
@@ -331,11 +316,11 @@ lookup(Tab, Key) ->
 %% @see shards_local:lookup_element/4.
 %% @see shards_dist:lookup_element/4.
 %% @end
--spec lookup_element(Tab, Key, Pos) -> Elem when
-  Tab   :: atom(),
-  Key   :: term(),
-  Pos   :: pos_integer(),
-  Elem  :: term() | [term()].
+-spec lookup_element(
+        Tab :: atom(),
+        Key :: term(),
+        Pos :: pos_integer()
+      ) -> Elem  :: term() | [term()].
 lookup_element(Tab, Key, Pos) ->
   call(Tab, lookup_element, [Tab, Key, Pos]).
 
@@ -345,10 +330,8 @@ lookup_element(Tab, Key, Pos) ->
 %% @see shards_local:match/3.
 %% @see shards_dist:match/3.
 %% @end
--spec match(Tab, Pattern) -> [Match] when
-  Tab     :: atom(),
-  Pattern :: ets:match_pattern(),
-  Match   :: [term()].
+-spec match(Tab :: atom(), Pattern :: ets:match_pattern()) ->
+        [Match :: [term()]].
 match(Tab, Pattern) ->
   call(Tab, match, [Tab, Pattern]).
 
@@ -358,13 +341,11 @@ match(Tab, Pattern) ->
 %% @see shards_local:match/4.
 %% @see shards_dist:match/4.
 %% @end
--spec match(Tab, Pattern, Limit) -> Response when
-  Tab          :: atom(),
-  Pattern      :: ets:match_pattern(),
-  Limit        :: pos_integer(),
-  Match        :: term(),
-  Continuation :: continuation(),
-  Response     :: {[Match], Continuation} | '$end_of_table'.
+-spec match(
+        Tab     :: atom(),
+        Pattern :: ets:match_pattern(),
+        Limit   :: pos_integer()
+      ) -> {[Match :: term()], continuation()} | '$end_of_table'.
 match(Tab, Pattern, Limit) ->
   call(Tab, match, [Tab, Pattern, Limit]).
 
@@ -374,10 +355,9 @@ match(Tab, Pattern, Limit) ->
 %% @see shards_local:match/2.
 %% @see shards_dist:match/2.
 %% @end
--spec match(Continuation) -> Response when
-  Match        :: term(),
-  Continuation :: continuation(),
-  Response     :: {[Match], Continuation} | '$end_of_table'.
+-spec match(Cont) ->
+        {[Match :: term()], Cont} | '$end_of_table'
+      when Cont :: continuation().
 match(Continuation) ->
   Tab = hd(tuple_to_list(Continuation)),
   Module = shards_state:module(Tab),
@@ -389,9 +369,7 @@ match(Continuation) ->
 %% @see shards_local:match_delete/3.
 %% @see shards_dist:match_delete/3.
 %% @end
--spec match_delete(Tab, Pattern) -> true when
-  Tab     :: atom(),
-  Pattern :: ets:match_pattern().
+-spec match_delete(Tab :: atom(), Pattern :: ets:match_pattern()) -> true.
 match_delete(Tab, Pattern) ->
   call(Tab, match_delete, [Tab, Pattern]).
 
@@ -401,10 +379,8 @@ match_delete(Tab, Pattern) ->
 %% @see shards_local:match_object/3.
 %% @see shards_dist:match_object/3.
 %% @end
--spec match_object(Tab, Pattern) -> [Object] when
-  Tab     :: atom(),
-  Pattern :: ets:match_pattern(),
-  Object  :: tuple().
+-spec match_object(Tab :: atom(), Pattern :: ets:match_pattern()) ->
+        [Object :: tuple()].
 match_object(Tab, Pattern) ->
   call(Tab, match_object, [Tab, Pattern]).
 
@@ -414,13 +390,11 @@ match_object(Tab, Pattern) ->
 %% @see shards_local:match_object/4.
 %% @see shards_dist:match_object/4.
 %% @end
--spec match_object(Tab, Pattern, Limit) -> Response when
-  Tab          :: atom(),
-  Pattern      :: ets:match_pattern(),
-  Limit        :: pos_integer(),
-  Match        :: term(),
-  Continuation :: continuation(),
-  Response     :: {[Match], Continuation} | '$end_of_table'.
+-spec match_object(
+        Tab     :: atom(),
+        Pattern :: ets:match_pattern(),
+        Limit   :: pos_integer()
+      ) -> {[Match :: term()], continuation()} | '$end_of_table'.
 match_object(Tab, Pattern, Limit) ->
   call(Tab, match_object, [Tab, Pattern, Limit]).
 
@@ -430,10 +404,9 @@ match_object(Tab, Pattern, Limit) ->
 %% @see shards_local:match_object/2.
 %% @see shards_dist:match_object/2.
 %% @end
--spec match_object(Continuation) -> Response when
-  Match        :: term(),
-  Continuation :: continuation(),
-  Response     :: {[Match], Continuation} | '$end_of_table'.
+-spec match_object(Cont) ->
+        {[Match :: term()], Cont} | '$end_of_table'
+      when Cont :: continuation().
 match_object(Continuation) ->
   Tab = hd(tuple_to_list(Continuation)),
   Module = shards_state:module(Tab),
@@ -463,9 +436,7 @@ member(Tab, Key) ->
 %% @see shards_local:new/2.
 %% @see shards_dist:new/2.
 %% @end
--spec new(Name, Options) -> Name when
-  Name    :: atom(),
-  Options :: [shards_dist:option()].
+-spec new(Name, Options :: [shards_dist:option()]) -> Name when Name :: atom().
 new(Name, Options) ->
   case lists:keyfind(scope, 1, Options) of
     {scope, g} -> shards_dist:new(Name, Options);
@@ -478,10 +449,7 @@ new(Name, Options) ->
 %% @see shards_local:next/3.
 %% @see shards_dist:next/3.
 %% @end
--spec next(Tab, Key1) -> Key2 | '$end_of_table' when
-  Tab   :: atom(),
-  Key1  :: term(),
-  Key2  :: term().
+-spec next(Tab :: atom(), Key) -> Key | '$end_of_table' when Key :: term().
 next(Tab, Key1) ->
   call(Tab, next, [Tab, Key1]).
 
@@ -491,10 +459,7 @@ next(Tab, Key1) ->
 %% @see shards_local:prev/3.
 %% @see shards_dist:prev/3.
 %% @end
--spec prev(Tab, Key1) -> Key2 | '$end_of_table' when
-  Tab   :: atom(),
-  Key1  :: term(),
-  Key2  :: term().
+-spec prev(Tab :: atom(), Key) -> Key | '$end_of_table' when Key :: term().
 prev(Tab, Key1) ->
   call(Tab, prev, [Tab, Key1]).
 
@@ -504,9 +469,7 @@ prev(Tab, Key1) ->
 %% @see shards_local:rename/3.
 %% @see shards_dist:rename/3.
 %% @end
--spec rename(Tab, Name) -> Name | no_return() when
-  Tab   :: atom(),
-  Name  :: atom().
+-spec rename(Tab :: atom(), Name) -> Name | no_return() when Name :: atom().
 rename(Tab, Name) ->
   call(Tab, rename, [Tab, Name]).
 
@@ -516,9 +479,7 @@ rename(Tab, Name) ->
 %% @see safe_fixtable:select/2.
 %% @see safe_fixtable:select/2.
 %% @end
--spec safe_fixtable(Tab, Fix) -> boolean() when
-  Tab :: atom(),
-  Fix :: boolean().
+-spec safe_fixtable(Tab :: atom(), Fix :: boolean()) -> boolean().
 safe_fixtable(Tab, Fix) ->
   call(Tab, safe_fixtable, [Tab, Fix]).
 
@@ -528,10 +489,7 @@ safe_fixtable(Tab, Fix) ->
 %% @see shards_local:select/3.
 %% @see shards_dist:select/3.
 %% @end
--spec select(Tab, MatchSpec) -> [Match] when
-  Tab       :: atom(),
-  MatchSpec :: ets:match_spec(),
-  Match     :: term().
+-spec select(Tab :: atom(), MatchSpec :: ets:match_spec()) -> [Match :: term()].
 select(Tab, MatchSpec) ->
   call(Tab, select, [Tab, MatchSpec]).
 
@@ -541,13 +499,11 @@ select(Tab, MatchSpec) ->
 %% @see shards_local:select/4.
 %% @see shards_dist:select/4.
 %% @end
--spec select(Tab, MatchSpec, Limit) -> Response when
-  Tab          :: atom(),
-  MatchSpec    :: ets:match_spec(),
-  Limit        :: pos_integer(),
-  Match        :: term(),
-  Continuation :: continuation(),
-  Response     :: {[Match], Continuation} | '$end_of_table'.
+-spec select(
+        Tab       :: atom(),
+        MatchSpec :: ets:match_spec(),
+        Limit     :: pos_integer()
+      ) -> {[Match :: term()], continuation()} | '$end_of_table'.
 select(Tab, MatchSpec, Limit) ->
   call(Tab, select, [Tab, MatchSpec, Limit]).
 
@@ -557,10 +513,9 @@ select(Tab, MatchSpec, Limit) ->
 %% @see shards_local:select/2.
 %% @see shards_dist:select/2.
 %% @end
--spec select(Continuation) -> Response when
-  Match        :: term(),
-  Continuation :: continuation(),
-  Response     :: {[Match], Continuation} | '$end_of_table'.
+-spec select(Cont) ->
+        {[Match :: term()], Cont} | '$end_of_table'
+      when Cont :: continuation().
 select(Continuation) ->
   Tab = hd(tuple_to_list(Continuation)),
   Module = shards_state:module(Tab),
@@ -572,10 +527,8 @@ select(Continuation) ->
 %% @see shards_local:select_count/3.
 %% @see shards_dist:select_count/3.
 %% @end
--spec select_count(Tab, MatchSpec) -> NumMatched when
-  Tab        :: atom(),
-  MatchSpec  :: ets:match_spec(),
-  NumMatched :: non_neg_integer().
+-spec select_count(Tab :: atom(), MatchSpec :: ets:match_spec()) ->
+        NumMatched :: non_neg_integer().
 select_count(Tab, MatchSpec) ->
   call(Tab, select_count, [Tab, MatchSpec]).
 
@@ -585,10 +538,8 @@ select_count(Tab, MatchSpec) ->
 %% @see shards_local:select_delete/3.
 %% @see shards_dist:select_delete/3.
 %% @end
--spec select_delete(Tab, MatchSpec) -> NumDeleted when
-  Tab        :: atom(),
-  MatchSpec  :: ets:match_spec(),
-  NumDeleted :: non_neg_integer().
+-spec select_delete(Tab :: atom(), MatchSpec :: ets:match_spec()) ->
+        NumDeleted :: non_neg_integer().
 select_delete(Tab, MatchSpec) ->
   call(Tab, select_delete, [Tab, MatchSpec]).
 
@@ -599,10 +550,8 @@ select_delete(Tab, MatchSpec) ->
 %% @see shards_local:select_reverse/3.
 %% @see shards_dist:select_reverse/3.
 %% @end
--spec select_reverse(Tab, MatchSpec) -> [Match] when
-  Tab       :: atom(),
-  MatchSpec :: ets:match_spec(),
-  Match     :: term().
+-spec select_reverse(Tab :: atom(), MatchSpec :: ets:match_spec()) ->
+        [Match :: term()].
 select_reverse(Tab, MatchSpec) ->
   call(Tab, select_reverse, [Tab, MatchSpec]).
 
@@ -613,13 +562,11 @@ select_reverse(Tab, MatchSpec) ->
 %% @see shards_local:select_reverse/4.
 %% @see shards_dist:select_reverse/4.
 %% @end
--spec select_reverse(Tab, MatchSpec, Limit) -> Response when
-  Tab          :: atom(),
-  MatchSpec    :: ets:match_spec(),
-  Limit        :: pos_integer(),
-  Match        :: term(),
-  Continuation :: continuation(),
-  Response     :: {[Match], Continuation} | '$end_of_table'.
+-spec select_reverse(
+        Tab       :: atom(),
+        MatchSpec :: ets:match_spec(),
+        Limit     :: pos_integer()
+      ) -> {[Match :: term()], continuation()} | '$end_of_table'.
 select_reverse(Tab, MatchSpec, Limit) ->
   call(Tab, select_reverse, [Tab, MatchSpec, Limit]).
 
@@ -630,10 +577,9 @@ select_reverse(Tab, MatchSpec, Limit) ->
 %% @see shards_local:select_reverse/2.
 %% @see shards_dist:select_reverse/2.
 %% @end
--spec select_reverse(Continuation) -> Response when
-  Match        :: term(),
-  Continuation :: continuation(),
-  Response     :: {[Match], Continuation} | '$end_of_table'.
+-spec select_reverse(Cont) ->
+        {[Match :: term()], Cont} | '$end_of_table'
+      when Cont :: continuation().
 select_reverse(Continuation) ->
   Tab = hd(tuple_to_list(Continuation)),
   Module = shards_state:module(Tab),
@@ -645,11 +591,9 @@ select_reverse(Continuation) ->
 %% @see shards_local:setopts/3.
 %% @see shards_dist:setopts/3.
 %% @end
--spec setopts(Tab, Opts) -> boolean() when
-  Tab      :: atom(),
-  Opts     :: Opt | [Opt],
-  Opt      :: {heir, pid(), HeirData} | {heir, none},
-  HeirData :: term().
+-spec setopts(Tab :: atom(), Opt | [Opt]) ->
+        boolean()
+      when Opt :: {heir, pid(), HeirData :: term()} | {heir, none}.
 setopts(Tab, Opts) ->
   call(Tab, setopts, [Tab, Opts]).
 
@@ -663,13 +607,13 @@ tab2file(Tab, Filename) ->
 %% @see shards_local:tab2file/4.
 %% @see shards_dist:tab2file/4.
 %% @end
--spec tab2file(Tab, Filename, Options) -> Response when
-  Tab      :: atom(),
-  Filename :: shards_local:filename(),
-  Options  :: [Option],
-  Option   :: {extended_info, [ExtInfo]} | {sync, boolean()},
-  ExtInfo  :: md5sum | object_count,
-  Response :: ok | {error, Reason :: term()}.
+-spec tab2file(
+        Tab      :: atom(),
+        Filename :: shards_local:filename(),
+        Options  :: [Option]
+      ) -> ok | {error, Reason :: term()}
+      when Option  :: {extended_info, [ExtInfo]} | {sync, boolean()},
+           ExtInfo :: md5sum | object_count.
 tab2file(Tab, Filename, Options) ->
   call(Tab, tab2file, [Tab, Filename, Options]).
 
@@ -679,9 +623,7 @@ tab2file(Tab, Filename, Options) ->
 %% @see shards_local:tab2list/2.
 %% @see shards_dist:tab2list/2.
 %% @end
--spec tab2list(Tab) -> [Object] when
-  Tab    :: atom(),
-  Object :: tuple().
+-spec tab2list(Tab :: atom()) -> [Object :: tuple()].
 tab2list(Tab) ->
   call(Tab, tab2list, [Tab]).
 
@@ -691,10 +633,9 @@ tab2list(Tab) ->
 %% @see shards_local:tabfile_info/1.
 %% @see shards_dist:tabfile_info/1.
 %% @end
--spec tabfile_info(Filename) -> Response when
-  Filename  :: shards_local:filename(),
-  TableInfo :: [shards_local:tabinfo_item() | {nodes, [node()]}],
-  Response  :: {ok, TableInfo} | {error, Reason :: term()}.
+-spec tabfile_info(Filename :: shards_local:filename()) ->
+        {ok, TableInfo} | {error, Reason :: term()}
+      when TableInfo :: [shards_local:tabinfo_item() | {nodes, [node()]}].
 tabfile_info(Filename) ->
   call_from_file(Filename, tabfile_info, [Filename]).
 
@@ -704,9 +645,7 @@ tabfile_info(Filename) ->
 %% @see shards_local:table/2.
 %% @see shards_dist:table/2.
 %% @end
--spec table(Tab) -> [QueryHandle] when
-  Tab         :: atom(),
-  QueryHandle :: qlc:query_handle().
+-spec table(Tab :: atom()) -> [QueryHandle :: qlc:query_handle()].
 table(Tab) ->
   call(Tab, table, [Tab]).
 
@@ -716,14 +655,12 @@ table(Tab) ->
 %% @see shards_local:table/3.
 %% @see shards_dist:table/3.
 %% @end
--spec table(Tab, Options) -> [QueryHandle] when
-  Tab            :: atom(),
-  QueryHandle    :: qlc:query_handle(),
-  Options        :: [Option] | Option,
-  Option         :: {n_objects, NObjects} | {traverse, TraverseMethod},
-  NObjects       :: default | pos_integer(),
-  MatchSpec      :: ets:match_spec(),
-  TraverseMethod :: first_next | last_prev | select | {select, MatchSpec}.
+-spec table(Tab :: atom(), Options :: [Option] | Option) ->
+        [qlc:query_handle()]
+      when Option         :: {n_objects, NumObjs} | {traverse, TraverseMethod},
+           NumObjs        :: default | pos_integer(),
+           MS             :: ets:match_spec(),
+           TraverseMethod :: first_next | last_prev | select | {select, MS}.
 table(Tab, Options) ->
   call(Tab, table, [Tab, Options]).
 
@@ -737,10 +674,7 @@ test_ms(Tuple, MatchSpec) ->
 %% @see shards_local:take/3.
 %% @see shards_dist:take/3.
 %% @end
--spec take(Tab, Key) -> [Object] when
-  Tab    :: atom(),
-  Key    :: term(),
-  Object :: tuple().
+-spec take(Tab :: atom(), Key :: term()) -> [Object :: tuple()].
 take(Tab, Key) ->
   call(Tab, take, [Tab, Key]).
 
@@ -751,11 +685,11 @@ take(Tab, Key) ->
 %% @see shards_local:update_counter/4.
 %% @see shards_dist:update_counter/4.
 %% @end
--spec update_counter(Tab, Key, UpdateOp) -> Result when
-  Tab      :: atom(),
-  Key      :: term(),
-  UpdateOp :: term(),
-  Result   :: integer().
+-spec update_counter(
+        Tab      :: atom(),
+        Key      :: term(),
+        UpdateOp :: term()
+      ) -> integer().
 update_counter(Tab, Key, UpdateOp) ->
   call(Tab, update_counter, [Tab, Key, UpdateOp]).
 
@@ -766,12 +700,12 @@ update_counter(Tab, Key, UpdateOp) ->
 %% @see shards_local:update_counter/5.
 %% @see shards_dist:update_counter/5.
 %% @end
--spec update_counter(Tab, Key, UpdateOp, Default) -> Result when
-  Tab      :: atom(),
-  Key      :: term(),
-  UpdateOp :: term(),
-  Default  :: tuple(),
-  Result   :: integer().
+-spec update_counter(
+        Tab      :: atom(),
+        Key      :: term(),
+        UpdateOp :: term(),
+        Default  :: tuple()
+      ) -> integer().
 update_counter(Tab, Key, UpdateOp, Default) ->
   call(Tab, update_counter, [Tab, Key, UpdateOp, Default]).
 
@@ -782,36 +716,28 @@ update_counter(Tab, Key, UpdateOp, Default) ->
 %% @see shards_local:update_element/4.
 %% @see shards_dist:update_element/4.
 %% @end
--spec update_element(Tab, Key, ElementSpec) -> boolean() when
-  Tab         :: atom(),
-  Key         :: term(),
-  Pos         :: pos_integer(),
-  Value       :: term(),
-  ElementSpec :: {Pos, Value} | [{Pos, Value}].
-update_element(Tab, Key, ElementSpec) ->
-  call(Tab, update_element, [Tab, Key, ElementSpec]).
+-spec update_element(
+        Tab      :: atom(),
+        Key      :: term(),
+        ElemSpec :: {Pos, Value} | [{Pos, Value}]
+      ) -> boolean()
+      when Pos :: pos_integer(), Value :: term().
+update_element(Tab, Key, ElemSpec) ->
+  call(Tab, update_element, [Tab, Key, ElemSpec]).
 
 %%%===================================================================
 %%% Distributed API
 %%%===================================================================
 
--spec join(Tab, Nodes) -> JoinedNodes when
-  Tab         :: atom(),
-  Nodes       :: [node()],
-  JoinedNodes :: [node()].
+-spec join(Tab :: atom(), Nodes :: [node()]) -> CurrentNodes :: [node()].
 join(Tab, Nodes) ->
   shards_dist:join(Tab, Nodes).
 
--spec leave(Tab, Nodes) -> LeavedNodes when
-  Tab         :: atom(),
-  Nodes       :: [node()],
-  LeavedNodes :: [node()].
+-spec leave(Tab :: atom(), Nodes :: [node()]) -> CurrentNodes :: [node()].
 leave(Tab, Nodes) ->
   shards_dist:leave(Tab, Nodes).
 
--spec get_nodes(Tab) -> Nodes when
-  Tab   :: atom(),
-  Nodes :: [node()].
+-spec get_nodes(Tab :: atom()) -> Nodes :: [node()].
 get_nodes(Tab) ->
   shards_dist:get_nodes(Tab).
 
@@ -826,9 +752,7 @@ get_nodes(Tab) ->
 %% <li>`Tab': Table name.</li>
 %% </ul>
 %% @end
--spec list(Tab) -> Result when
-  Tab    :: atom(),
-  Result :: [atom()].
+-spec list(Tab :: atom()) -> Result :: [atom()].
 list(Tab) ->
   shards_lib:list_shards(Tab, shards_state:n_shards(Tab)).
 
@@ -863,6 +787,7 @@ call_from_file(Filename, Fun, Args) ->
   catch
     throw:Error ->
       Error;
+    
     error:{badarg, Arg} ->
       {error, {read_error, {file_error, Arg, enoent}}}
   end.

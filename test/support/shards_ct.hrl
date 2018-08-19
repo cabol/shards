@@ -42,3 +42,5 @@
     _ -> FN_
   end
 ).
+
+-type config() :: proplists:proplist().

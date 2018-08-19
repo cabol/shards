@@ -1,7 +1,7 @@
 -module(shards_state_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
--include("support/shards_test_helpers.hrl").
+-include("support/shards_ct.hrl").
 
 %% Common Test
 -export([
@@ -14,7 +14,8 @@
 -export([
   t_create_state/1,
   t_state_ops/1,
-  t_get_state_badarg_error/1
+  t_get_state_badarg_error/1,
+  t_eval_pick_shard/1
 ]).
 
 -define(EXCLUDED_FUNS, [
@@ -28,22 +29,26 @@
 %%% Common Test
 %%%===================================================================
 
+-spec all() -> [atom()].
 all() ->
   Exports = ?MODULE:module_info(exports),
   [F || {F, _} <- Exports, not lists:member(F, ?EXCLUDED_FUNS)].
 
+-spec init_per_suite(shards_ct:config()) -> shards_ct:config().
 init_per_suite(Config) ->
-  shards:start(),
+  ok = shards:start(),
   [{scope, l} | Config].
 
+-spec end_per_suite(shards_ct:config()) -> shards_ct:config().
 end_per_suite(Config) ->
-  shards:stop(),
+  ok = shards:stop(),
   Config.
 
 %%%===================================================================
 %%% Tests Cases
 %%%===================================================================
 
+-spec t_create_state(shards_ct:config()) -> any().
 t_create_state(_Config) ->
   % create state with all default attr values
   State0 = shards_state:new(),
@@ -92,15 +97,15 @@ t_create_state(_Config) ->
   my_shards_sup = shards_state:sup_name(State5),
   true = 4 == shards_state:n_shards(State5),
   true = Fun == shards_state:pick_shard_fun(State5),
-  true = Fun == shards_state:pick_node_fun(State5),
+  true = Fun == shards_state:pick_node_fun(State5).
 
-  ok.
-
+-spec t_state_ops(shards_ct:config()) -> any().
 t_state_ops(_Config) ->
   test_set =
     shards:new(test_set, [
-      {pick_node_fun, fun shards_test_helpers:pick_node/3}
+      {pick_node_fun, fun shards_tests:pick_node/3}
     ]),
+
   StateSet = shards_state:get(test_set),
   true = shards_state:is_state(StateSet),
   DefaultShards = ?N_SHARDS,
@@ -112,7 +117,7 @@ t_state_ops(_Config) ->
   DefaultShards = shards_state:n_shards(test_set),
   Fun1 = fun shards_lib:pick/3,
   Fun1 = shards_state:pick_shard_fun(test_set),
-  Fun2 = fun shards_test_helpers:pick_node/3,
+  Fun2 = fun shards_tests:pick_node/3,
   Fun2 = shards_state:pick_node_fun(test_set),
   l = shards_state:scope(test_set),
 
@@ -125,17 +130,25 @@ t_state_ops(_Config) ->
   State4 = shards_state:pick_node_fun(Fun, State3),
   State5 = shards_state:sup_name(my_sup, State4),
 
-  #{module           := shards_dist,
-    sup_name         := my_sup,
-    n_shards         := 100,
-    pick_shard_fun   := Fun,
-    pick_node_fun    := Fun
-  } = shards_state:to_map(State5),
+  #{module         := shards_dist,
+    sup_name       := my_sup,
+    n_shards       := 100,
+    pick_shard_fun := Fun,
+    pick_node_fun  := Fun
+  } = shards_state:to_map(State5).
 
-  ok.
-
+-spec t_get_state_badarg_error(shards_ct:config()) -> any().
 t_get_state_badarg_error(_Config) ->
   wrong_tab = ets:new(wrong_tab, [public, named_table]),
-  _ = try shards_state:get(wrong_tab)
-  catch _:badarg -> ok
-  end, ok.
+
+  shards_ct:assert_error(fun() ->
+    shards_state:get(wrong_tab)
+  end, badarg).
+
+-spec t_eval_pick_shard(shards_ct:config()) -> any().
+t_eval_pick_shard(_Config) ->
+  State = shards_state:new(),
+  N = shards_state:n_shards(State),
+  PickShardFun = shards_state:pick_shard_fun(State),
+  Expected = PickShardFun(1, N, w),
+  Expected = shards_state:eval_pick_shard(1, State).

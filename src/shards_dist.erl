@@ -12,6 +12,11 @@
   get_nodes/1
 ]).
 
+%% Internal purpose
+-export([
+  do_join/1
+]).
+
 %% Shards API
 -export([
   delete/1, delete/3,
@@ -65,48 +70,40 @@
 %%% Extended API
 %%%===================================================================
 
--spec join(Tab, Nodes) -> CurrentNodes when
-  Tab          :: atom(),
-  Nodes        :: [node()],
-  CurrentNodes :: [node()].
+-spec join(Tab :: atom(), Nodes :: [node()]) -> CurrentNodes :: [node()].
 join(Tab, Nodes) ->
-  FilteredNodes =
-    lists:filter(fun(Node) ->
-      not lists:member(Node, get_nodes(Tab))
-    end, Nodes),
+  global:trans({?MODULE, Tab}, fun() ->
+    FilteredNodes =
+      lists:filter(fun(Node) ->
+        not lists:member(Node, get_nodes(Tab))
+      end, Nodes),
 
-  Fun =
-    fun() ->
-      rpc:multicall(FilteredNodes, erlang, apply, [fun join_/1, [Tab]])
-    end,
+    _ = rpc:multicall(FilteredNodes, ?MODULE, do_join, [Tab]),
+    get_nodes(Tab)
+  end).
 
-  _ = global:trans({?MODULE, Tab}, Fun),
-  get_nodes(Tab).
-
-%% @private
-join_(Tab) ->
+%% @doc This function is used internally by `join/2'.
+%% @hidden
+do_join(Tab) ->
   pg2:join(Tab, shards_lib:get_pid(Tab)).
 
--spec leave(Tab, Nodes) -> CurrentNodes when
-  Tab          :: atom(),
-  Nodes        :: [node()],
-  CurrentNodes :: [node()].
+-spec leave(Tab :: atom(), Nodes :: [node()]) -> CurrentNodes :: [node()].
 leave(Tab, Nodes) ->
-  Members = [{node(Pid), Pid} || Pid <- pg2:get_members(Tab)],
+  global:trans({?MODULE, Tab}, fun() ->
+    Members = [{node(Pid), Pid} || Pid <- pg2:get_members(Tab)],
 
-  ok =
-    lists:foreach(fun(Node) ->
-      case lists:keyfind(Node, 1, Members) of
-        {Node, Pid} -> pg2:leave(Tab, Pid);
-        _           -> noop
-      end
-    end, Nodes),
+    ok =
+      lists:foreach(fun(Node) ->
+        case lists:keyfind(Node, 1, Members) of
+          {Node, Pid} -> pg2:leave(Tab, Pid);
+          _           -> noop
+        end
+      end, Nodes),
 
-  get_nodes(Tab).
+    get_nodes(Tab)
+  end).
 
--spec get_nodes(Tab) -> Nodes when
-  Tab   :: atom(),
-  Nodes :: [node()].
+-spec get_nodes(Tab :: atom()) -> Nodes :: [node()].
 get_nodes(Tab) ->
   lists:usort([node(Pid) || Pid <- pg2:get_members(Tab)]).
 
@@ -119,29 +116,25 @@ delete(Tab) ->
   _ = mapred(Tab, {?SHARDS, delete, [Tab]}, nil, shards_state:get(Tab), d),
   true.
 
--spec delete(Tab, Key, State) -> true when
-  Tab   :: atom(),
-  Key   :: term(),
-  State :: shards_state:state().
+-spec delete(Tab :: atom(), Key :: term(), State :: shards_state:state()) -> true.
 delete(Tab, Key, State) ->
   Map = {?SHARDS, delete, [Tab, Key, State]},
   _ = mapred(Tab, Key, Map, nil, State, d),
   true.
 
--spec delete_all_objects(Tab, State) -> true when
-  Tab   :: atom(),
-  State :: shards_state:state().
+-spec delete_all_objects(Tab :: atom(), State :: shards_state:state()) -> true.
 delete_all_objects(Tab, State) ->
   Map = {?SHARDS, delete_all_objects, [Tab, State]},
   _ = mapred(Tab, Map, nil, State, d),
   true.
 
--spec delete_object(Tab, Object, State) -> true when
-  Tab    :: atom(),
-  Object :: tuple(),
-  State  :: shards_state:state().
+-spec delete_object(
+        Tab    :: atom(),
+        Object :: tuple(),
+        State  :: shards_state:state()
+      ) -> true.
 delete_object(Tab, Object, State) when is_tuple(Object) ->
-  Key = hd(tuple_to_list(Object)),
+  Key = element(1, Object),
   Map = {?SHARDS, delete_object, [Tab, Object, State]},
   _ = mapred(Tab, Key, Map, nil, State, d),
   true.
@@ -150,11 +143,11 @@ delete_object(Tab, Object, State) when is_tuple(Object) ->
 file2tab(Filename) ->
   file2tab(Filename, []).
 
--spec file2tab(Filename, Options) -> Response when
-  Filename :: shards_local:filename(),
-  Options  :: [Option],
-  Option   :: {verify, boolean()},
-  Response :: {ok, Tab :: atom()} | {error, Reason :: term()}.
+-spec file2tab(
+        Filename :: shards_local:filename(),
+        Options  :: [Option]
+      ) -> {ok, Tab :: atom()} | {error, Reason :: term()}
+      when Option :: {verify, boolean()}.
 file2tab(Filename, Options) when ?is_filename(Filename) ->
   try
     StrFilename = shards_lib:to_string(Filename),
@@ -163,9 +156,11 @@ file2tab(Filename, Options) when ?is_filename(Filename) ->
     Res =
       shards_lib:reduce_while(fun(Node, Acc) ->
         NodeFilename = shards_lib:to_string(Node) ++ "." ++ StrFilename,
+
         case rpc:call(Node, ?SHARDS, file2tab, [NodeFilename, Options]) of
           {ok, Tab} ->
             {cont, [Node | Acc]};
+
           {error, _} = E ->
             ok = lists:foreach(fun(N) -> rpc:call(N, ?SHARDS, delete, [Tab]) end, Acc),
             {halt, E}
@@ -175,6 +170,7 @@ file2tab(Filename, Options) when ?is_filename(Filename) ->
     case Res of
       {error, _} = ResErr ->
         ResErr;
+
       _ ->
         _ = join(Tab, Nodes),
         {ok, Tab}
@@ -183,37 +179,34 @@ file2tab(Filename, Options) when ?is_filename(Filename) ->
     throw:Error -> Error
   end.
 
--spec foldl(Function, Acc0, Tab, State) -> Acc1 when
-  Function :: fun((Element :: term(), AccIn) -> AccOut),
-  Tab      :: atom(),
-  State    :: shards_state:state(),
-  Acc0     :: term(),
-  Acc1     :: term(),
-  AccIn    :: term(),
-  AccOut   :: term().
-foldl(Function, Acc0, Tab, State) ->
-  fold(foldl, Function, Acc0, Tab, State).
+-spec foldl(
+        Fun   :: fun((Element :: term(), Acc) -> Acc),
+        Acc   :: term(),
+        Tab   :: atom(),
+        State :: shards_state:state()
+      ) -> Acc
+      when Acc :: term().
+foldl(Fun, Acc, Tab, State) ->
+  fold(foldl, Fun, Acc, Tab, State).
 
--spec foldr(Function, Acc0, Tab, State) -> Acc1 when
-  Function :: fun((Element :: term(), AccIn) -> AccOut),
-  Tab      :: atom(),
-  State    :: shards_state:state(),
-  Acc0     :: term(),
-  Acc1     :: term(),
-  AccIn    :: term(),
-  AccOut   :: term().
-foldr(Function, Acc0, Tab, State) ->
-  fold(foldr, Function, Acc0, Tab, State).
+-spec foldr(
+        Fun   :: fun((Element :: term(), Acc) -> Acc),
+        Acc   :: term(),
+        Tab   :: atom(),
+        State :: shards_state:state()
+      ) -> Acc
+      when Acc :: term().
+foldr(Fun, Acc, Tab, State) ->
+  fold(foldr, Fun, Acc, Tab, State).
 
--spec info(Tab, State) -> Result when
-  Tab      :: atom(),
-  State    :: shards_state:state(),
-  InfoList :: [shards_local:info_tuple() | {nodes, [node()]}],
-  Result   :: InfoList | undefined.
+-spec info(Tab :: atom(), State :: shards_state:state()) ->
+        InfoList | undefined
+      when InfoList :: [shards_local:info_tuple() | {nodes, [node()]}].
 info(Tab, State) ->
   case whereis(Tab) of
     undefined ->
       undefined;
+
     _ ->
       Map = {?SHARDS, info, [Tab, State]},
       Reduce = fun(E, Acc) -> [E | Acc] end,
@@ -221,77 +214,88 @@ info(Tab, State) ->
       shards_info(InfoLists, [memory], get_nodes(Tab))
   end.
 
--spec info(Tab, Item, State) -> Value when
-  Tab   :: atom(),
-  State :: shards_state:state(),
-  Item  :: shards_local:info_item() | nodes,
-  Value :: any() | undefined.
+-spec info(
+        Tab   :: atom(),
+        Item  :: shards_local:info_item() | nodes,
+        State :: shards_state:state()
+      ) -> any() | undefined.
 info(Tab, Item, State) ->
   case info(Tab, State) of
     undefined -> undefined;
     TabInfo   -> shards_lib:keyfind(Item, TabInfo)
   end.
 
--spec insert(Tab, ObjOrObjL, State) -> true when
-  Tab       :: atom(),
-  ObjOrObjL :: tuple() | [tuple()],
-  State     :: shards_state:state().
-insert(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
-  lists:foreach(fun(Object) ->
-    true = insert(Tab, Object, State)
-  end, ObjOrObjL), true;
-insert(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
-  Key = hd(tuple_to_list(ObjOrObjL)),
+-spec insert(
+        Tab       :: atom(),
+        ObjOrObjs :: tuple() | [tuple()],
+        State     :: shards_state:state()
+      ) -> true | no_return().
+insert(Tab, ObjOrObjs, State) when is_list(ObjOrObjs) ->
+  maps:fold(fun(Node, Group, Acc) ->
+    Acc = rpc:call(Node, ?SHARDS, insert, [Tab, Group, State])
+  end, true, group_keys_by_node(Tab, ObjOrObjs, State));
+insert(Tab, ObjOrObjs, State) when is_tuple(ObjOrObjs) ->
+  Key = element(1, ObjOrObjs),
   PickNodeFun = shards_state:pick_node_fun(State),
   Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
-  rpc:call(Node, ?SHARDS, insert, [Tab, ObjOrObjL, State]).
+  true = rpc:call(Node, ?SHARDS, insert, [Tab, ObjOrObjs, State]).
 
--spec insert_new(Tab, ObjOrObjL, State) -> Result when
-  Tab       :: atom(),
-  ObjOrObjL :: tuple() | [tuple()],
-  State     :: shards_state:state(),
-  Result    :: boolean() | [boolean()].
-insert_new(Tab, ObjOrObjL, State) when is_list(ObjOrObjL) ->
-  lists:foldr(fun(Object, Acc) ->
-    [insert_new(Tab, Object, State) | Acc]
-  end, [], ObjOrObjL);
-insert_new(Tab, ObjOrObjL, State) when is_tuple(ObjOrObjL) ->
-  Key = hd(tuple_to_list(ObjOrObjL)),
-  Nodes = get_nodes(Tab),
-  PickNodeFun = shards_state:pick_node_fun(State),
+-spec insert_new(
+        Tab       :: atom(),
+        ObjOrObjs :: tuple() | [tuple()],
+        State     :: shards_state:state()
+      ) -> boolean() | [boolean()].
+insert_new(Tab, ObjOrObjs, State) when is_list(ObjOrObjs) ->
+  Result =
+    maps:fold(fun(Node, Group, Acc) ->
+      case do_insert_new(Tab, Node, Group, State) of
+        true            -> Acc;
+        false           -> Group ++ Acc;
+        {false, Failed} -> Failed ++ Acc
+      end
+    end, [], group_keys_by_node(Tab, ObjOrObjs, State)),
 
-  case pick_node(PickNodeFun, Key, Nodes, r) of
+  case Result of
+    [] -> true;
+    _  -> {false, Result}
+  end;
+insert_new(Tab, ObjOrObjs, State) when is_tuple(ObjOrObjs) ->
+  do_insert_new(Tab, get_node(Tab, ObjOrObjs, State), ObjOrObjs, State).
+
+%% @private
+do_insert_new(Tab, Node, Objs, State) ->
+  Key = shards_lib:key_from_object(Objs),
+
+  case pick_node(shards_state:pick_node_fun(State), Key, get_nodes(Tab), r) of
     any ->
       Map = {?SHARDS, lookup, [Tab, Key, State]},
       Reduce = fun erlang:'++'/2,
+
       case mapred(Tab, Map, Reduce, State, r) of
-        [] ->
-          Node = pick_node(PickNodeFun, Key, Nodes, w),
-          rpc:call(Node, ?SHARDS, insert_new, [Tab, ObjOrObjL, State]);
-        _ ->
-          false
+        [] -> rpc:call(Node, ?SHARDS, insert_new, [Tab, Objs, State]);
+        _  -> false
       end;
+
     _ ->
-      Node = pick_node(PickNodeFun, Key, Nodes, w),
-      rpc:call(Node, ?SHARDS, insert_new, [Tab, ObjOrObjL, State])
+      rpc:call(Node, ?SHARDS, insert_new, [Tab, Objs, State])
   end.
 
--spec lookup(Tab, Key, State) -> Result when
-  Tab    :: atom(),
-  Key    :: term(),
-  State  :: shards_state:state(),
-  Result :: [tuple()].
+-spec lookup(
+        Tab   :: atom(),
+        Key   :: term(),
+        State :: shards_state:state()
+      ) -> Result :: [tuple()].
 lookup(Tab, Key, State) ->
   Map = {?SHARDS, lookup, [Tab, Key, State]},
   Reduce = fun erlang:'++'/2,
   mapred(Tab, Key, Map, Reduce, State, r).
 
--spec lookup_element(Tab, Key, Pos, State) -> Elem when
-  Tab   :: atom(),
-  Key   :: term(),
-  Pos   :: pos_integer(),
-  State :: shards_state:state(),
-  Elem  :: term() | [term()].
+-spec lookup_element(
+        Tab   :: atom(),
+        Key   :: term(),
+        Pos   :: pos_integer(),
+        State :: shards_state:state()
+      ) -> Elem :: term() | [term()].
 lookup_element(Tab, Key, Pos, State) ->
   Nodes = get_nodes(Tab),
   PickNodeFun = shards_state:pick_node_fun(State),
@@ -310,57 +314,63 @@ lookup_element(Tab, Key, Pos, State) ->
         [] -> error(badarg);
         _  -> lists:append(Filter)
       end;
+
     Node ->
       rpc:call(Node, ?SHARDS, lookup_element, [Tab, Key, Pos, State])
   end.
 
--spec match(Tab, Pattern, State) -> [Match] when
-  Tab     :: atom(),
-  Pattern :: ets:match_pattern(),
-  State   :: shards_state:state(),
-  Match   :: [term()].
+-spec match(
+        Tab     :: atom(),
+        Pattern :: ets:match_pattern(),
+        State   :: shards_state:state()
+      ) -> [Match :: [term()]].
 match(Tab, Pattern, State) ->
   Map = {?SHARDS, match, [Tab, Pattern, State]},
   Reduce = fun erlang:'++'/2,
   mapred(Tab, Map, Reduce, State, r).
 
--spec match_delete(Tab, Pattern, State) -> true when
-  Tab     :: atom(),
-  Pattern :: ets:match_pattern(),
-  State   :: shards_state:state().
+-spec match_delete(
+        Tab     :: atom(),
+        Pattern :: ets:match_pattern(),
+        State   :: shards_state:state()
+      ) -> true.
 match_delete(Tab, Pattern, State) ->
   Map = {?SHARDS, match_delete, [Tab, Pattern, State]},
   Reduce = {fun erlang:'and'/2, true},
   mapred(Tab, Map, Reduce, State, delete).
 
--spec match_object(Tab, Pattern, State) -> [Object] when
-  Tab     :: atom(),
-  Pattern :: ets:match_pattern(),
-  State   :: shards_state:state(),
-  Object  :: tuple().
+-spec match_object(
+        Tab     :: atom(),
+        Pattern :: ets:match_pattern(),
+        State   :: shards_state:state()
+      ) -> [Object :: tuple()].
 match_object(Tab, Pattern, State) ->
   Map = {?SHARDS, match_object, [Tab, Pattern, State]},
   Reduce = fun erlang:'++'/2,
   mapred(Tab, Map, Reduce, State, r).
 
--spec member(Tab, Key, State) -> boolean() when
-  Tab   :: atom(),
-  Key   :: term(),
-  State :: shards_state:state().
+-spec member(
+        Tab   :: atom(),
+        Key   :: term(),
+        State :: shards_state:state()
+      ) -> boolean().
 member(Tab, Key, State) ->
   Map = {?SHARDS, member, [Tab, Key, State]},
+
   case mapred(Tab, Key, Map, nil, State, r) of
-    R when is_list(R) -> lists:member(true, R);
-    R                 -> R
+    Res when is_list(Res) ->
+      lists:member(true, Res);
+
+    Res ->
+      Res
   end.
 
--spec new(Name, Options) -> Name when
-  Name    :: atom(),
-  Options :: [option()].
+-spec new(Name, Options :: [option()]) -> Name when Name :: atom().
 new(Name, Options) ->
   case lists:keytake(nodes, 1, Options) of
     {value, {nodes, Nodes}, Options1} ->
       new(Name, Options1, Nodes);
+
     _ ->
       shards_local:new(Name, Options)
   end.
@@ -373,10 +383,9 @@ new(Name, Options, Nodes) ->
   _ = join(Name, AllNodes),
   Name.
 
--spec rename(Tab, Name, State) -> Name | no_return() when
-  Tab   :: atom(),
-  Name  :: atom(),
-  State :: shards_state:state().
+-spec rename(Tab :: atom(), Name, State :: shards_state:state()) ->
+        Name | no_return()
+      when Name :: atom().
 rename(Tab, Name, State) ->
   Map = {?SHARDS, rename, [Tab, Name, State]},
   _ = mapred(Tab, nil, Map, nil, State, r),
@@ -386,41 +395,41 @@ rename(Tab, Name, State) ->
   Nodes = join(Name, Nodes),
   Name.
 
--spec select(Tab, MatchSpec, State) -> [Match] when
-  Tab       :: atom(),
-  MatchSpec :: ets:match_spec(),
-  State     :: shards_state:state(),
-  Match     :: term().
+-spec select(
+        Tab       :: atom(),
+        MatchSpec :: ets:match_spec(),
+        State     :: shards_state:state()
+      ) -> [Match :: term()].
 select(Tab, MatchSpec, State) ->
   Map = {?SHARDS, select, [Tab, MatchSpec, State]},
   Reduce = fun erlang:'++'/2,
   mapred(Tab, Map, Reduce, State, r).
 
--spec select_count(Tab, MatchSpec, State) -> NumMatched when
-  Tab        :: atom(),
-  MatchSpec  :: ets:match_spec(),
-  State      :: shards_state:state(),
-  NumMatched :: non_neg_integer().
+-spec select_count(
+        Tab       :: atom(),
+        MatchSpec :: ets:match_spec(),
+        State     :: shards_state:state()
+      ) -> NumMatched :: non_neg_integer().
 select_count(Tab, MatchSpec, State) ->
   Map = {?SHARDS, select_count, [Tab, MatchSpec, State]},
   Reduce = {fun(Res, Acc) -> Acc + Res end, 0},
   mapred(Tab, Map, Reduce, State, r).
 
--spec select_delete(Tab, MatchSpec, State) -> NumDeleted when
-  Tab        :: atom(),
-  MatchSpec  :: ets:match_spec(),
-  State      :: shards_state:state(),
-  NumDeleted :: non_neg_integer().
+-spec select_delete(
+        Tab       :: atom(),
+        MatchSpec :: ets:match_spec(),
+        State     :: shards_state:state()
+      ) -> NumDeleted :: non_neg_integer().
 select_delete(Tab, MatchSpec, State) ->
   Map = {?SHARDS, select_delete, [Tab, MatchSpec, State]},
   Reduce = {fun(Res, Acc) -> Acc + Res end, 0},
   mapred(Tab, Map, Reduce, State, delete).
 
--spec select_reverse(Tab, MatchSpec, State) -> [Match] when
-  Tab       :: atom(),
-  MatchSpec :: ets:match_spec(),
-  State     :: shards_state:state(),
-  Match     :: term().
+-spec select_reverse(
+        Tab       :: atom(),
+        MatchSpec :: ets:match_spec(),
+        State     :: shards_state:state()
+      ) -> [Match :: term()].
 select_reverse(Tab, MatchSpec, State) ->
   Map = {?SHARDS, select_reverse, [Tab, MatchSpec, State]},
   Reduce = fun erlang:'++'/2,
@@ -430,14 +439,14 @@ select_reverse(Tab, MatchSpec, State) ->
 tab2file(Tab, Filename, State) ->
   tab2file(Tab, Filename, [], State).
 
--spec tab2file(Tab, Filename, Options, State) -> Response when
-  Tab      :: atom(),
-  Filename :: shards_local:filename(),
-  Options  :: [Option],
-  Option   :: {extended_info, [ExtInfo]} | {sync, boolean()},
-  ExtInfo  :: md5sum | object_count,
-  State    :: shards_state:state(),
-  Response :: ok | {error, Reason :: term()}.
+-spec tab2file(
+        Tab      :: atom(),
+        Filename :: shards_local:filename(),
+        Options  :: [Option],
+        State    :: shards_state:state()
+      ) -> ok | {error, Reason :: term()}
+      when Option  :: {extended_info, [ExtInfo]} | {sync, boolean()},
+           ExtInfo :: md5sum | object_count.
 tab2file(Tab, Filename, Options, State) when ?is_filename(Filename) ->
   StrFilename = shards_lib:to_string(Filename),
   Nodes = get_nodes(Tab),
@@ -445,27 +454,27 @@ tab2file(Tab, Filename, Options, State) when ?is_filename(Filename) ->
   shards_lib:reduce_while(fun(Node, Acc) ->
     NodeFilename = shards_lib:to_string(Node) ++ "." ++ StrFilename,
     NewOpts = lists:keystore(nodes, 1, Options, {nodes, Nodes}),
+
     case rpc:call(Node, ?SHARDS, tab2file, [Tab, NodeFilename, NewOpts, State]) of
       ok ->
         {cont, Acc};
+
       {error, _} = Error ->
         {halt, Error}
     end
   end, ok, Nodes).
 
--spec tab2list(Tab, State) -> [Object] when
-  Tab    :: atom(),
-  State  :: shards_state:state(),
-  Object :: tuple().
+-spec tab2list(Tab :: atom(), State :: shards_state:state()) ->
+        [Object]
+      when Object :: tuple().
 tab2list(Tab, State) ->
   Map = {?SHARDS, tab2list, [Tab, State]},
   Reduce = fun erlang:'++'/2,
   mapred(Tab, Map, Reduce, State, r).
 
--spec tabfile_info(Filename) -> Response when
-  Filename  :: shards_local:filename(),
-  TableInfo :: [shards_local:tabinfo_item() | {nodes, [node()]}],
-  Response  :: {ok, TableInfo} | {error, Reason :: term()}.
+-spec tabfile_info(Filename :: shards_local:filename()) ->
+        {ok, TableInfo} | {error, Reason :: term()}
+      when TableInfo :: [shards_local:tabinfo_item() | {nodes, [node()]}].
 tabfile_info(Filename) when ?is_filename(Filename) ->
   try
     StrFilename = shards_lib:to_string(Filename),
@@ -474,9 +483,11 @@ tabfile_info(Filename) when ?is_filename(Filename) ->
     TabInfoList =
       shards_lib:reduce_while(fun(Node, Acc) ->
         NodeFilename = shards_lib:to_string(Node) ++ "." ++ StrFilename,
+
         case rpc:call(Node, ?SHARDS, tabfile_info, [NodeFilename]) of
           {ok, TabInfo} ->
             {cont, [TabInfo | Acc]};
+
           {error, _} = E ->
             {halt, E}
         end
@@ -485,6 +496,7 @@ tabfile_info(Filename) when ?is_filename(Filename) ->
     case TabInfoList of
       {error, _} = ResErr ->
         ResErr;
+
       _ ->
         {ok, shards_info(TabInfoList, [], Nodes)}
     end
@@ -492,46 +504,43 @@ tabfile_info(Filename) when ?is_filename(Filename) ->
     throw:Error -> Error
   end.
 
--spec take(Tab, Key, State) -> [Object] when
-  Tab    :: atom(),
-  Key    :: term(),
-  State  :: shards_state:state(),
-  Object :: tuple().
+-spec take(Tab :: atom(), Key :: term(), State :: shards_state:state()) ->
+        [Object :: tuple()].
 take(Tab, Key, State) ->
   Map = {?SHARDS, take, [Tab, Key, State]},
   Reduce = fun erlang:'++'/2,
   mapred(Tab, Key, Map, Reduce, State, r).
 
--spec update_counter(Tab, Key, UpdateOp, State) -> Result when
-  Tab      :: atom(),
-  Key      :: term(),
-  UpdateOp :: term(),
-  State    :: shards_state:state(),
-  Result   :: integer().
+-spec update_counter(
+        Tab      :: atom(),
+        Key      :: term(),
+        UpdateOp :: term(),
+        State    :: shards_state:state()
+      ) -> Result :: integer().
 update_counter(Tab, Key, UpdateOp, State) ->
   PickNodeFun = shards_state:pick_node_fun(State),
   Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
   rpc:call(Node, ?SHARDS, update_counter, [Tab, Key, UpdateOp, State]).
 
--spec update_counter(Tab, Key, UpdateOp, Default, State) -> Result when
-  Tab      :: atom(),
-  Key      :: term(),
-  UpdateOp :: term(),
-  Default  :: tuple(),
-  State    :: shards_state:state(),
-  Result   :: integer().
+-spec update_counter(
+        Tab      :: atom(),
+        Key      :: term(),
+        UpdateOp :: term(),
+        Default  :: tuple(),
+        State    :: shards_state:state()
+      ) -> Result :: integer().
 update_counter(Tab, Key, UpdateOp, Default, State) ->
   PickNodeFun = shards_state:pick_node_fun(State),
   Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
   rpc:call(Node, ?SHARDS, update_counter, [Tab, Key, UpdateOp, Default, State]).
 
--spec update_element(Tab, Key, ElementSpec, State) -> boolean() when
-  Tab         :: atom(),
-  Key         :: term(),
-  Pos         :: pos_integer(),
-  Value       :: term(),
-  ElementSpec :: {Pos, Value} | [{Pos, Value}],
-  State       :: shards_state:state().
+-spec update_element(
+        Tab         :: atom(),
+        Key         :: term(),
+        ElementSpec :: {Pos, Value} | [{Pos, Value}],
+        State       :: shards_state:state()
+      ) -> boolean()
+      when Pos :: pos_integer(), Value :: term().
 update_element(Tab, Key, ElementSpec, State) ->
   PickNodeFun = shards_state:pick_node_fun(State),
   Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
@@ -546,6 +555,7 @@ pick_node(Fun, Key, Nodes, Op) ->
   case Fun(Key, length(Nodes), Op) of
     Nth when is_integer(Nth) ->
       lists:nth(Nth + 1, Nodes);
+
     Nth ->
       Nth
   end.
@@ -565,9 +575,11 @@ mapred(Tab, nil, Map, Reduce, _, _) ->
   p_mapred(Tab, Map, Reduce);
 mapred(Tab, Key, Map, Reduce, State, Op) ->
   PickNodeFun = shards_state:pick_node_fun(State),
+
   case pick_node(PickNodeFun, Key, get_nodes(Tab), Op) of
     any ->
       p_mapred(Tab, Map, Reduce);
+
     Node ->
       rpc_call(Node, Map)
   end.
@@ -576,9 +588,12 @@ mapred(Tab, Key, Map, Reduce, State, Op) ->
 p_mapred(Tab, {MapMod, MapFun, MapArgs}, {RedFun, AccIn}) ->
   Tasks =
     lists:foldl(fun(Node, Acc) ->
-      AsyncTask = shards_task:async(fun() ->
-        rpc:call(Node, MapMod, MapFun, MapArgs)
-      end), [AsyncTask | Acc]
+      AsyncTask =
+        shards_task:async(fun() ->
+          rpc:call(Node, MapMod, MapFun, MapArgs)
+        end),
+
+      [AsyncTask | Acc]
     end, [], get_nodes(Tab)),
 
   lists:foldl(fun(Task, Acc) ->
@@ -610,3 +625,20 @@ tabfile_info_local(Filename) ->
   {name, Tab} = lists:keyfind(name, 1, TabInfo),
   {nodes, Nodes} = lists:keyfind(nodes, 1, TabInfo),
   {Tab, Nodes}.
+
+%% @private
+get_node(Tab, Object, State) ->
+  get_node(Tab, Object, w, State) .
+
+%% @private
+get_node(Tab, Object, Op, State) ->
+  Key = element(1, Object),
+  PickNodeFun = shards_state:pick_node_fun(State),
+  pick_node(PickNodeFun, Key, get_nodes(Tab), Op).
+
+%% @private
+group_keys_by_node(Tab, Objects, State) ->
+  lists:foldr(fun(Object, Acc) ->
+    Node = get_node(Tab, Object, State),
+    Acc#{Node => [Object | maps:get(Node, Acc, [])]}
+  end, #{}, Objects).
