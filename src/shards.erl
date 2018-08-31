@@ -1,7 +1,28 @@
 %%%-------------------------------------------------------------------
 %%% @doc
-%%% This is the main module, which contains all Shards API functions.
-%%% This is a wrapper on top of `shards_local' and `shards_dist'.
+%%% Shards is split into 4 main components:
+%%%
+%%% <ul>
+%%% <li>
+%%% `shards_local' - Implements Sharding but locally, on a single
+%%% Erlang node.
+%%% </li>
+%%% <li>
+%%% `shards_dist' - Implements Sharding but globally, running on top of
+%%% multiple distributed Erlang nodes; `shards_dist' uses `shards_local'
+%%% internally.
+%%% </li>
+%%% <li>
+%%% `shards' - This is the main module, and it is the wrapper for
+%%% `shards_local' and `shards_dist'.
+%%% </li>
+%%% <li>
+%%% `shards_state' - This module encapsulates the `state', it is where
+%%% the metadata about the partitioned table is stored, such as: number
+%%% of shards or partitions, type of the table, the scope (if it is local
+%%% or global), etc.
+%%% </li>
+%%% </ul>
 %%%
 %%% @see shards_local.
 %%% @see shards_dist.
@@ -68,6 +89,7 @@
   get_nodes/1
 ]).
 
+%% Extras
 -export([
   list/1,
   state/1
@@ -278,10 +300,9 @@ insert(Tab, ObjectOrObjects) ->
 %% @see shards_local:insert_new/3.
 %% @see shards_dist:insert_new/3.
 %% @end
--spec insert_new(
-        Tab       :: atom(),
-        ObjOrObjL :: tuple() | [tuple()]
-      ) -> boolean() | [boolean()].
+-spec insert_new(Tab :: atom(), ObjOrObjs) ->
+        boolean() | {false, ObjOrObjs}
+      when ObjOrObjs :: tuple() | [tuple()].
 insert_new(Tab, ObjectOrObjects) ->
   call(Tab, insert_new, [Tab, ObjectOrObjects]).
 
@@ -787,7 +808,7 @@ call_from_file(Filename, Fun, Args) ->
   catch
     throw:Error ->
       Error;
-    
+
     error:{badarg, Arg} ->
       {error, {read_error, {file_error, Arg, enoent}}}
   end.

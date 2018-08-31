@@ -1,6 +1,41 @@
 %%%-------------------------------------------------------------------
 %%% @doc
-%%% Distributed Shards.
+%%% This module implemnets Sharding but globally (on multiple
+%%% distributed Erlang nodes).
+%%%
+%%% <u><b>Example</b></u>
+%%%
+%%% First of all, we have to run our app in distributed way, setting
+%%% a node name and maybe a cookie. Let's suppose we spawn a node
+%%% `a@127.0.0.1`, and from that node:
+%%%
+%%% ```
+%%% % when a tables is created with {scope, g}, the module
+%%% % shards_dist is used internally by shards
+%%% > shards:new(mytab, [{scope, g}]).
+%%% mytab
+%%%
+%%% % from node `a` (local), join `b` and `c` nodes:
+%%% > shards:join(mytab, ['b@127.0.0.1', 'c@127.0.0.1']).
+%%% ['a@127.0.0.1','b@127.0.0.1','c@127.0.0.1']
+%%%
+%%% % let's check the list of joined nodes:
+%%% > shards:get_nodes(mytab).
+%%% ['a@127.0.0.1','b@127.0.0.1','c@127.0.0.1']
+%%% '''
+%%%
+%%% Other option is calling `shards:new/3` but passing the option
+%%% `{nodes, Nodes}`, where `Nodes` is the list of nodes you want
+%%% to join.
+%%%
+%%% ```
+%%% > Nodes = ['b@127.0.0.1', 'c@127.0.0.1']}].
+%%% ['b@127.0.0.1','c@127.0.0.1']
+%%%
+%%% > shards:new(mytab, [{scope, g}, {nodes, Nodes}]).
+%%% mytab
+%%% '''
+%%%
 %%% @end
 %%%-------------------------------------------------------------------
 -module(shards_dist).
@@ -240,11 +275,9 @@ insert(Tab, ObjOrObjs, State) when is_tuple(ObjOrObjs) ->
   Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
   true = rpc:call(Node, ?SHARDS, insert, [Tab, ObjOrObjs, State]).
 
--spec insert_new(
-        Tab       :: atom(),
-        ObjOrObjs :: tuple() | [tuple()],
-        State     :: shards_state:state()
-      ) -> boolean() | [boolean()].
+-spec insert_new(Tab :: atom(), ObjOrObjs, State :: shards_state:state()) ->
+        boolean() | {false, ObjOrObjs}
+      when ObjOrObjs :: tuple() | [tuple()].
 insert_new(Tab, ObjOrObjs, State) when is_list(ObjOrObjs) ->
   Result =
     maps:fold(fun(Node, Group, Acc) ->

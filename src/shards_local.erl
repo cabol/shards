@@ -1,39 +1,30 @@
 %%%-------------------------------------------------------------------
 %%% @doc
-%%% This is the main module, which contains all Shards/ETS API
-%%% functions, BUT works locally.
+%%% This module implements local or single-node Sharding.
 %%%
 %%% <b>Shards</b> is compatible with ETS API, most of the functions
-%%% preserves the same ETS semantics, with some exception which you
-%%% will find on each function doc.
+%%% preserves the same contract and semantic, but there are some
+%%% exceptions (check functions documentation).
 %%%
-%%% Shards gives a top level view of a single logical ETS table,
-%%% but inside, that logical table is split in multiple physical
-%%% ETS tables called <b>shards</b>, where `Shards = [0 .. N-1]',
-%%% and `N' is the number of shards into which you want to split
-%%% the table.
+%%% Shards provides a logical view of a single ETS table, but
+%%% internally, that logical table is partitioned in multiple
+%%% physical ETS tables or <b>Shards</b>, where `Shards = [0 .. N-1]',
+%%% and `N' is the number of shards you want to partition the table.
 %%%
 %%% The K/V pairs are distributed across these shards, therefore,
-%%% some of the functions does not follows the same semantics as
-%%% the original ones ETS.
+%%% some of the functions don't follow the same semantics as the
+%%% original ones (analogous ETS functions).
 %%%
-%%% A good example of that are the query-based functions, which
-%%% returns multiple results, and in case of `ordered_set', with
-%%% a particular order. E.g.:
+%%% A good example of those are the query-based functions, which
+%%% return multiple results; in case of `ordered_set', with a
+%%% particular order. For example: `select/1,2,3`,
+%%% `select_reverse/1,2,3', `match/1,2,3', `match_object/1,2,3', etc.
 %%%
-%%% <ul>
-%%% <li>`select/2', `select/3', `select/1'</li>
-%%% <li>`select_reverse/2', `select_reverse/3', `select_reverse/1'</li>
-%%% <li>`match/2', `match/3', `match/1'</li>
-%%% <li>`match_object/2', `match_object/3', `match_object/1'</li>
-%%% <li>etc...</li>
-%%% </ul>
-%%%
-%%% For those cases, the order what results are returned is not
+%%% For those cases, the order which results are returned is not
 %%% guaranteed to be the same as the original ETS functions.
 %%%
 %%% Additionally to the ETS functions, `shards_local' module allows
-%%% to pass an extra argument, the `State'. When `shards' is
+%%% to pass an optional argument, the `State'. When `shards' is
 %%% called without the `State', it must fetch the `state' first,
 %%% and it is recovered doing an extra call to an ETS control table
 %%% owned by `shards_owner_sup'. If any microsecond matters, you can
@@ -52,6 +43,10 @@
 %%%
 %%% % calling shards_local directly
 %%% shards_local:lookup(table, key1, State).
+%%%
+%%% % if you have created the table with default options,
+%%% % you can skip the sate
+%%% shards_local:lookup(table, key1).
 %%% '''
 %%%
 %%% Pools of shards can be added/removed dynamically. For example,
@@ -553,6 +548,19 @@ insert_new(Tab, ObjOrObjs) ->
 %% `{false, FailedObjs}' is returned, where `FailedObjs' contains the list
 %% of the failed objects. If only one entry/object is passed to this function
 %% and it fails, only `false' is returned.
+%%
+%% <b>Example:</b>
+%%
+%% ```
+%% > shards:insert_new(mytab, {k1, 1}).
+%% true
+%%
+%% > shards:insert_new(mytab, {k1, 1}).
+%% false
+%%
+%% > shards:insert_new(mytab, [{k1, 1}, {k2, 2}]).
+%% {false,[{k1,1}]}
+%% '''
 %%
 %% @see ets:insert_new/2.
 %% @end

@@ -1,6 +1,10 @@
 %%%-------------------------------------------------------------------
 %%% @doc
-%%% Shards owners supervisor.
+%%% This is the supervisor that holds and handles the supervision tree
+%%% for a partitioned table, and it is the one that owns the metadata
+%%% or control table. Every time a new partioned table is created,
+%%% a new supervision tree is created to handle its lifecycle, and
+%%% this module is the main supervisor for that tree.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(shards_owner_sup).
@@ -114,14 +118,14 @@ supervise(Children, SupFlagsMap) ->
 %% @private
 parse_opts(Opts) ->
   StateMap = shards_state:to_map(shards_state:new()),
-  
+
   AccIn = StateMap#{
     opts             => [],
     restart_strategy => one_for_one
   },
-  
+
   AccOut = parse_opts(Opts, AccIn),
-  
+
   %% @TODO: this workaround must be fixed when a better strategy to support ordered_set be ready
   case maps:get(type, AccOut, set) of
     ordered_set -> AccOut#{n_shards := 1};

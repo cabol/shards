@@ -1,7 +1,20 @@
 %%%-------------------------------------------------------------------
 %%% @doc
-%%% Shards State Manager.
-%%% This module encapsulates the `shards' state.
+%%% State Handler - This module encapsulates the `shards' state.
+%%%
+%%% There are different properties that have to be stored somewhere so
+%%% `shards' can work properly. Remember, `shards' performs a logic on
+%%% top of `ETS', for example, compute the shard and/or node based on
+%%% the `Key' where the action will be applied. To do so, it needs the
+%%% number of shards or partitions, the function to pick the shard
+%%% and/or node (in case of global scope), the table type and
+%%% of course, the module to use depending on the scope;
+%%% `shards_local' or `shards_dist'.
+%%%
+%%% Because of that, when a new table is created using `shards',
+%%% a new supervision tree is created as well to represent that table.
+%%% The supervisor is `shards_owner_sup' and it has a control ETS
+%%% table to save the `state' so it can be fetched later at any time.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(shards_state).
@@ -69,7 +82,7 @@
 
 %% @type pick_fun() = fun((key(), range(), op()) -> non_neg_integer() | any).
 %%
-%% Defines spec function to pick or compute the shard/node.
+%% Defines spec function to pick or compute the shard and/or node.
 %% The function returns a value for `Key' within the range 0..Range-1.
 -type pick_fun() :: fun((key(), range(), op()) -> non_neg_integer() | any).
 

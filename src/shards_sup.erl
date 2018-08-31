@@ -1,6 +1,8 @@
 %%%-------------------------------------------------------------------
 %%% @doc
-%%% Shards Pool Supervisor.
+%%% This module is the main supervisor of `shards', and handles pools
+%%% or groups of partitioned tables, and each of them is handled by
+%%% `shards_owner_sup'.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(shards_sup).
