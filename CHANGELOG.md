@@ -1,5 +1,12 @@
 # Change Log
 
+## [v0.6.0](https://github.com/cabol/shards/tree/v0.6.0) (2018-09-01)
+[Full Changelog](https://github.com/cabol/shards/compare/v0.5.1...v0.6.0)
+
+**Implemented enhancements:**
+
+- Improve documentation [\#39](https://github.com/cabol/shards/issues/39)
+
 ## [v0.5.1](https://github.com/cabol/shards/tree/v0.5.1) (2018-06-26)
 [Full Changelog](https://github.com/cabol/shards/compare/v0.5.0...v0.5.1)
 

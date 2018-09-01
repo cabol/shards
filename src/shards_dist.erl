@@ -7,7 +7,7 @@
 %%%
 %%% First of all, we have to run our app in distributed way, setting
 %%% a node name and maybe a cookie. Let's suppose we spawn a node
-%%% `a@127.0.0.1`, and from that node:
+%%% `a@127.0.0.1', and from that node:
 %%%
 %%% ```
 %%% % when a tables is created with {scope, g}, the module
@@ -24,7 +24,7 @@
 %%% ['a@127.0.0.1','b@127.0.0.1','c@127.0.0.1']
 %%% '''
 %%%
-%%% Other option is calling `shards:new/3` but passing the option
+%%% Other option is calling `shards:new/3' but passing the option
 %%% `{nodes, Nodes}`, where `Nodes` is the list of nodes you want
 %%% to join.
 %%%
