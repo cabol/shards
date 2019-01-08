@@ -440,17 +440,27 @@ t_update_ops(Config) ->
   {_, Scope} = lists:keyfind(scope, 1, Config),
   Mod = get_module(Scope, ?SET),
 
-  % update counter
+  % update_counter
   _ = ets:insert(?ETS_SET, {counter1, 0}),
   _ = Mod:insert(?SET, {counter1, 0}),
   R1 = ets:update_counter(?ETS_SET, counter1, 1),
   R1 = Mod:update_counter(?SET, counter1, 1),
 
-  % update with default
+  % update_counter several values
+  _ = ets:insert(?ETS_SET, {counter11, 0, 0}),
+  _ = Mod:insert(?SET, {counter11, 0, 0}),
+  R11 = ets:update_counter(?ETS_SET, counter11, [{2, 1}, {3, 2}]),
+  R11 = Mod:update_counter(?SET, counter11, [{2, 1}, {3, 2}]),
+
+  % update_counter with default
   R2 = ets:update_counter(?ETS_SET, counter2, 1, {counter2, 0}),
   R2 = shards:update_counter(?SET, counter2, 1, {counter2, 0}),
 
-  % update element
+  % update_counter with default and several values
+  R22 = ets:update_counter(?ETS_SET, counter22, [{2, 1}, {3, 2}], {counter22, 0, 0}),
+  R22 = shards:update_counter(?SET, counter22, [{2, 1}, {3, 2}], {counter22, 0, 0}),
+
+  % update_element
   _ = ets:insert(?ETS_SET, {elem0, 0}),
   _ = Mod:insert(?SET, {elem0, 0}),
   R3 = ets:update_element(?ETS_SET, elem0, {2, 10}),

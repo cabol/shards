@@ -549,7 +549,7 @@ take(Tab, Key, State) ->
         Key      :: term(),
         UpdateOp :: term(),
         State    :: shards_state:state()
-      ) -> Result :: integer().
+      ) -> Result :: integer() | [integer()].
 update_counter(Tab, Key, UpdateOp, State) ->
   PickNodeFun = shards_state:pick_node_fun(State),
   Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
@@ -561,7 +561,7 @@ update_counter(Tab, Key, UpdateOp, State) ->
         UpdateOp :: term(),
         Default  :: tuple(),
         State    :: shards_state:state()
-      ) -> Result :: integer().
+      ) -> Result :: integer() | [integer()].
 update_counter(Tab, Key, UpdateOp, Default, State) ->
   PickNodeFun = shards_state:pick_node_fun(State),
   Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),

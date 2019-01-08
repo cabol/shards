@@ -710,7 +710,7 @@ take(Tab, Key) ->
         Tab      :: atom(),
         Key      :: term(),
         UpdateOp :: term()
-      ) -> integer().
+      ) -> integer() | [integer()].
 update_counter(Tab, Key, UpdateOp) ->
   call(Tab, update_counter, [Tab, Key, UpdateOp]).
 
@@ -726,7 +726,7 @@ update_counter(Tab, Key, UpdateOp) ->
         Key      :: term(),
         UpdateOp :: term(),
         Default  :: tuple()
-      ) -> integer().
+      ) -> integer() | [integer()].
 update_counter(Tab, Key, UpdateOp, Default) ->
   call(Tab, update_counter, [Tab, Key, UpdateOp, Default]).
 

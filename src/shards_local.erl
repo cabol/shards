@@ -1366,7 +1366,7 @@ update_counter(Tab, Key, UpdateOp) ->
         Key      :: term(),
         UpdateOp :: term(),
         State    :: shards_state:state()
-      ) -> Result :: integer().
+      ) -> Result :: integer() | [integer()].
 update_counter(Tab, Key, UpdateOp, State) ->
   Map = {fun ets:update_counter/3, [Key, UpdateOp]},
   mapred(Tab, Key, Map, nil, State, w).
@@ -1382,7 +1382,7 @@ update_counter(Tab, Key, UpdateOp, State) ->
         UpdateOp :: term(),
         Default  :: tuple(),
         State    :: shards_state:state()
-      ) -> Result :: integer().
+      ) -> Result :: integer() | [integer()].
 update_counter(Tab, Key, UpdateOp, Default, State) ->
   Map = {fun ets:update_counter/4, [Key, UpdateOp, Default]},
   mapred(Tab, Key, Map, nil, State, w).
