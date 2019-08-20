@@ -32,8 +32,6 @@
   T_ =:= ?DUPLICATE_BAG; T_ =:= ?SHARDED_DUPLICATE_BAG
 ).
 
--define(has_default_opts(T_), T_ =:= ?SET).
-
 -define(N_SHARDS, erlang:system_info(schedulers_online)).
 
 -define(fn(FN_, S_),
@@ -42,5 +40,7 @@
     _ -> FN_
   end
 ).
+
+-record(test_rec, {name :: atom(), age :: integer()}).
 
 -type config() :: proplists:proplist().

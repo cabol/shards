@@ -28,7 +28,8 @@
     t_tab2list/1,
     t_tab2file_file2tab_tabfile_info/1,
     t_rename/1,
-    t_equivalent_ops/1
+    t_equivalent_ops/1,
+    t_keypos/1
   ]}
 ]).
 
@@ -68,6 +69,10 @@ end_per_suite(Config) ->
   Config.
 
 -spec init_per_testcase(atom(), shards_ct:config()) -> shards_ct:config().
+init_per_testcase(t_keypos, Config) ->
+  _ = shards_tests:init_shards(l, [{keypos, #test_rec.name}]),
+  true = shards_tests:cleanup_shards(),
+  Config;
 init_per_testcase(_, Config) ->
   _ = shards_tests:init_shards(l),
   true = shards_tests:cleanup_shards(),

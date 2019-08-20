@@ -22,7 +22,8 @@
     t_rename/1,
     t_info_ops/1,
     t_tab2list/1,
-    t_tab2file_file2tab_tabfile_info/1
+    t_tab2file_file2tab_tabfile_info/1,
+    t_keypos/1
   ]}
 ]).
 

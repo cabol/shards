@@ -9,7 +9,7 @@
 -export([
   shard_name/2,
   list_shards/2,
-  key_from_object/1,
+  object_key/2,
   iterator/1,
   get_pid/1,
   pick/3,
@@ -61,13 +61,17 @@ list_shards(Tab, NumShards) ->
 %% Returns the key for the given object or list of objects.
 %% <ul>
 %% <li>`ObjOrObjs': Object or list of objects.</li>
+%% <li>`StateOrPos': Shards state.</li>
 %% </ul>
 %% @end
--spec key_from_object(ObjOrObjs :: tuple() | [tuple()]) -> Key :: any().
-key_from_object(ObjOrObjs) when is_list(ObjOrObjs) ->
-  element(1, hd(ObjOrObjs));
-key_from_object(ObjOrObjs) when is_tuple(ObjOrObjs) ->
-  element(1, ObjOrObjs).
+-spec object_key(
+        ObjOrObjs :: tuple() | [tuple()],
+        State     :: shards_state:state() | pos_integer()
+      ) -> Key :: any().
+object_key(ObjOrObjs, State) when is_tuple(ObjOrObjs) ->
+  element(shards_state:keypos(State), ObjOrObjs);
+object_key(ObjOrObjs, State) when is_list(ObjOrObjs) ->
+  element(shards_state:keypos(State), hd(ObjOrObjs)).
 
 %% @doc
 %% Returns a sequence of integers that starts with `0' and contains the

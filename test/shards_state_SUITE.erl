@@ -62,7 +62,7 @@ t_create_state(_Config) ->
   State1 = shards_state:new(4),
   shards_local = shards_state:module(State1),
   shards_sup = shards_state:sup_name(State0),
-  true = 4 == shards_state:n_shards(State1),
+  4 = shards_state:n_shards(State1),
   true = fun shards_lib:pick/3 == shards_state:pick_shard_fun(State1),
   true = fun shards_lib:pick/3 == shards_state:pick_node_fun(State1),
 
@@ -70,7 +70,7 @@ t_create_state(_Config) ->
   State2 = shards_state:new(2, shards_dist),
   shards_dist = shards_state:module(State2),
   shards_sup = shards_state:sup_name(State2),
-  true = 2 == shards_state:n_shards(State2),
+  2 = shards_state:n_shards(State2),
   true = fun shards_lib:pick/3 == shards_state:pick_shard_fun(State2),
   true = fun shards_lib:pick/3 == shards_state:pick_node_fun(State2),
 
@@ -78,24 +78,41 @@ t_create_state(_Config) ->
   State3 = shards_state:new(2, shards_dist, my_shards_sup),
   shards_dist = shards_state:module(State3),
   my_shards_sup = shards_state:sup_name(State3),
-  true = 2 == shards_state:n_shards(State3),
+  2 = shards_state:n_shards(State3),
   true = fun shards_lib:pick/3 == shards_state:pick_shard_fun(State3),
   true = fun shards_lib:pick/3 == shards_state:pick_node_fun(State3),
 
-  % create state using shards_state:new/3
+  % create state using shards_state:from_map/1
   Fun = fun(X, Y, Z) -> (X + Y + Z) rem Y end,
-  State4 = shards_state:new(4, shards_dist, my_shards_sup, Fun),
+
+  State4 =
+    shards_state:from_map(#{
+      module         => shards_dist,
+      n_shards       => 4,
+      sup_name       => my_shards_sup,
+      pick_shard_fun => Fun
+    }),
+
   shards_dist = shards_state:module(State4),
   my_shards_sup = shards_state:sup_name(State4),
-  true = 4 == shards_state:n_shards(State4),
-  true = Fun == shards_state:pick_shard_fun(State4),
+  4 = shards_state:n_shards(State4),
+  Fun = shards_state:pick_shard_fun(State4),
   true = fun shards_lib:pick/3 == shards_state:pick_node_fun(State4),
 
-  % create state using shards_state:new/4
-  State5 = shards_state:new(4, shards_dist, my_shards_sup, Fun, Fun),
+  % create state using shards_state:from_map/1
+  State5 =
+    shards_state:from_map(#{
+      module         => shards_dist,
+      n_shards       => 4,
+      sup_name       => my_shards_sup,
+      pick_shard_fun => Fun,
+      pick_node_fun  => Fun
+    }),
+
+
   shards_dist = shards_state:module(State5),
   my_shards_sup = shards_state:sup_name(State5),
-  true = 4 == shards_state:n_shards(State5),
+  4 = shards_state:n_shards(State5),
   true = Fun == shards_state:pick_shard_fun(State5),
   true = Fun == shards_state:pick_node_fun(State5).
 
@@ -115,6 +132,7 @@ t_state_ops(_Config) ->
   true = Mod == shards_local orelse Mod == shards_dist,
   shards_sup = shards_state:sup_name(test_set),
   DefaultShards = shards_state:n_shards(test_set),
+  1 = shards_state:keypos(test_set),
   Fun1 = fun shards_lib:pick/3,
   Fun1 = shards_state:pick_shard_fun(test_set),
   Fun2 = fun shards_tests:pick_node/3,
@@ -129,13 +147,16 @@ t_state_ops(_Config) ->
   State3 = shards_state:pick_shard_fun(Fun, State2),
   State4 = shards_state:pick_node_fun(Fun, State3),
   State5 = shards_state:sup_name(my_sup, State4),
+  State6 = shards_state:keypos(2, State5),
 
-  #{module         := shards_dist,
+  #{
+    module         := shards_dist,
     sup_name       := my_sup,
     n_shards       := 100,
+    keypos         := 2,
     pick_shard_fun := Fun,
     pick_node_fun  := Fun
-  } = shards_state:to_map(State5).
+  } = shards_state:to_map(State6).
 
 -spec t_get_state_badarg_error(shards_ct:config()) -> any().
 t_get_state_badarg_error(_Config) ->

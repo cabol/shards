@@ -303,7 +303,7 @@ delete_object(Tab, Object) ->
         State  :: shards_state:state()
       ) -> true.
 delete_object(Tab, Object, State) when is_tuple(Object) ->
-  Key = element(1, Object),
+  Key = shards_lib:object_key(Object, State),
   _ = mapred(Tab, Key, {fun ets:delete_object/2, [Object]}, nil, State, d),
   true.
 
@@ -585,7 +585,7 @@ insert_new(Tab, ObjOrObjs, State) when is_tuple(ObjOrObjs) ->
 
 %% @private
 do_insert_new(Tab, Shard, Objs, State) ->
-  Key = shards_lib:key_from_object(Objs),
+  Key = shards_lib:object_key(Objs, State),
 
   case shards_state:eval_pick_shard(Key, r, State) of
     any ->
@@ -1488,7 +1488,7 @@ get_shard(Tab, Object, State) ->
 
 %% @private
 get_shard(Tab, Object, Op, State) ->
-  Key = element(1, Object),
+  Key = shards_lib:object_key(Object, State),
   shards_lib:shard_name(Tab, shards_state:eval_pick_shard(Key, Op, State)).
 
 %% @private

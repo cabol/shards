@@ -90,6 +90,8 @@
 %% @type option() = {nodes, [node()]} | shards_local:option().
 -type option() :: {nodes, [node()]} | shards_local:option().
 
+-type rpc_res(R) :: R | {badrpc, Reason :: term()}.
+
 % Exported Types
 -export_type([
   option/0
@@ -169,7 +171,7 @@ delete_all_objects(Tab, State) ->
         State  :: shards_state:state()
       ) -> true.
 delete_object(Tab, Object, State) when is_tuple(Object) ->
-  Key = element(1, Object),
+  Key = shards_lib:object_key(Object, State),
   Map = {?SHARDS, delete_object, [Tab, Object, State]},
   _ = mapred(Tab, Key, Map, nil, State, d),
   true.
@@ -270,7 +272,7 @@ insert(Tab, ObjOrObjs, State) when is_list(ObjOrObjs) ->
     Acc = rpc:call(Node, ?SHARDS, insert, [Tab, Group, State])
   end, true, group_keys_by_node(Tab, ObjOrObjs, State));
 insert(Tab, ObjOrObjs, State) when is_tuple(ObjOrObjs) ->
-  Key = element(1, ObjOrObjs),
+  Key = shards_lib:object_key(ObjOrObjs, State),
   PickNodeFun = shards_state:pick_node_fun(State),
   Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
   true = rpc:call(Node, ?SHARDS, insert, [Tab, ObjOrObjs, State]).
@@ -297,7 +299,7 @@ insert_new(Tab, ObjOrObjs, State) when is_tuple(ObjOrObjs) ->
 
 %% @private
 do_insert_new(Tab, Node, Objs, State) ->
-  Key = shards_lib:key_from_object(Objs),
+  Key = shards_lib:object_key(Objs, State),
 
   case pick_node(shards_state:pick_node_fun(State), Key, get_nodes(Tab), r) of
     any ->
@@ -549,7 +551,7 @@ take(Tab, Key, State) ->
         Key      :: term(),
         UpdateOp :: term(),
         State    :: shards_state:state()
-      ) -> Result :: integer() | [integer()].
+      ) -> rpc_res(integer() | [integer()]).
 update_counter(Tab, Key, UpdateOp, State) ->
   PickNodeFun = shards_state:pick_node_fun(State),
   Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
@@ -610,11 +612,8 @@ mapred(Tab, Key, Map, Reduce, State, Op) ->
   PickNodeFun = shards_state:pick_node_fun(State),
 
   case pick_node(PickNodeFun, Key, get_nodes(Tab), Op) of
-    any ->
-      p_mapred(Tab, Map, Reduce);
-
-    Node ->
-      rpc_call(Node, Map)
+    any  -> p_mapred(Tab, Map, Reduce);
+    Node -> rpc_call(Node, Map)
   end.
 
 %% @private
@@ -665,7 +664,7 @@ get_node(Tab, Object, State) ->
 
 %% @private
 get_node(Tab, Object, Op, State) ->
-  Key = element(1, Object),
+  Key = shards_lib:object_key(Object, State),
   PickNodeFun = shards_state:pick_node_fun(State),
   pick_node(PickNodeFun, Key, get_nodes(Tab), Op).
 

@@ -17,7 +17,8 @@
   t_tab2list/1,
   t_tab2file_file2tab_tabfile_info/1,
   t_rename/1,
-  t_equivalent_ops/1
+  t_equivalent_ops/1,
+  t_keypos/1
 ]).
 
 %% Test Cases Helpers
@@ -30,6 +31,7 @@
 %% Helpers
 -export([
   init_shards/1,
+  init_shards/2,
   cleanup_shards/0,
   delete_shards/0,
   build_args/2,
@@ -724,13 +726,37 @@ t_equivalent_ops_({Scope, Tab, _EtsTab}) ->
 
   true = Mod:give_away(Tab, self(), []).
 
+-spec t_keypos(shards_ct:config()) -> any().
+t_keypos(Config) ->
+  run_for_all_tables(Config, fun t_keypos_/1).
+
+t_keypos_({Scope, Tab, _EtsTab}) ->
+  Mod = get_module(Scope, Tab),
+
+  true = Mod:insert(Tab, [#test_rec{name = a, age = 30}, #test_rec{name = b, age = 20}]),
+  [#test_rec{name = a, age = 30}] = Mod:lookup(Tab, a),
+  [#test_rec{name = b, age = 20}] = Mod:lookup(Tab, b),
+
+  true = Mod:insert_new(Tab, #test_rec{name = c, age = 15}),
+  [#test_rec{name = c, age = 15}] = Mod:lookup(Tab, c),
+
+  true = Mod:delete_object(Tab, #test_rec{name = b, age = 20}),
+
+  [#test_rec{name = a, age = 30}] = Mod:lookup(Tab, a),
+  [#test_rec{name = c, age = 15}] = Mod:lookup(Tab, c),
+  [] = Mod:lookup(Tab, b).
+
 %%%===================================================================
 %%% Helpers
 %%%===================================================================
 
--spec init_shards(shards_state:scope()) -> ok | no_return().
+%% @equiv init_shards(Scope, [])
 init_shards(Scope) ->
-  _ = init_shards_new(Scope),
+  init_shards(Scope, []).
+
+-spec init_shards(shards_state:scope(), list()) -> ok | no_return().
+init_shards(Scope, Opts) ->
+  _ = init_shards_new(Scope, Opts),
 
   set = shards_local:info(?SET, type),
 
@@ -749,18 +775,18 @@ init_shards(Scope) ->
 
   _ = shards_created(?SHARDS_TABS),
 
-  _ = ets:new(?ETS_SET, [set, public, named_table]),
+  _ = ets:new(?ETS_SET, [set, public, named_table | Opts]),
   _ = ets:give_away(?ETS_SET, whereis(?SET), []),
-  _ = ets:new(?ETS_DUPLICATE_BAG, [duplicate_bag, public, named_table]),
+  _ = ets:new(?ETS_DUPLICATE_BAG, [duplicate_bag, public, named_table | Opts]),
   _ = ets:give_away(?ETS_DUPLICATE_BAG, whereis(?DUPLICATE_BAG), []),
-  _ = ets:new(?ETS_ORDERED_SET, [ordered_set, public, named_table]),
+  _ = ets:new(?ETS_ORDERED_SET, [ordered_set, public, named_table | Opts]),
   _ = ets:give_away(?ETS_ORDERED_SET, whereis(?ORDERED_SET), []),
-  _ = ets:new(?ETS_SHARDED_DUPLICATE_BAG, [duplicate_bag, public, named_table]),
+  _ = ets:new(?ETS_SHARDED_DUPLICATE_BAG, [duplicate_bag, public, named_table | Opts]),
   _ = ets:give_away(?ETS_SHARDED_DUPLICATE_BAG, whereis(?SHARDED_DUPLICATE_BAG), []),
   ok.
 
 %% @private
-init_shards_new(Scope) ->
+init_shards_new(Scope, Opts) ->
   Mod =
     case Scope of
       g -> shards_dist;
@@ -769,7 +795,7 @@ init_shards_new(Scope) ->
 
   % test badarg
   shards_ct:assert_error(fun() ->
-    shards:new(?SET, [{scope, Scope}, wrongarg])
+    shards:new(?SET, [{scope, Scope}, wrongarg | Opts])
   end, badarg),
 
   DefaultShards = ?N_SHARDS,
@@ -778,13 +804,14 @@ init_shards_new(Scope) ->
     shards:new(?SET, [
       named_table,
       public,
-      {scope, Scope},
-      {pick_node_fun, fun ?MODULE:pick_node/3}
+      {scope, Scope}
+      | Opts
     ]),
 
   StateSet = shards:state(?SET),
 
-  #{module := Mod,
+  #{
+    module := Mod,
     n_shards := DefaultShards
   } = shards_state:to_map(StateSet),
 
@@ -794,11 +821,13 @@ init_shards_new(Scope) ->
       {scope, Scope},
       duplicate_bag,
       {pick_node_fun, fun ?MODULE:pick_node/3}
+      | Opts
     ]),
 
   StateDupBag = shards:state(?DUPLICATE_BAG),
 
-  #{module := Mod,
+  #{
+    module := Mod,
     n_shards := 5
   } = shards_state:to_map(StateDupBag),
 
@@ -806,11 +835,13 @@ init_shards_new(Scope) ->
     shards:new(?ORDERED_SET, [
       {scope, Scope},
       ordered_set
+      | Opts
     ]),
 
   StateOrderedSet = shards:state(?ORDERED_SET),
 
-  #{module := Mod,
+  #{
+    module := Mod,
     n_shards := 1
   } = shards_state:to_map(StateOrderedSet),
 
@@ -821,11 +852,13 @@ init_shards_new(Scope) ->
       duplicate_bag,
       {pick_shard_fun, fun ?MODULE:pick_shard/3},
       {pick_node_fun, fun ?MODULE:pick_node_dist/3}
+      | Opts
     ]),
 
   StateShardedDupBag = shards:state(?SHARDED_DUPLICATE_BAG),
 
-  #{module := Mod,
+  #{
+    module := Mod,
     n_shards := 5
   } = shards_state:to_map(StateShardedDupBag).
 
@@ -854,10 +887,11 @@ build_args(Args, Config) ->
   [{Scope, X, Y} || {X, Y} <- Args].
 
 -spec get_module(shards_state:scope(), atom()) -> shards_local | shards.
-get_module(l, Tab) when ?has_default_opts(Tab) ->
-  shards_local;
-get_module(_, _) ->
-  shards.
+get_module(Scope, Tab) ->
+  case {Scope, shards_state:get(Tab), shards_state:new()} of
+    {l, S, S} -> shards_local;
+    _         -> shards
+  end.
 
 %%%===================================================================
 %%% Internal functions

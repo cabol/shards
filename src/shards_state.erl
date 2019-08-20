@@ -25,12 +25,10 @@
   new/1,
   new/2,
   new/3,
-  new/4,
-  new/5,
-  get/1,
-  is_state/1,
   from_map/1,
-  to_map/1
+  to_map/1,
+  get/1,
+  is_state/1
 ]).
 
 %% API – Getters & Setters
@@ -41,6 +39,8 @@
   sup_name/2,
   n_shards/1,
   n_shards/2,
+  keypos/1,
+  keypos/2,
   pick_shard_fun/1,
   pick_shard_fun/2,
   pick_node_fun/1,
@@ -96,6 +96,7 @@
   module         = shards_local          :: module(),
   sup_name       = shards_sup            :: atom(),
   n_shards       = ?N_SHARDS             :: pos_integer(),
+  keypos         = 1                     :: pos_integer(),
   pick_shard_fun = fun shards_lib:pick/3 :: pick_fun(),
   pick_node_fun  = fun shards_lib:pick/3 :: pick_fun()
 }).
@@ -109,6 +110,7 @@
 %%         module         => module(),
 %%         sup_name       => atom(),
 %%         n_shards       => pos_integer(),
+%%         keypos         => pos_integer(),
 %%         pick_shard_fun => pick_fun(),
 %%         pick_node_fun  => pick_fun()
 %%       }.
@@ -119,6 +121,7 @@
 %% `shards_local' or `shards_dist'.</li>
 %% <li>`sup_name': Registered name for `shards_sup'.</li>
 %% <li>`n_shards': Number of ETS shards/fragments.</li>
+%% <li>`keypos': Element in the stored tuples to use as key.</li>
 %% <li>`pick_shard_fun': Function callback to pick/compute the shard.</li>
 %% <li>`pick_node_fun': Function callback to pick/compute the node.</li>
 %% </ul>
@@ -126,6 +129,7 @@
         module         => module(),
         sup_name       => atom(),
         n_shards       => pos_integer(),
+        keypos         => pos_integer(),
         pick_shard_fun => pick_fun(),
         pick_node_fun  => pick_fun()
       }.
@@ -162,23 +166,32 @@ new(Shards, Module) ->
 new(Shards, Module, SupName) ->
   #state{n_shards = Shards, module = Module, sup_name = SupName}.
 
--spec new(pos_integer(), module(), atom(), pick_fun()) -> state().
-new(Shards, Module, SupName, PickShardFun) ->
+%% @doc
+%% Builds a new `state' from the given `Map'.
+%% @end
+-spec from_map(#{atom() => term()}) -> state().
+from_map(Map) ->
   #state{
-    n_shards       = Shards,
-    module         = Module,
-    sup_name       = SupName,
-    pick_shard_fun = PickShardFun
+    module         = maps:get(module, Map, shards_local),
+    sup_name       = maps:get(sup_name, Map, shards_sup),
+    n_shards       = maps:get(n_shards, Map, ?N_SHARDS),
+    keypos         = maps:get(keypos, Map, 1),
+    pick_shard_fun = maps:get(pick_shard_fun, Map, fun shards_lib:pick/3),
+    pick_node_fun  = maps:get(pick_node_fun, Map, fun shards_lib:pick/3)
   }.
 
--spec new(pos_integer(), module(), atom(), pick_fun(), pick_fun()) -> state().
-new(Shards, Module, SupName, PickShardFun, PickNodeFun) ->
-  #state{
-    n_shards       = Shards,
-    module         = Module,
-    sup_name       = SupName,
-    pick_shard_fun = PickShardFun,
-    pick_node_fun  = PickNodeFun
+%% @doc
+%% Converts the given `state' into a `map'.
+%% @end
+-spec to_map(state()) -> state_map().
+to_map(State) ->
+  #{
+    module         => State#state.module,
+    sup_name       => State#state.sup_name,
+    n_shards       => State#state.n_shards,
+    keypos         => State#state.keypos,
+    pick_shard_fun => State#state.pick_shard_fun,
+    pick_node_fun  => State#state.pick_node_fun
   }.
 
 %% @doc
@@ -200,32 +213,6 @@ is_state(#state{}) ->
   true;
 is_state(_) ->
   false.
-
-%% @doc
-%% Builds a new `state' from the given `Map'.
-%% @end
--spec from_map(map()) -> state().
-from_map(Map) ->
-  #state{
-    module         = maps:get(module, Map, shards_local),
-    sup_name       = maps:get(sup_name, Map, shards_sup),
-    n_shards       = maps:get(n_shards, Map, ?N_SHARDS),
-    pick_shard_fun = maps:get(pick_shard_fun, Map, fun shards_lib:pick/3),
-    pick_node_fun  = maps:get(pick_node_fun, Map, fun shards_lib:pick/3)
-  }.
-
-%% @doc
-%% Converts the given `state' into a `map'.
-%% @end
--spec to_map(state()) -> state_map().
-to_map(State) ->
-  #{
-    module         => State#state.module,
-    sup_name       => State#state.sup_name,
-    n_shards       => State#state.n_shards,
-    pick_shard_fun => State#state.pick_shard_fun,
-    pick_node_fun  => State#state.pick_node_fun
-  }.
 
 %%%===================================================================
 %%% API
@@ -260,6 +247,16 @@ n_shards(Tab) when is_atom(Tab) ->
 -spec n_shards(pos_integer(), state()) -> state().
 n_shards(Shards, #state{} = State) when is_integer(Shards), Shards > 0 ->
   State#state{n_shards = Shards}.
+
+-spec keypos(state() | atom()) -> pos_integer().
+keypos(#state{keypos = Keypos}) ->
+  Keypos;
+keypos(Tab) when is_atom(Tab) ->
+  keypos(?MODULE:get(Tab)).
+
+-spec keypos(pos_integer(), state()) -> state().
+keypos(Keypos, #state{} = State) when is_integer(Keypos), Keypos > 0 ->
+  State#state{keypos = Keypos}.
 
 -spec pick_shard_fun(state() | atom()) -> pick_fun().
 pick_shard_fun(#state{pick_shard_fun = PickShardFun}) ->
