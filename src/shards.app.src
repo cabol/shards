@@ -1,6 +1,6 @@
 {application, shards, [
   {description, "Sharding support for ETS tables out-of-box"},
-  {vsn, "0.6.0"},
+  {vsn, "0.6.1"},
   {registered, []},
   {mod, {shards_app, []}},
   {applications, [
@@ -9,7 +9,6 @@
   ]},
   {env,[]},
   {modules, []},
-  {maintainers, ["Carlos A Bolanos"]},
   {licenses, ["MIT"]},
   {build_tools, ["rebar3", "make"]},
   {links, [

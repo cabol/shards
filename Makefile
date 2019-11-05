@@ -31,12 +31,6 @@ local_test: check_rebar check_epmd
 dist_test: check_rebar check_epmd
 	$(REBAR) do ct --suite=test/shards_dist_SUITE, cover
 
-## The option '--readable=false' is added due to the compatibility issue of rebar3 with OTP 21
-ci: check_epmd check_plt
-	$(call get_rebar)
-	$(REBAR) do ct --readable=false, cover
-	rm -rf rebar3
-
 shell: check_rebar
 	$(REBAR) shell
 
