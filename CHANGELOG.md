@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.6.2](https://github.com/cabol/shards/tree/v0.6.2) (2020-03-23)
+
+[Full Changelog](https://github.com/cabol/shards/compare/v0.6.1...v0.6.2)
+
+**Closed issues:**
+
+- Rollback when `insert\_new` fails [\#46](https://github.com/cabol/shards/issues/46)
+
 ## [v0.6.1](https://github.com/cabol/shards/tree/v0.6.1) (2019-11-05)
 
 [Full Changelog](https://github.com/cabol/shards/compare/v0.6.0...v0.6.1)

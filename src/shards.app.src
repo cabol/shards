@@ -1,6 +1,6 @@
 {application, shards, [
   {description, "Sharding support for ETS tables out-of-box"},
-  {vsn, "0.6.1"},
+  {vsn, "0.6.2"},
   {registered, []},
   {mod, {shards_app, []}},
   {applications, [
