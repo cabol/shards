@@ -108,7 +108,7 @@ t_join_leave_ops(Config) ->
 
   % setup tables
   _ = setup_tabs(Config),
-  _ = timer:sleep(500),
+  _ = timer:sleep(3000),
 
   % join and check nodes
   Tabs = ?SHARDS_TABS -- [?ORDERED_SET],

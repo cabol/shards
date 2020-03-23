@@ -4,7 +4,9 @@
 > ### ETS tables on steroids!
 > Sharding support for ETS tables out-of-box.
 
-[![Build Status](https://travis-ci.org/cabol/shards.svg?branch=master)](https://travis-ci.org/cabol/shards)
+[![Build Status](https://github.com/cabol/shards/workflows/CI/badge.svg)](https://github.com/cabol/shards/actions)
+[![Hex Version](https://img.shields.io/hexpm/v/shards.svg)](https://hex.pm/packages/shards)
+
 
 Why might we need **Sharding** on ETS tables? Well, the main reason is
 to keep the lock contention under control, in order to scale-out ETS tables
