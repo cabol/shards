@@ -6,4 +6,4 @@ otp_release:
 before_script:
   - epmd -daemon
 script:
-  - make test
+  - make ci

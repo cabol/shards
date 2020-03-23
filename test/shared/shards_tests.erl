@@ -100,28 +100,9 @@ t_basic_ops_({Scope, Tab, EtsTab}) ->
   true = ets:insert_new(EtsTab, {k3, <<"V3">>}),
   true = Mod:insert_new(Tab, [{1, 1}, {2, 2}, {3, 3}]),
 
-  case Tab of
-    ?ORDERED_SET ->
-      {false, [
-        {kx, 1, a, "hi"},
-        {k3, <<"V3">>}
-      ]} = Mod:insert_new(Tab, [Obj1, {k3, <<"V3">>}]),
-      true = Mod:insert_new(Tab, {k3, <<"V3">>});
-
-    ?SHARDED_DUPLICATE_BAG ->
-      {false, [{kx, 1, a, "hi"} | Rest]} = Mod:insert_new(Tab, [Obj1, {k3, <<"V3">>}]),
-      case Rest of
-        [] ->
-          false = Mod:insert_new(Tab, {k3, <<"V3">>});
-
-        [_K3] ->
-          true = Mod:insert_new(Tab, {k3, <<"V3">>})
-      end;
-
-    _ ->
-      {false, [{kx, 1, a, "hi"}]} = Mod:insert_new(Tab, [Obj1, {k3, <<"V3">>}]),
-      false = Mod:insert_new(Tab, {k3, <<"V3">>})
-  end,
+  false = Mod:insert_new(Tab, [Obj1, {k3, <<"V3">>}]),
+  false = Mod:insert_new(Tab, Obj1),
+  true = Mod:insert_new(Tab, {k3, <<"V3">>}),
 
   % lookup element
   case Tab of

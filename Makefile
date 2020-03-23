@@ -22,6 +22,12 @@ distclean: clean
 dialyzer: check_rebar
 	$(REBAR) dialyzer
 
+xref: check_rebar
+	$(REBAR) xref
+
+ci: check_rebar check_epmd check_plt xref
+	$(REBAR) do ct, cover
+
 test: check_rebar check_epmd check_plt
 	$(REBAR) do ct, cover
 

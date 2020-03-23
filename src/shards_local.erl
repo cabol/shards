@@ -539,15 +539,9 @@ insert_new(Tab, ObjOrObjs) ->
 
 %% @doc
 %% This operation behaves similar to `ets:insert_new/2', BUT with a big
-%% difference, <b>IT IS NOT ATOMIC</b>, which means, if it fails inserting
-%% some object, previous inserted objects are not rolled back, in that case
-%% only that object is affected, the rest may be successfully inserted.
-%%
-%% This function returns `true' if all entries were successfully inserted.
-%% If one of the given entries within `ObjOrObjs' fails, the tuple
-%% `{false, FailedObjs}' is returned, where `FailedObjs' contains the list
-%% of the failed objects. If only one entry/object is passed to this function
-%% and it fails, only `false' is returned.
+%% difference, <b>IT IS NOT ATOMIC</b>, which means if it fails to insert
+%% some object, previously inserted ones are rolled back but in a separate
+%% command, so there might be race conditions during its execution.
 %%
 %% <b>Example:</b>
 %%
@@ -559,26 +553,32 @@ insert_new(Tab, ObjOrObjs) ->
 %% false
 %%
 %% > shards:insert_new(mytab, [{k1, 1}, {k2, 2}]).
-%% {false,[{k1,1}]}
+%% false
 %% '''
 %%
 %% @see ets:insert_new/2.
 %% @end
--spec insert_new(Tab :: atom(), ObjOrObjs, State :: shards_state:state()) ->
-        boolean() | {false, ObjOrObjs}
-      when ObjOrObjs :: tuple() | [tuple()].
+-spec insert_new(
+        Tab       :: atom(),
+        ObjOrObjs :: tuple() | [tuple()],
+        State     :: shards_state:state()
+      ) -> boolean().
 insert_new(Tab, ObjOrObjs, State) when is_list(ObjOrObjs) ->
   Result =
-    maps:fold(fun(Shard, Group, Acc) ->
+    shards_lib:reduce_while(fun({Shard, Group}, Acc) ->
       case do_insert_new(Tab, Shard, Group, State) of
-        true  -> Acc;
-        false -> Group ++ Acc
+        true ->
+          {cont, Group ++ Acc};
+
+        false ->
+          ok = rollback_insert(Tab, Acc, State),
+          {halt, false}
       end
     end, [], group_keys_by_shard(Tab, ObjOrObjs, State)),
 
   case Result of
-    [] -> true;
-    _  -> {false, Result}
+    false -> false;
+    _     -> true
   end;
 insert_new(Tab, ObjOrObjs, State) when is_tuple(ObjOrObjs) ->
   do_insert_new(Tab, get_shard(Tab, ObjOrObjs, State), ObjOrObjs, State).
@@ -600,6 +600,13 @@ do_insert_new(Tab, Shard, Objs, State) ->
     _ ->
       ets:insert_new(Shard, Objs)
   end.
+
+%% @private
+rollback_insert(Tab, Entries, State) ->
+  lists:foreach(fun(Entry) ->
+    Key = element(shards_state:keypos(State), Entry),
+    ?MODULE:delete(Tab, Key, State)
+  end, Entries).
 
 %% @equiv ets:is_compiled_ms(Term)
 is_compiled_ms(Term) ->

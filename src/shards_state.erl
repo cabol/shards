@@ -224,8 +224,8 @@ module(#state{module = Module}) ->
 module(Tab) when is_atom(Tab) ->
   module(?MODULE:get(Tab)).
 
--spec module(module(), state()) -> state().
-module(Module, #state{} = State) when is_atom(Module) ->
+-spec module(state(), module()) -> state().
+module(#state{} = State, Module) when is_atom(Module) ->
   State#state{module = Module}.
 
 -spec sup_name(state() | atom()) -> atom().
@@ -234,8 +234,8 @@ sup_name(#state{sup_name = SupName}) ->
 sup_name(Tab) when is_atom(Tab) ->
   sup_name(?MODULE:get(Tab)).
 
--spec sup_name(atom(), state()) -> state().
-sup_name(SupName, #state{} = State) when is_atom(SupName) ->
+-spec sup_name(state(), atom()) -> state().
+sup_name(#state{} = State, SupName) when is_atom(SupName) ->
   State#state{sup_name = SupName}.
 
 -spec n_shards(state() | atom()) -> pos_integer().
@@ -244,8 +244,8 @@ n_shards(#state{n_shards = Shards}) ->
 n_shards(Tab) when is_atom(Tab) ->
   n_shards(?MODULE:get(Tab)).
 
--spec n_shards(pos_integer(), state()) -> state().
-n_shards(Shards, #state{} = State) when is_integer(Shards), Shards > 0 ->
+-spec n_shards(state(), pos_integer()) -> state().
+n_shards(#state{} = State, Shards) when is_integer(Shards), Shards > 0 ->
   State#state{n_shards = Shards}.
 
 -spec keypos(state() | atom()) -> pos_integer().
@@ -254,8 +254,8 @@ keypos(#state{keypos = Keypos}) ->
 keypos(Tab) when is_atom(Tab) ->
   keypos(?MODULE:get(Tab)).
 
--spec keypos(pos_integer(), state()) -> state().
-keypos(Keypos, #state{} = State) when is_integer(Keypos), Keypos > 0 ->
+-spec keypos(state(), pos_integer()) -> state().
+keypos(#state{} = State, Keypos) when is_integer(Keypos), Keypos > 0 ->
   State#state{keypos = Keypos}.
 
 -spec pick_shard_fun(state() | atom()) -> pick_fun().
@@ -264,8 +264,8 @@ pick_shard_fun(#state{pick_shard_fun = PickShardFun}) ->
 pick_shard_fun(Tab) when is_atom(Tab) ->
   pick_shard_fun(?MODULE:get(Tab)).
 
--spec pick_shard_fun(pick_fun(), state()) -> state().
-pick_shard_fun(Fun, #state{} = State) when is_function(Fun, 3) ->
+-spec pick_shard_fun(state(), pick_fun()) -> state().
+pick_shard_fun(#state{} = State, Fun) when is_function(Fun, 3) ->
   State#state{pick_shard_fun = Fun}.
 
 -spec pick_node_fun(state() | atom()) -> pick_fun().
@@ -274,8 +274,8 @@ pick_node_fun(#state{pick_node_fun = PickNodeFun}) ->
 pick_node_fun(Tab) when is_atom(Tab) ->
   pick_node_fun(?MODULE:get(Tab)).
 
--spec pick_node_fun(pick_fun(), state()) -> state().
-pick_node_fun(Fun, #state{} = State) when is_function(Fun, 3) ->
+-spec pick_node_fun(state(), pick_fun()) -> state().
+pick_node_fun(#state{} = State, Fun) when is_function(Fun, 3) ->
   State#state{pick_node_fun = Fun}.
 
 -spec scope(state() | atom()) -> scope().

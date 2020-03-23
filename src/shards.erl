@@ -300,9 +300,7 @@ insert(Tab, ObjectOrObjects) ->
 %% @see shards_local:insert_new/3.
 %% @see shards_dist:insert_new/3.
 %% @end
--spec insert_new(Tab :: atom(), ObjOrObjs) ->
-        boolean() | {false, ObjOrObjs}
-      when ObjOrObjs :: tuple() | [tuple()].
+-spec insert_new(Tab :: atom(), ObjOrObjL :: tuple() | [tuple()]) -> boolean().
 insert_new(Tab, ObjectOrObjects) ->
   call(Tab, insert_new, [Tab, ObjectOrObjects]).
 

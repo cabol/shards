@@ -140,14 +140,14 @@ t_state_ops(_Config) ->
   l = shards_state:scope(test_set),
 
   State0 = shards_state:new(),
-  State1 = shards_state:module(shards_dist, State0),
+  State1 = shards_state:module(State0, shards_dist),
   g = shards_state:scope(State1),
-  State2 = shards_state:n_shards(100, State1),
+  State2 = shards_state:n_shards(State1, 100),
   Fun = fun(X, Y, Z) -> (X + Y + Z) rem Y end,
-  State3 = shards_state:pick_shard_fun(Fun, State2),
-  State4 = shards_state:pick_node_fun(Fun, State3),
-  State5 = shards_state:sup_name(my_sup, State4),
-  State6 = shards_state:keypos(2, State5),
+  State3 = shards_state:pick_shard_fun(State2, Fun),
+  State4 = shards_state:pick_node_fun(State3, Fun),
+  State5 = shards_state:sup_name(State4, my_sup),
+  State6 = shards_state:keypos(State5, 2),
 
   #{
     module         := shards_dist,

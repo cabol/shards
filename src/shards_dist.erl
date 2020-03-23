@@ -277,22 +277,27 @@ insert(Tab, ObjOrObjs, State) when is_tuple(ObjOrObjs) ->
   Node = pick_node(PickNodeFun, Key, get_nodes(Tab), w),
   true = rpc:call(Node, ?SHARDS, insert, [Tab, ObjOrObjs, State]).
 
--spec insert_new(Tab :: atom(), ObjOrObjs, State :: shards_state:state()) ->
-        boolean() | {false, ObjOrObjs}
-      when ObjOrObjs :: tuple() | [tuple()].
+-spec insert_new(
+        Tab       :: atom(),
+        ObjOrObjs :: tuple() | [tuple()],
+        State     :: shards_state:state()
+      ) -> boolean().
 insert_new(Tab, ObjOrObjs, State) when is_list(ObjOrObjs) ->
   Result =
-    maps:fold(fun(Node, Group, Acc) ->
+    shards_lib:reduce_while(fun({Node, Group}, Acc) ->
       case do_insert_new(Tab, Node, Group, State) of
-        true            -> Acc;
-        false           -> Group ++ Acc;
-        {false, Failed} -> Failed ++ Acc
+        true ->
+          {cont, Group ++ Acc};
+
+        false ->
+          ok = rollback_insert(Tab, Acc, State),
+          {halt, false}
       end
     end, [], group_keys_by_node(Tab, ObjOrObjs, State)),
 
   case Result of
-    [] -> true;
-    _  -> {false, Result}
+    false -> false;
+    _     -> true
   end;
 insert_new(Tab, ObjOrObjs, State) when is_tuple(ObjOrObjs) ->
   do_insert_new(Tab, get_node(Tab, ObjOrObjs, State), ObjOrObjs, State).
@@ -314,6 +319,13 @@ do_insert_new(Tab, Node, Objs, State) ->
     _ ->
       rpc:call(Node, ?SHARDS, insert_new, [Tab, Objs, State])
   end.
+
+%% @private
+rollback_insert(Tab, Entries, State) ->
+  lists:foreach(fun(Entry) ->
+    Key = element(shards_state:keypos(State), Entry),
+    ?MODULE:delete(Tab, Key, State)
+  end, Entries).
 
 -spec lookup(
         Tab   :: atom(),

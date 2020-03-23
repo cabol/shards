@@ -196,19 +196,6 @@ shard/partition based on the key before to insert the object, so each object
 may be inserted in a different partition; but again, this logic is hadled by
 `shards`.
 
-The other difference is for `insert_new/2` function, the contract changes,
-it doesn't returns just a `boolean`, this is the contract/spec:
-
-```erlang
--spec insert_new(Tab :: atom(), ObjOrObjs, State :: shards_state:state()) ->
-        boolean() | {false, ObjOrObjs}
-      when ObjOrObjs :: tuple() | [tuple()].
-```
-
-Because this function is not atomic neither, in the case a list of objects is
-given, if the function fails inserting one of those, instead of return just
-`false`, it returns `{false, ListOfFailedObjects}`.
-
 Let's insert some entries:
 
 ```erlang
@@ -224,7 +211,7 @@ true
 > shards:insert_new(mytab, {k3, 3}).
 false
 > shards:insert_new(mytab, [{k3, 3}, {k4, 4}]).
-{false,[{k3,3}]}
+false
 ```
 
 ## Playing with shards
