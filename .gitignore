@@ -33,3 +33,4 @@ priv/*.so
 *_plt
 doc
 docs
+/priv/plts

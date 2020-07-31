@@ -1,7 +1,24 @@
 # Getting Started
 
+## Table of Contents
+
+* __[Prelude](#prelude)__
+* __[Installation](#installation)__
+  * [Erlang](#erlang)
+  * [Elixir](#elixir)
+* __[Creating partitioned tables](#creating-partitioned-tables)__
+* __[Inserting entries](#inserting-entries)__
+* __[Retrieving entries](#retrieving-entries)__
+* __[Making partitioned tables part of an application's supervision tree](#making-partitioned-tables-part-of-an-applications-supervision-tree)__
+  * [Erlang example](#erlang-example)
+  * [Elixir example](#elixir-example)
+* __[Advanced topics](#advanced-topics)__
+  * __[Caching the metadata](#caching-the-metadata)__
+
+## Prelude
+
 In this guide, we're going to learn some basics about `shards`, how to create
-partitioned tables and how to use its API; which is the easiest part, since
+partitioned tables and how to use them; which is the easiest part, since
 it is the same ETS API.
 
 ## Installation
@@ -12,7 +29,7 @@ In your `rebar.config`:
 
 ```erlang
 {deps, [
-  {shards, "0.6.1"}
+  {shards, "0.7.0"}
 ]}.
 ```
 
@@ -22,459 +39,398 @@ In your `mix.exs`:
 
 ```elixir
 def deps do
-  [{:shards, "~> 0.6"}]
+  [{:shards, "~> 0.7.0"}]
 end
-```
-
-### Adding shards as part of your supervision tree
-
-For this part of configuration, we have to setup `shards_sup` as a supervisor
-within the application's supervision tree.
-
-<u>**Erlang**</u>
-
-In your main supervisor module, inside the `init/1` callback:
-
-```erlang
-init({YourShardsSupName}) ->
-  Children = [
-    #{
-      id    => YourShardsSupName,
-      start => {shards_sup, start_link, [YourShardsSupName]},
-      type  => supervisor
-    }
-  ],
-
-  {ok, {{one_for_one, 10, 10}, Children}}.
-```
-
-<u>**Elixir**</u>
-
-In `lib/YOUR_APP_NAME/application.ex`, inside the `start/2` function:
-
-```elixir
-def start(_type, _args) do
-  children = [
-    %{
-        id: your_shards_sup_name,
-        start: {:shards_sup, :start_link, [your_shards_sup_name]},
-        type: :supervisor
-      }
-  ]
-
-  ...
-```
-
-### Running shards as an independent app
-
-In this case `shards` will run as an independent app on its own supervision
-tree.
-
-<u>**Erlang**</u>
-
-We have to add `shards` to your list of applications in the `*.app.src` file:
-
-```erlang
-{application, your_app, [
-  {description, "Your App"},
-  {vsn, "0.1.0"},
-  {registered, []},
-  {mod, {your_app, []}},
-  {applications, [
-    kernel,
-    stdlib,
-    shards
-  ]},
-  {env,[]},
-  {modules, []}
-]}.
-```
-
-Then in your `rebar.config`:
-
-```erlang
-{shell, [{apps, [your_app]}]}.
-```
-
-Finally run an Erlang console:
-
-```
-$ rebar3 shell
-```
-
-<u>**Elixir**</u>
-
-We have to add `shards` to your list of applications in the `mix.exs` file:
-
-```elixir
-def application do
-  [
-    mod: {YourApp.Application, []},
-    extra_applications: [:logger, :shards]
-  ]
-end
-```
-
-Then run an Elixir console:
-
-```
-$ iex -S mix
 ```
 
 ## Creating partitioned tables
 
 Exactly as ETS, `shards:new/2` function receives 2 arguments, the name of the
-table and the options. `shards` adds more options:
+table and the options. But in addition to the options given by `ets:new/2`,
+`shards` provides the next ones:
 
- * `{n_shards, pos_integer()}` - Allows to set the desired number of shards or
-   partitions. By default, the number of shards is the total of online
-   schedulers (`erlang:system_info(schedulers_online)`).
+  * `{partitions, pos_integer()}` - Allows to set the desired number of
+    partitions. By default, the number of partitions is the total of online
+    schedulers (`erlang:system_info(schedulers_online)`).
 
-  * `{scope, l | g}` - Defines the scope, in other words, if sharding will be
-    applied locally (`l`) or global/distributed (`g`). By default is set to `l`.
+  * `{keyslot_fun, shards_meta:keyslot_fun()}` - Function used to compute the
+    partition where the action will be evaluated based on the key. Defaults to
+    `erlang:phash2/2`.
 
-  * `{restart_strategy, one_for_one | one_for_all}` - Allows to configure the
-    restart strategy for `shards_owner_sup`. By default is set to `one_for_one`.
+  * `{parallel, boolean()}` - Specifies whether `shards` should work in parallel
+    mode or not, for the applicable functions, e.g.: `select`, `match`, etc. By
+    default is set to `false`.
 
-  * `{pick_shard_fun, pick_fun()}` - Function to pick the shard or partition
-    based on the `Key` where the function will be applied locally; used by
-    `shards_local`. Defaults to `shards_state:pick_fun()`.
-    See [shards_state][shards_state].
+Wen a new table is created, the [metadata][shards_meta] is created for that
+table as well. The purpose of the **metadata** is to store information related
+to that table, such as: number of partitions, keyslot function, etc. To learn
+more about it, check out [shards_meta][shards_meta].
 
-  * `{pick_node_fun, pick_fun()}` - Function to pick the node based on the `Key`
-    where the function will be applied globally/distributed; used by
-    `shards_dist`. Defaults to `shards_state:pick_fun()`.
-    See [shards_state][shards_state].
+[shards_meta]: https://github.com/cabol/shards/blob/master/src/shards_meta.erl
 
-  * `{nodes, [node()]}` - A list of nodes to auto setup a distributed table.
-    The table is created in all given nodes and then all nodes are joined.
-    This option only has effect if the option `{scope, g}` has been set.
-
-  * `{sup_name, atom()}` - Allows to define a custom name for `shards_sup`.
-    By default is set to `shards_sup`. This option might be useful in the
-    case you want to start `shards` as part of your app supervision tree;
-    not as an independent app.
-
-Wen a new table is created, the [State][shards_state] is created for that table
-as well. The purpose of the **State** is to store information related to that
-table, such as: number of shards, scope, ty pe, pick functions, etc. To learn
-more about it, check out [shards_state module][shards_state].
-
-[shards_state]: https://github.com/cabol/shards/blob/master/src/shards_state.erl
-
-**Examples:**
+**Erlang:**
 
 ```erlang
-% let's create a table, such as you would create it with ETS, with 4 shards
-> shards:new(tab1, [{n_shards, 4}]).
+% create a named table with 4 shards
+> shards:new(tab1, [named_table, {partitions, 4}]).
 tab1
 
 % create another one with default options
 > shards:new(tab2, []).
-tab2
-
-% now open the observer so you can see what happened
-> observer:start().
-ok
+#Ref<0.893853601.1266286595.53859>
 ```
 
-You will see the supervision trees that `shards` has created. When you create a
-new "table," what happens behind scenes is, `shards` creates a supervision tree
-dedicated only for that group of shards, which represent your logical table
-partitioned on multiple ETS tables, and everything is handled transparently
-by`shards`, you only have to use the API like if you were working with a common
-ETS table and that's it, `shards` will take care of everything for you.
+**Elixir:**
+
+```elixir
+# create a named table with 4 shards
+iex> :shards.new(:tab1, [:named_table, partitions: 4])
+:tab1
+
+# create another one with default options
+iex> :shards.new(:tab2, [])
+#Reference<0.1257361217.1909325839.17166>
+```
+
+> **NOTE:** You can also start the observer by calling `observer:start()`
+  to see how a partitioned table looks like.
 
 ## Inserting entries
 
-The contract and the logic for insertion functions (`insert/2`, `insert_new/2`)
-is a bit different in `shards`, specially for `insert_new/2`. The first big
-difference is in `shards` these functions are not atomic. Due to we cannot
-insert a list of objects in a single table, since for `shards` a table is
-represented by several ones internally, `shards` has to compute the
-shard/partition based on the key before to insert the object, so each object
-may be inserted in a different partition; but again, this logic is hadled by
-`shards`.
-
-Let's insert some entries:
+**Erlang:**
 
 ```erlang
-% for insert is pretty much the same, the contract is the same
-> shards:insert(mytab, {k1, 1}).
+> shards:insert(tab1, {k1, 1}).
 true
-> shards:insert(mytab, [{k1, 1}, {k2, 2}]).
+> shards:insert(tab1, [{k1, 1}, {k2, 2}]).
 true
 
-% for insert_new
-> shards:insert_new(mytab, {k3, 3}).
+> shards:insert_new(tab1, {k3, 3}).
 true
-> shards:insert_new(mytab, {k3, 3}).
+> shards:insert_new(tab1, {k3, 3}).
 false
-> shards:insert_new(mytab, [{k3, 3}, {k4, 4}]).
+> shards:insert_new(tab1, [{k3, 3}, {k4, 4}]).
 false
 ```
 
-## Playing with shards
+**Elixir:**
 
-Let's use some write/read operations against the partitioned tables we just
-created previously:
+```elixir
+iex> :shards.insert(:tab1, k1: 1)
+true
+iex> :shards.insert(:tab1, k1: 1, k2: 2)
+true
+
+iex> :shards.insert_new(:tab1, k3: 3)
+true
+iex> :shards.insert_new(:tab1, k3: 3)
+false
+iex> :shards.insert_new(:tab1, k3: 3, k4: 4)
+false
+```
+
+## Retrieving entries
+
+**Erlang:**
 
 ```erlang
 % inserting some objects
-> shards:insert(mytab1, [{k1, 1}, {k2, 2}, {k3, 3}]).
+> shards:insert(tab1, [{k1, 1}, {k2, 2}, {k3, 3}]).
 true
 
 % let's check those objects
-> shards:lookup(mytab1, k1).
+> shards:lookup(tab1, k1).
 [{k1,1}]
-> shards:lookup(mytab1, k2).
+> shards:lookup(tab1, k2).
 [{k2,2}]
-> shards:lookup(mytab1, k3).
+> shards:lookup(tab1, k3).
 [{k3,3}]
-> shards:lookup(mytab1, k4).
+> shards:lookup(tab1, k4).
 []
 
+> shards:lookup_element(tab1, k3, 2).
+3
+
 % delete an object and then check
-> shards:delete(mytab1, k3).
+> shards:delete(tab1, k3).
 true
-> shards:lookup(mytab1, k3).
+> shards:lookup(tab1, k3).
 []
 
 % now let's find all stored objects using select
 > MatchSpec = ets:fun2ms(fun({K, V}) -> {K, V} end).
 [{{'$1','$2'},[],[{{'$1','$2'}}]}]
-> shards:select(mytab1, MatchSpec).
-[{k1,1},{k2,2}]
+> shards:select(tab1, MatchSpec).
+[{k2,2},{k1,1}]
 ```
 
-As you may have noticed, it's extremely easy, because almost all ETS functions
-are implemented by shards, it's only matters of replacing `ets` module by
-`shards`.
+**Elixir:**
+
+```elixir
+iex> :shards.insert(:tab1, k1: 1, k2: 2, k3: 3)
+true
+
+iex> :shards.lookup(:tab1, :k1)
+[k1: 1]
+iex> :shards.lookup(:tab1, :k2)
+[k2: 2]
+iex> :shards.lookup(:tab1, :k3)
+[k3: 3]
+iex> :shards.lookup(:tab1, :k4)
+[]
+
+iex> :shards.lookup_element(:tab1, :k3, 2)
+3
+
+iex> :shards.delete(:tab1, :k3)
+true
+iex> :shards.lookup(:tab1, :k3)
+[]
+
+iex> ms = :ets.fun2ms(& &1)
+[{:"$1", [], [:"$1"]}]
+iex> :shards.select(:tab1, ms)
+[k2: 2, k1: 1]
+```
+
+As you may have noticed using `shards` is extremely easy, it's only matters of
+using the same ETS API but with `shards` module.
 
 You can try the rest of the ETS API but using `shards`.
 
-## Deleting partitioned tables
+## Making partitioned tables part of an application's supervision tree
 
-**Shards** behaves in an elastic way, as you saw, more shards can be
-added/removed dynamically:
+There might be some cases we may want to start the tables as part of an
+existing supervision tree. To do so, we can create a dynamic supervisor
+for taking care of creating/deleting the tables and add the dynamic
+supervisor as part of our app supervision tree.
+
+Shards provides the module `shards_group`, which is a dynamic supervisor that
+can bee added to an existing application and/or supervision tree. Besides,
+`shards_group` brings with the function to create tables making them part of
+the dynamic supervisor and also with the function to delete them and remove
+them from the dynamic supervisor. But let's see how it works!
+
+### Erlang example
+
+Supposing you have an application `myapp` and the main supervisor `myapp_sup`,
+the only piece of configuration is to setup the `shards_group` as a supervisor
+within the application's supervision tree, like so:
 
 ```erlang
-> shards:delete(mytab1).
-true
+-module(myapp_sup).
 
+-export([start_link/1, init/1]).
+
+start_link() ->
+  supervisor:start_link({name, ?MODULE}, ?MODULE, []).
+
+init(_) ->
+  Children = [
+    % Dynamic supervisor with default name shards_group
+    % See shards_group:child_spec/1
+    shards_group:child_spec()
+  ],
+
+  {ok, {{one_for_one, 10, 10}, Children}}.
+```
+
+> The call `shards_group:child_spec()` will return the spec using the default
+  name for the dynamic supervisor `shards_group`, but can pass the desired name
+  by calling `shards_group:child_spec(desired_name)`.
+
+Once the app is started, you can use `shards_group` to create/delete tables
+and `shards` for the rest of the API functions, like so:
+
+```erlang
+% create a table as part of the app supervision tree
+> shards_group:new_table(myapp_dynamic_sup, tab1, [named_table]).
+{ok,<0.194.0>,#Ref<0.3052443831.2753691659.260835>}
+
+> shards:insert(tab1, [{a, 1}, {b, 2}]).
+true
+> shards:lookup_element(tab1, a, 2).
+1
+
+% let's create another table
+> {ok, _Pid, Tab} = shards_group:new_table(myapp_dynamic_sup, tab2, []).
+{ok,<0.195.0>,#Ref<0.3052443831.2753691659.260836>}
+
+> shards:insert(tab2, [{c, 3}, {d, 4}]).
+true
+> shards:lookup_element(tab1, c, 2).
+3
+
+% you can open the observer to see hoe the tables look like
 > observer:start().
 ok
-```
 
-See how `shards` gets shrinks.
-
-## Using shards_local directly
-
-The module `shards` is a wrapper on top of two main modules:
-
- * [shards_local](../src/shards_local.erl): Implements Sharding but locally,
-   on a single Erlang node.
-
- * [shards_dist](../src/shards_dist.erl): Implements Sharding but globally,
-   running on top of multiple distributed Erlang nodes; `shards_dist` uses
-   `shards_local` internally.
-
-When you use `shards` on top of `shards_local`, a call to the control ETS table
-owned by `shards_owner_sup` must be done, in order to recover the
-[State][shards_state], mentioned previously.
-
-Most of the `shards_local` functions allow to pass the `State` as a parameter,
-therefore, it must be fetched before to call it. To learn more about it,
-check out how [shards](../src/shards.erl) module is implemented.
-
-So, if in your case any microsecond matters, you can skip the call to the
-control table by calling `shards_local` directly. There are two options
-to do so.
-
-### Option 1
-
-The first option is getting the `State`, and passing it as an argument. Now the
-question is: how to get the `State`? Well, it's extremely easy, you can get
-the `State` when you call `shards:new/2` for the first time, or you can call
-`shards:state/1`, `shards_state:get/1` or `shards_state:new/0,1,2,3,4` at any
-time you want, and then it might be stored within the calling process, or
-wherever you want. For example:
-
-```erlang
-% take a look at the 2nd element of the returned tuple, that is the state
-> shards:new(mytab, [{n_shards, 4}]).
-mytab
-
-% remember you can get the state at any time you want
-> State = shards:state(mytab).
-{state,shards_local,shards_sup,4,#Fun<shards_local.pick.3>,
-       #Fun<shards_local.pick.3>}
-
-% or
-> State = shards_state:get(mytab).
-{state,shards_local,shards_sup,4,#Fun<shards_local.pick.3>,
-       #Fun<shards_local.pick.3>}
-
-% now you can call shards_local directly
-> shards_local:insert(mytab, {1, 1}, State).
-true
-> shards_local:lookup(mytab, 1, State).
-[{1,1}]
-
-% in this case, only n_shards option is different from the default one,
-% so you can do this:
-> shards_local:lookup(mytab, 1, shards_state:new(4)).
-[{1,1}]
-```
-
-### Option 2
-
-The second option is to call `shards_local` directly without the `state`, but
-this is only possible if you have created a table with default options, such as
-`n_shards`, `pick_shard_fun` and `pick_node_fun`. If you can take this option,
-it might be significantly better, since in this case no additional calls are
-needed, not even to recover the `State` (like in the previous option), because
-a new `State` is created with default values every time you call a
-`shards_local` function. Therefore, the call is mapped directly to an ETS
-function. For example:
-
-```erlang
-% create a table without set n_shards, pick_shard_fun or pick_node_fun
-> shards:new(mytab, []).
-mytab
-
-% call shards_local without the state
-> shards_local:insert(mytab, {1, 1}).
-true
-> shards_local:lookup(mytab, 1).
-[{1,1}]
-```
-
-Most of the cases this is not necessary, `shards` wrapper is more than enough,
-it adds only a few microseconds of latency. In conclusion, **Shards** gives you
-the flexibility to do so, but it's your call!
-
-## Distributed Shards
-
-So far, we've seen how `shards` works locally, now let's see how `shards`
-works but distributed.
-
-**1.** Let's start 3 Erlang consoles running shards:
-
-Node `a`:
-
-```
-$ rebar3 shell --name a@127.0.0.1
-```
-
-Node `b`:
-
-```
-$ rebar3 shell --name b@127.0.0.1
-```
-
-Node `c`:
-
-```
-$ rebar3 shell --name c@127.0.0.1
-```
-
-**2.** Create a table with global scope `{scope, g}` on each node and then
-join them.
-
-There are two ways to achieve this:
-
- * Manually create the table on each node and then from any of them join
-   the rest.
-
-    Create the table on each node:
-
-    ```erlang
-    % when a table is created with {scope, g}, the module shards_dist is used
-    % internally by shards
-    > shards:new(mytab, [{scope, g}]).
-    mytab
-    ```
-
-    Join them. From node `a`, join `b` and `c` nodes:
-
-    ```erlang
-    > shards:join(mytab, ['b@127.0.0.1', 'c@127.0.0.1']).
-    ['a@127.0.0.1','b@127.0.0.1','c@127.0.0.1']
-    ```
-
-    Let's check all nodes have the same list of joined nodes by running next
-    function on each node:
-
-    ```erlang
-    > shards:get_nodes(mytab).
-    ['a@127.0.0.1','b@127.0.0.1','c@127.0.0.1']
-    ```
-
- * The easiest way is calling `shards:new/3` but passing the option
-   `{nodes, Nodes}`, where `Nodes` is the list of nodes you want to join.
-
-    From Node `a`:
-
-    ```erlang
-    > shards:new(mytab, [{scope, g}, {nodes, ['b@127.0.0.1', 'c@127.0.0.1']}]).
-    mytab
-    ```
-
-    Let's check again on all nodes:
-
-    ```erlang
-    > shards:get_nodes(mytab).
-    ['a@127.0.0.1','b@127.0.0.1','c@127.0.0.1']
-    ```
-
-**3.** Now **Shards** cluster is ready, let's do some basic operations:
-
-From node `a`:
-
-```erlang
-> shards:insert(mytab, [{k1, 1}, {k2, 2}]).
+% deleting a table
+> shards_group:del_table(myapp_dynamic_sup, tab1).
 true
 ```
 
-From node `b`:
+### Elixir example
 
-```erlang
-> shards:insert(mytab, [{k3, 3}, {k4, 4}]).
+In Elixir is much easier it provides the `DynamicSupervisor` module out-of-box,
+so we have two options, either use `:shards_group` like before in the Erlang
+example, or use `DynamicSupervisor` and create a simple module to encapsulate
+the logic of creating/deleting tables. Since we already know how `:shards_group`
+works in the previous example, let's take the second option.
+
+First of all, let's create the module to encapsulate the logic of creating and
+deleting the tables:
+
+```elixir
+defmodule MyApp.DynamicShards do
+  @moduledoc false
+
+  # creates a table with shards as part of the DynamicSupervisor which at
+  # the same time is part of the app supervision tree
+  def new(name, opts) do
+    {:ok, _pid, tab} =
+      DynamicSupervisor.start_child(__MODULE__, table_spec(name, opts))
+
+    tab
+  end
+
+  # deletes the table and also removes the table supervisor from the
+  # DynamicSupervisor
+  def delete(tab) do
+    DynamicSupervisor.terminate_child(__MODULE__, :shards_meta.tab_pid(tab))
+  end
+
+  # this functions encapsulates the logic of creating the sharded table
+  # as child of the DynamicSupervisor
+  def start_table(name, opts) do
+    tab = :shards.new(name, opts)
+    pid = :shards_meta.tab_pid(tab)
+    {:ok, pid, tab}
+  end
+
+  # DynamicSupervisor child spec
+  defp table_spec(name, opts) do
+    %{
+      id: name,
+      start: {__MODULE__, :start_table, [name, opts]},
+      type: :supervisor
+    }
+  end
+end
+```
+
+The final piece of configuration is to setup a `DynamicSupervisor` as a
+supervisor within the application's supervision tree, which we can do in
+`lib/my_app/application.ex`, inside the `start/2` function:
+
+```elixir
+def start(_type, _args) do
+  children = [
+    {DynamicSupervisor, strategy: :one_for_one, name: MyApp.DynamicShards}
+  ]
+
+  ...
+```
+
+Now we can use `:shards`:
+
+```elixir
+iex> MyApp.DynamicShards.new(:t1, [:named_table])
+:t1
+iex> t2 = MyApp.DynamicShards.new(:t2, [])
+#Reference<0.2506606486.3592028173.65798>
+
+iex> :shards.insert(:t1, a: 1, b: 2)
 true
-```
-
-From node `c`:
-
-```erlang
-> shards:insert(mytab, [{k5, 5}, {k6, 6}]).
+iex> :shards.insert(t2, c: 3, d: 4)
 true
+
+iex> :shards.lookup_element(:t1, :a, 2)
+1
+iex> :shards.lookup_element(t2, :c, 2)
+3
+
+# open the observer
+iex> :observer.start()
+ok
+
+# delete a table
+iex> MyApp.DynamicShards.delete(:t1)
+:ok
 ```
 
-Now, from any of previous nodes:
+## Advanced topics
+
+### Caching the metadata
+
+Like it is explained in [shards module](https://hexdocs.pm/shards/shards.html),
+when a partitioned table is created there is a metadata associated to it, to
+resolve the number of partitions and other needed attributes. Hence, every time
+a function is executed, `shards` has to resolve the metadata first; but this is
+done internally by `shards`. Nevertheless, `shards` allows to pass the metadata
+as last argument for most of the functions (check the docs to see what functions
+allow it), in case you are able to cache it and use it later for further
+operations. This is possible because the metadata is something doesn't change,
+so it can be easily cached and avoid `shards` the extra step to retrieve it
+from the meta table. But be aware this is just an ETS lookup, so the improvement
+is terms of performance may be insignificant, for that reason it is
+recommendable to evaluate very carefully each scenario and and see if its really
+worth it.
+
+> The overall recommendation is to let `shards` take care of retrieving the
+  metadata and everything else, just use the base `shards` API (ETS API).
+
+In case you want to cache the metadata:
+
+**Erlang:**
 
 ```erlang
-> [shards:lookup_element(mytab, Key, 2) || Key <- [k1, k2, k3, k4, k5, k6]].
-[1,2,3,4,5,6]
+> Tab = shards:new(mytab, [named_table, {partitions, 4}]).
+named_table
+
+> Meta = shards:meta(Tab).
+{meta,<0.174.0>,1,4,fun erlang:phash2/2,false,[named_table]}
 ```
 
-All nodes should return the same result.
+**Elixir:**
 
-Let's do some deletions, from any node:
+```elixir
+iex> tab = :shards.new(:mytab, [:named_table, partitions: 4])
+:mytab
+
+iex> meta = :shards.meta(tab)
+{:meta, #PID<0.163.0>, 1, 4, &:erlang.phash2/2, false, [:named_table]}
+```
+
+Then, you can use it for most of the functions (check the docs):
+
+**Erlang:**
 
 ```erlang
-> shards:delete(mytab, k6).
+> shards:insert(Tab, [{a, 1}, {b, 2}], Meta).
 true
+
+> shards:lookup(Tab, a, Meta).
+[{a,1}]
+
+> shards:lookup_element(Tab, a, 2, Meta).
+1
 ```
 
-And again, let's check it out from any node:
+**Elixir:**
 
-```erlang
-% as you can see 'k6' was deleted
-> shards:lookup(mytab, k6).
-[]
+```elixir
+iex> :shards.insert(tab, [a: 1, b: 2], meta)
+true
 
-% check remaining values
-> [shards:lookup_element(mytab, Key, 2) || Key <- [k1, k2, k3, k4, k5]].
-[1,2,3,4,5]
+iex> :shards.lookup(tab, :a, meta)
+[a: 1]
+
+iex> :shards.lookup_element(tab, :a, 2, meta)
+1
 ```
+
+> **NOTE:** See [shards](https://hexdocs.pm/shards/shards.html) docs for more
+  information about the functions that support receiving the metadata; most of
+  them allow the metadata parameter, but there are few exceptions you should
+  know.
