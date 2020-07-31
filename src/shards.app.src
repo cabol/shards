@@ -1,16 +1,15 @@
 {application, shards, [
-  {description, "Sharding support for ETS tables out-of-box"},
-  {vsn, "0.6.2"},
+  {description, "Erlang library for partitioned or sharded ETS tables."},
+  {vsn, "0.7.0"},
   {registered, []},
-  {mod, {shards_app, []}},
   {applications, [
     kernel,
     stdlib
   ]},
   {env,[]},
-  {modules, []},
   {licenses, ["MIT"]},
   {build_tools, ["rebar3", "make"]},
+  {maintainers, ["Carlos A. Bolaños"]},
   {links, [
     {"GitHub", "https://github.com/cabol/shards"},
     {"Getting Started", "https://github.com/cabol/shards/blob/master/guides/getting-started.md"},

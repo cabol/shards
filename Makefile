@@ -2,9 +2,7 @@ REBAR = $(shell which rebar3)
 
 EPMD_PROC_NUM = $(shell ps -ef | grep epmd | grep -v "grep")
 
-LOCAL_SUITES = "test/shards_local_SUITE,test/shards_state_SUITE,test/shards_lib_SUITE,test/shards_task_SUITE"
-
-.PHONY: all check_rebar compile clean distclean dialyzer test shell doc
+.PHONY: all compile clean distclean test test_suite dialyzer xref check shell docs
 
 all: check_rebar compile
 
@@ -25,23 +23,20 @@ dialyzer: check_rebar
 xref: check_rebar
 	$(REBAR) xref
 
-ci: check_rebar check_epmd check_plt xref
+test: check_rebar
 	$(REBAR) do ct, cover
 
-test: check_rebar check_epmd check_plt
-	$(REBAR) do ct, cover
+test_suite: check_rebar
+	$(REBAR) do ct --suite=test/$(SUITE)_SUITE, cover
 
-local_test: check_rebar check_epmd
-	$(REBAR) do ct --suite=$(LOCAL_SUITES), cover
+docs: check_rebar
+	$(REBAR) edoc
 
-dist_test: check_rebar check_epmd
-	$(REBAR) do ct --suite=test/shards_dist_SUITE, cover
+check: test dialyzer xref docs
+	@echo "OK!"
 
 shell: check_rebar
 	$(REBAR) shell
-
-doc: check_rebar
-	$(REBAR) edoc
 
 check_rebar:
 ifeq ($(REBAR),)
@@ -50,18 +45,6 @@ ifeq ($(wildcard rebar3),)
 else
 	$(eval REBAR=./rebar3)
 endif
-endif
-
-check_plt:
-ifeq (,$(wildcard ./*_plt))
-	@echo " ---> Running dialyzer ..."
-	$(REBAR) dialyzer
-endif
-
-check_epmd:
-ifeq ($(EPMD_PROC_NUM),)
-	epmd -daemon
-	@echo " ---> Started epmd!"
 endif
 
 define get_rebar

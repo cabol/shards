@@ -8,16 +8,34 @@ on:
 
 jobs:
   test:
-    name: make ci (OTP ${{ matrix.otp }})
     runs-on: ubuntu-latest
+    name: 'Shards Test (OTP ${{ matrix.otp }})'
+
     strategy:
       matrix:
-        otp: [22.3, 21.3]
+        otp: [23.1, 22.3]
+
     steps:
       - uses: actions/checkout@v2
+      - uses: gleam-lang/setup-erlang@v1.1.0
         with:
           otp-version: ${{ matrix.otp }}
-      - name: Starting EPMD
-        run: epmd -daemon
+
       - name: Running Tests
-        run: make ci
+        run: make test
+
+      - name: Running Edoc
+        run: make docs
+
+      - name: Running Xref
+        run: make xref
+
+      - uses: actions/cache@v1
+        with:
+          path: priv/plts
+          key: ${{ runner.os }}-plt-v1-${{ hashFiles(format('{0}{1}', github.workspace, '/rebar.lock')) }}
+          restore-keys: |
+            ${{ runner.os }}-plt-v1-
+
+      - name: Running Dialyzer
+        run: make dialyzer

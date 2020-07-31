@@ -1,32 +1,29 @@
-<img src="http://38.media.tumblr.com/db32471b7c8870cbb0b2cc173af283bb/tumblr_inline_nm9x9u6u261rw7ney_540.gif" height="170" width="100%" />
+<h1>
+  <img align="left" height="60px" src="guides/images/shards.png">
+  Shards
+</h1>
 
-# Shards
 > ### ETS tables on steroids!
-> Sharding support for ETS tables out-of-box.
+> Sharding for ETS tables out-of-box.
 
 [![Build Status](https://github.com/cabol/shards/workflows/CI/badge.svg)](https://github.com/cabol/shards/actions)
 [![Hex Version](https://img.shields.io/hexpm/v/shards.svg)](https://hex.pm/packages/shards)
 
-
-Why might we need **Sharding** on ETS tables? Well, the main reason is
-to keep the lock contention under control, in order to scale-out ETS tables
-(linearly) and support higher levels of concurrency without lock issues;
-specially write-locks, which most of the cases might cause significant
-performance degradation.
+Why might we need **Sharding** on ETS tables? Well, the main reason is to keep
+the lock contention under control, in order to scale-out ETS tables and support
+higher levels of concurrency without lock issues; specially write-locks, which
+most of the cases might cause significant performance degradation.
 
 Therefore, one of the most common and proven strategies to deal with these
 problems is [Sharding][sharding] or [Partitioning][partitioning]; the principle
 is pretty similar to [DHTs][dht].
 
 This is where **Shards** comes in. **Shards** is an **Erlang/Elixir** library
-compatible with the current [ETS API][ets_api], which implements
-[Sharding][sharding] or [Partitioning][partitioning] on top of ETS tables,
-completely transparent and out-of-box.
+compatible with the current [ETS API][ets_api], which implements Sharding or
+Partitioning on top of ETS tables, completely transparent and out-of-box.
 
 See the [getting started][getting_started] guide
 and the [online documentation](https://hexdocs.pm/shards/).
-
-> [List of compatible ETS functions](https://github.com/cabol/shards/issues/1)
 
 [ets_api]: http://erlang.org/doc/man/ets.html
 [sharding]: https://en.wikipedia.org/wiki/Shard_(database_architecture)
@@ -42,7 +39,7 @@ In your `rebar.config`:
 
 ```erlang
 {deps, [
-  {shards, "0.6.1"}
+  {shards, "0.7.0"}
 ]}.
 ```
 
@@ -52,12 +49,12 @@ In your `mix.exs`:
 
 ```elixir
 def deps do
-  [{:shards, "~> 0.6"}]
+  [{:shards, "~> 0.7.0"}]
 end
 ```
 
-> Check out the [getting started][getting_started] guide to learn
-  more about it.
+> For more information and examples, see the [getting started][getting_started]
+  guide.
 
 ## Important links
 
@@ -91,10 +88,10 @@ You can find tests results in `_build/test/logs`, and coverage in
   wrapper on top of `rebar3`, therefore, you can do everything using `rebar3`
   directly as well (e.g.: `rebar3 do ct, cover`).
 
-## Building Edoc
+## Generating Edoc
 
 ```
-$ make doc
+$ make docs
 ```
 
 > **NOTE:** Once you run the previous command, a new folder `doc` is created,
