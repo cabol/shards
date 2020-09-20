@@ -143,7 +143,10 @@ t_join_leave_ops(Config) ->
 
   % leave node E from SET
   OkNodes2 = lists:usort([node() | lists:droplast(OkNodes1)]),
-  OkNodes2 = shards:leave(?SET, [ENode]),
+  % FIXME: As in pg we cannot gaurantee that get_members returns
+  % the latest result, We need to wait a bit for new data to populate.
+  % So we cannot match the line below!
+  _OkNodes2 = shards:leave(?SET, [ENode]),
   _ = timer:sleep(500),
   OkNodes2 = shards:get_nodes(?SET),
   [A2, B2, C2, CT2, D2] = get_remote_nodes(OkNodes2, ?SET),
