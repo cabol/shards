@@ -23,11 +23,11 @@
 
   join(Group, Pid) ->
     %% HACK: Maybe implement apply_on_target?
-    OwnerNode = node(Pid),
-    if
-      OwnerNode == node() ->
+    Self = node(),
+    case node(Pid) of
+      Self ->
         pg:join(Group, Pid);
-      true ->
+      OwnerNode ->
         spawn(OwnerNode, pg, join, [Group, Pid]),
         ok
     end.
@@ -36,11 +36,11 @@
     pg:leave(Group, Pids);
 
   leave(Group, Pid) ->
-    OwnerNode = node(Pid),
-    if
-      OwnerNode == node() ->
+    Self = node(),
+    case node(Pid) of
+      Self ->
         pg:leave(Group, Pid);
-      true ->
+      OwnerNode ->
         spawn(OwnerNode, pg, leave, [Group, Pid]),
         ok
     end.
