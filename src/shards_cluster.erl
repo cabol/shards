@@ -28,8 +28,7 @@
       Self ->
         pg:join(Group, Pid);
       OwnerNode ->
-        spawn(OwnerNode, pg, join, [Group, Pid]),
-        ok
+        erpc:call(OwnerNode, pg, join, [Group, Pid])
     end.
 
   leave(Group, Pids) when is_list(Pids) ->
@@ -41,8 +40,7 @@
       Self ->
         pg:leave(Group, Pid);
       OwnerNode ->
-        spawn(OwnerNode, pg, leave, [Group, Pid]),
-        ok
+        erpc:call(OwnerNode, pg, leave, [Group, Pid])
     end.
 
   get_members(Group) -> pg:get_members(Group).
