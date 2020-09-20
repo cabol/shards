@@ -84,7 +84,7 @@ init({Name, Options}) ->
     ?worker(shards_owner, [LocalShardName, Opts], #{id => Shard})
   end || Shard <- shards_lib:iterator(State)],
 
-  % init shards_dist pg2 group
+  % init shards_dist pg/pg2 group
   Module = shards_state:module(State),
   ok = maybe_init_shards_dist(Name, Module),
 
@@ -158,7 +158,7 @@ parse_opts([Opt | Opts], #{opts := NOpts} = Acc) ->
 
 %% @private
 maybe_init_shards_dist(Tab, shards_dist) ->
-  ok = pg2:create(Tab),
-  ok = pg2:join(Tab, self());
+  ok = shards_cluster:create(Tab),
+  ok = shards_cluster:join(Tab, self());
 maybe_init_shards_dist(_, _) ->
   ok.

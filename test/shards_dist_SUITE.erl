@@ -119,10 +119,10 @@ t_join_leave_ops(Config) ->
   end, Tabs),
 
   % check no duplicate members
-  Members = pg2:get_members(?SET),
+  Members = shards_cluster:get_members(?SET),
   AllNodes = shards:join(?SET, AllNodes),
   _ = timer:sleep(500),
-  Members = pg2:get_members(?SET),
+  Members = shards_cluster:get_members(?SET),
 
   % stop F node
   _ = stop_slaves(['f@127.0.0.1']),

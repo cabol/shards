@@ -122,17 +122,17 @@ join(Tab, Nodes) ->
 %% @doc This function is used internally by `join/2'.
 %% @hidden
 do_join(Tab) ->
-  pg2:join(Tab, shards_lib:get_pid(Tab)).
+  shards_cluster:join(Tab, shards_lib:get_pid(Tab)).
 
 -spec leave(Tab :: atom(), Nodes :: [node()]) -> CurrentNodes :: [node()].
 leave(Tab, Nodes) ->
   global:trans({?MODULE, Tab}, fun() ->
-    Members = [{node(Pid), Pid} || Pid <- pg2:get_members(Tab)],
+    Members = [{node(Pid), Pid} || Pid <- shards_cluster:get_members(Tab)],
 
     ok =
       lists:foreach(fun(Node) ->
         case lists:keyfind(Node, 1, Members) of
-          {Node, Pid} -> pg2:leave(Tab, Pid);
+          {Node, Pid} -> shards_cluster:leave(Tab, Pid);
           _           -> noop
         end
       end, Nodes),
@@ -142,7 +142,7 @@ leave(Tab, Nodes) ->
 
 -spec get_nodes(Tab :: atom()) -> Nodes :: [node()].
 get_nodes(Tab) ->
-  lists:usort([node(Pid) || Pid <- pg2:get_members(Tab)]).
+  lists:usort([node(Pid) || Pid <- shards_cluster:get_members(Tab)]).
 
 %%%===================================================================
 %%% Shards API
@@ -437,8 +437,8 @@ rename(Tab, Name, State) ->
   Map = {?SHARDS, rename, [Tab, Name, State]},
   _ = mapred(Tab, nil, Map, nil, State, r),
   Nodes = get_nodes(Tab),
-  ok = pg2:delete(Tab),
-  ok = pg2:create(Name),
+  ok = shards_cluster:delete(Tab),
+  ok = shards_cluster:create(Name),
   Nodes = join(Name, Nodes),
   Name.
 
