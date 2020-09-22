@@ -16,10 +16,14 @@
 -if(?OTP_RELEASE >= 23).
   create(_Group) -> ok.
 
-  delete(_Group) -> ok.
+  delete(Group) ->
+    %% In order to delete a group in pg, We need to make all members leave!
+    GrouppedPids = group_by_node(get_members(Group)),
+    pg_action_on_nodes(leave, [Group], GrouppedPids).
 
   join(Group, Pids) when is_list(Pids) ->
-    pg:join(Group, Pids);
+    GrouppedPids = group_by_node(Pids),
+    pg_action_on_nodes(join, [Group], GrouppedPids);
 
   join(Group, Pid) ->
     %% HACK: Maybe implement apply_on_target?
@@ -32,7 +36,8 @@
     end.
 
   leave(Group, Pids) when is_list(Pids) ->
-    pg:leave(Group, Pids);
+    GrouppedPids = group_by_node(Pids),
+    pg_action_on_nodes(leave, [Group], GrouppedPids);
 
   leave(Group, Pid) ->
     Self = node(),
@@ -44,6 +49,27 @@
     end.
 
   get_members(Group) -> pg:get_members(Group).
+
+  group_by_node(Pids) -> group_by_node(Pids, #{}).
+
+  group_by_node([Pid | Tail], Acc) ->
+    Node = node(Pid),
+    NodeMembers = maps:get(Node, Acc, []),
+    group_by_node(Tail, maps:put(Node, [Pid | NodeMembers], Acc));
+
+  group_by_node([], Acc) -> Acc.
+
+  pg_action_on_node(Node, Action, Params, [Pid | Tail]) ->
+    _ = erpc:call(Node, pg, Action, Params ++ [Pid]),
+    pg_action_on_node(Node, Action, Params, Tail);
+
+  pg_action_on_node(_Node, _Action, _Params, []) -> ok.
+
+  pg_action_on_nodes(Action, Params, GrouppedPids) ->
+    lists:foreach(fun(Node) ->
+                    Pids = maps:get(Node, GrouppedPids), 
+                    pg_action_on_node(Node, Action, Params, Pids)
+                  end, maps:keys(GrouppedPids)).
 
 -else.
   %% In OTP versions under 23, pg module is not available.
