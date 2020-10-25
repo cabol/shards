@@ -20,7 +20,7 @@ Therefore, one of the most common and proven strategies to deal with these
 problems is [Sharding][sharding] or [Partitioning][partitioning]; the principle
 is pretty similar to [DHTs][dht].
 
-This is where [shards][shards] comes in. [shards][shards] is an Erlang/Elixir
+This is where [shards][shards] comes in. [Shards][shards] is an Erlang/Elixir
 library fully compatible with the [ETS API][ets_api], but it implements sharding
 or partitioning on top of the ETS tables, completely transparent and out-of-box.
 

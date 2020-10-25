@@ -9,7 +9,9 @@
 -export([
   map/2,
   reduce/3,
-  reduce_while/3
+  reduce_while/3,
+  pmap/2,
+  pmap/3
 ]).
 
 %%%===================================================================
@@ -22,6 +24,11 @@
 %%
 %% For maps, the function expects a key-value tuple.
 %% @end
+-spec map(Fun, Enumerable) -> [Result] when
+      Fun        :: fun((Elem) -> Result),
+      Elem       :: term(),
+      Result     :: term(),
+      Enumerable :: [term()] | map() | non_neg_integer().
 map(Fun, Enumerable) when is_function(Fun, 1) ->
   do_map(Fun, Enumerable).
 
@@ -137,3 +144,40 @@ do_reduce_while(Fun, Acc, N, Count) when Count < N ->
   end;
 do_reduce_while(_Fun, Acc, _N, _Count) ->
   Acc.
+
+%% @equiv pmap(Fun, infinity, Enumerable)
+pmap(Fun, Enumerable) ->
+  pmap(Fun, infinity, Enumerable).
+
+%% @doc
+%% Similar to `shards_enum:map/2' but it runs in parallel.
+%% @end
+-spec pmap(Fun, Timeout, Enumerable) -> [Result] when
+      Fun        :: fun((Elem) -> Result),
+      Elem       :: term(),
+      Timeout    :: timeout(),
+      Result     :: term(),
+      Enumerable :: [term()] | map() | non_neg_integer().
+pmap(Fun, Timeout, Enumerable) when is_function(Fun, 1), is_list(Enumerable) ->
+  Parent = self(),
+  Running = [spawn_monitor(fun() -> Parent ! {self(), Fun(E)} end) || E <- Enumerable],
+  pmap_collect(Running, Timeout, {[], undefined}).
+
+%% @private
+pmap_collect([], _Timeout, {Acc, undefined}) ->
+  Acc;
+pmap_collect([], _Timeout, {_Acc, {error, {Reason, Stacktrace}}}) ->
+  erlang:raise(error, Reason, Stacktrace);
+pmap_collect([], _Timeout, {_Acc, {error, Reason}}) ->
+  error(Reason);
+pmap_collect([{Pid, MRef} | Next], Timeout, {Acc, Err}) ->
+  receive
+    {Pid, Res} ->
+      erlang:demonitor(MRef, [flush]),
+      pmap_collect(Next, Timeout, {[Res | Acc], Err});
+
+    {'DOWN', MRef, process, _Pid, Reason} ->
+      pmap_collect(Next, Timeout, {Acc, {error, Reason}})
+  after Timeout ->
+    exit(pmap_timeout)
+  end.

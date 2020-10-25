@@ -1551,7 +1551,7 @@ mapred(Tab, Map, Reduce, Meta) ->
   do_mapred(Tab, Map, Reduce, tid, Partitions, Parallel).
 
 %% @private
-do_mapred(Tab, Map, Reduce, PartFun, Partitions, Parallel) when Partitions > 1, Parallel == true ->
+do_mapred(Tab, Map, Reduce, PartFun, Partitions, true) when Partitions > 1 ->
   p_mapred(Tab, Map, Reduce, PartFun, Partitions);
 do_mapred(Tab, Map, Reduce, PartFun, Partitions, _Parallel) ->
   s_mapred(Tab, Map, Reduce, PartFun, Partitions).
@@ -1569,18 +1569,13 @@ s_mapred(Tab, MapFun, ReduceFun, PartFun, Partitions) ->
 
 %% @private
 p_mapred(Tab, {MapFun, Args}, {ReduceFun, AccIn}, PartFun, Partitions) ->
-  Tasks =
-    shards_enum:map(fun(Idx) ->
-      shards_task:async(fun() ->
-        PartitionId = shards_partition:PartFun(Tab, Idx),
-        apply(MapFun, [PartitionId | Args])
-      end)
-    end, Partitions),
+  MapResults =
+    shards_enum:pmap(fun(Idx) ->
+      PartitionId = shards_partition:PartFun(Tab, Idx),
+      apply(MapFun, [PartitionId | Args])
+    end, lists:seq(0, Partitions - 1)),
 
-  lists:foldl(fun(Task, Acc) ->
-    MapRes = shards_task:await(Task),
-    ReduceFun(MapRes, Acc)
-  end, AccIn, Tasks);
+  lists:foldl(ReduceFun, AccIn, MapResults);
 p_mapred(Tab, MapFun, ReduceFun, PartFun, Partitions) ->
   {Map, Reduce} = mapred_funs(MapFun, ReduceFun),
   p_mapred(Tab, Map, Reduce, PartFun, Partitions).

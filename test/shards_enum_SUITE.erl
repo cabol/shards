@@ -10,6 +10,7 @@
 %% Test Cases
 -export([
   t_map/1,
+  t_pmap/1,
   t_reduce/1,
   t_reduce_with_maps/1,
   t_reduce_with_count/1,
@@ -42,6 +43,28 @@ t_map(_Config) ->
   [1, 4, 9, 16] = shards_enum:map(fun({K, V}) -> K * V end, new_tuple_list(4)),
   [18, 8, 2] = shards_enum:map(fun({K, V}) -> K * V end, #{1 => 2, 2 => 4, 3 => 6}),
   [3, 2, 1, 0] = shards_enum:map(fun(X) -> X end, 4).
+
+-spec t_pmap(shards_ct:config()) -> any().
+t_pmap(_Config) ->
+  [8, 6, 4, 2] = shards_enum:pmap(fun(X) -> X * 2 end, [1, 2, 3, 4]),
+
+  shards_ct:assert_error(fun() ->
+    shards_enum:pmap(fun
+      (1) -> error({badmatch, 1});
+      (X) -> X * 2
+    end, lists:seq(1, 10))
+  end, {badmatch, 1}),
+
+  shards_ct:assert_error(fun() ->
+    shards_enum:pmap(fun
+      (1) -> exit(shutdown);
+      (X) -> X * 2
+    end, lists:seq(1, 10))
+  end, shutdown),
+
+  shards_ct:assert_error(fun() ->
+    shards_enum:pmap(fun(_) -> timer:sleep(1000) end, 10, lists:seq(1, 10))
+  end, pmap_timeout).
 
 -spec t_reduce(shards_ct:config()) -> any().
 t_reduce(_Config) ->
