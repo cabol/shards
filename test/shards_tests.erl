@@ -8,6 +8,7 @@
   t_basic_ops/1,
   t_match_ops/1,
   t_select_ops/1,
+  t_select_replace/1,
   t_paginated_ops/1,
   t_paginated_ops_ordered_set/1,
   t_first_last_next_prev_ops/1,
@@ -176,6 +177,27 @@ t_select_ops_({Mod, Tab, EtsTab}) ->
   L2 = Mod:select_delete(Tab, MS2),
   R11 = maybe_sort(EtsTab, ets:select(EtsTab, MS1)),
   R11 = maybe_sort(Tab, Mod:select(Tab, MS1)).
+
+-spec t_select_replace(shards_ct:config()) -> any().
+t_select_replace(Config) ->
+  run_for_all_tables(Config, fun t_select_replace_/1).
+
+% @private
+t_select_replace_({Mod, Tab, EtsTab}) ->
+  % insert some values
+  KV = [
+    {k1, 1}, {k2, 2}, {k3, 2}, {k1, 1}, {k4, 22}, {k5, 33},
+    {k11, 1}, {k22, 2}, {k33, 2}, {k44, 11}, {k55, 22}, {k55, 33}
+  ],
+  true = ets:insert(EtsTab, KV),
+  true = Mod:insert(Tab, KV),
+
+  MS = ets:fun2ms(fun({K, V}) when V rem 2 == 0 -> {K, {marker, V}} end),
+  Count = ets:select_replace(EtsTab, MS),
+  Count = Mod:select_replace(Tab, MS),
+
+  L = lists:usort(ets:tab2list(EtsTab)),
+  L = lists:usort(Mod:tab2list(Tab)).
 
 -spec t_paginated_ops(shards_ct:config()) -> any().
 t_paginated_ops(Config) ->

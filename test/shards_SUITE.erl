@@ -18,6 +18,7 @@
   t_basic_ops/1,
   t_match_ops/1,
   t_select_ops/1,
+  t_select_replace/1,
   t_paginated_ops/1,
   t_paginated_ops_ordered_set/1,
   t_first_last_next_prev_ops/1,

@@ -131,6 +131,7 @@
   select/1, select/2, select/3, select/4,
   select_count/2, select_count/3,
   select_delete/2, select_delete/3,
+  select_replace/2, select_replace/3,
   select_reverse/1, select_reverse/2, select_reverse/3, select_reverse/4,
   setopts/2, setopts/3,
   tab2file/2, tab2file/3,
@@ -1163,6 +1164,25 @@ select_delete(Tab, MatchSpec) ->
       NumDeleted :: non_neg_integer().
 select_delete(Tab, MatchSpec, Meta) ->
   Map = {fun ets:select_delete/2, [MatchSpec]},
+  Reduce = {fun erlang:'+'/2, 0},
+  mapred(Tab, Map, Reduce, Meta).
+
+%% @equiv select_replace(Tab, MatchSpec, shards_meta:get(Tab))
+select_replace(Tab, MatchSpec) ->
+  select_replace(Tab, MatchSpec, shards_meta:get(Tab)).
+
+%% @doc
+%% Equivalent to `ets:select_replace/2'.
+%%
+%% @see ets:select_replace/2.
+%% @end
+-spec select_replace(Tab, MatchSpec, Meta) -> NumReplaced when
+      Tab         :: tab(),
+      MatchSpec   :: ets:match_spec(),
+      Meta        :: shards_meta:t(),
+      NumReplaced :: non_neg_integer().
+select_replace(Tab, MatchSpec, Meta) ->
+  Map = {fun ets:select_replace/2, [MatchSpec]},
   Reduce = {fun erlang:'+'/2, 0},
   mapred(Tab, Map, Reduce, Meta).
 
