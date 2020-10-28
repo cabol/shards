@@ -43,7 +43,7 @@ In your `rebar.config`:
 
 ```erlang
 {deps, [
-  {shards, "0.6.2"}
+  {shards, "1.0.0"}
 ]}.
 ```
 
@@ -53,7 +53,7 @@ In your `mix.exs`:
 
 ```elixir
 def deps do
-  [{:shards, "~> 0.6"}]
+  [{:shards, "~> 1.0"}]
 end
 ```
 
@@ -68,6 +68,8 @@ end
     Transparent and out-of-box sharding support for ETS tables in Erlang/Elixir.
 
   * Projects using **shards**:
+    * [shards_dist](https://github.com/cabol/shards_dist) - Distributed version
+      of `shards`. It was moved to a separate repo since `v1.0.0`.
     * [ExShards](https://github.com/cabol/ex_shards) – Elixir wrapper for
       `shards`; with extra and nicer functions.
     * [Nebulex](https://github.com/cabol/nebulex) – Distributed Caching

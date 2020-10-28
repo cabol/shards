@@ -1,15 +1,14 @@
 {application, shards, [
-  {description, "Erlang library for partitioned or sharded ETS tables."},
-  {vsn, "0.7.0"},
+  {description, "Erlang/Elixir library for partitioned or sharded ETS tables."},
+  {vsn, "1.0.0"},
   {registered, []},
   {applications, [
     kernel,
     stdlib
   ]},
-  {env,[]},
+  {env, []},
   {licenses, ["MIT"]},
   {build_tools, ["rebar3", "make"]},
-  {maintainers, ["Carlos A. Bolaños"]},
   {links, [
     {"GitHub", "https://github.com/cabol/shards"},
     {"Getting Started", "https://github.com/cabol/shards/blob/master/guides/getting-started.md"},

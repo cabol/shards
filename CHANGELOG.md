@@ -1,5 +1,42 @@
 # Changelog
 
+## [v1.0.0](https://github.com/cabol/shards/tree/v1.0.0) (2020-10-28)
+
+[Full Changelog](https://github.com/cabol/shards/compare/v0.6.2...v1.0.0)
+
+**Implemented enhancements:**
+
+- Make `shards` just a library to work locally and move `shards_dist` to a
+  [separate project/repo](https://github.com/cabol/shards_dist) [#52](https://github.com/cabol/shards/issues/52).
+- Use the metadata ETS table for storing the partitions TIDs, instead of
+  building atoms in runtime for table names [#55](https://github.com/cabol/shards/issues/55).
+- Refactor shards to use TIDs instead of names (atoms) for handling the
+  partitions [#54](https://github.com/cabol/shards/issues/54).
+- Support named and unnamed tables [#53](https://github.com/cabol/shards/issues/53).
+- Create the module `shards_group` as dynamic supervisor for creating/deleting
+  tables dynamically as part of a supervision tree [#56](https://github.com/cabol/shards/issues/56).
+- Add module `shards_enum` for the enumerable-based functions.
+- Add simple implementation for `shards_enum:pmap/2,3` to support parallel
+  execution.
+- Make configurable parallel execution for operations involving all partitions
+  (like query-based functions) via `parallel` option. See `shards:new/2`.
+- Make configurable the max timeout for parallel executions via
+  `parallel_timeout` option. See `shards:new/2`.
+- Remove module `shards_task` since it is overkill and not needed anymore.
+- Fix and/or improve docs.
+
+**Closed issues:**
+
+- Shards `0.6.2` doesn't compile on OTP 23.0.3 on OS X 10.15 [#48](https://github.com/cabol/shards/issues/48).
+- Migrate from pg2 to pg (OTP 23) [#47](https://github.com/cabol/shards/issues/47).
+- Support for `select_replace` [#45](https://github.com/cabol/shards/issues/45).
+- Fix `shards_dist` and `shards` specs to consider the case when `rpc` returns
+  `{badrpc, Reason}` [#43](https://github.com/cabol/shards/issues/43).
+
+**Merged pull requests:**
+
+- Prepare v1.0.0 [#51](https://github.com/cabol/shards/pull/51)
+
 ## [v0.6.2](https://github.com/cabol/shards/tree/v0.6.2) (2020-03-23)
 
 [Full Changelog](https://github.com/cabol/shards/compare/v0.6.1...v0.6.2)
