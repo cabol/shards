@@ -649,7 +649,8 @@ init_shards_new(Opts) ->
       duplicate_bag,
       {partitions, 5},
       {keyslot_fun, fun ?MODULE:pick_shard/2},
-      {parallel, true}
+      {parallel, true},
+      {parallel_timeout, 5000}
       | Opts
     ]),
 

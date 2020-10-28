@@ -61,6 +61,9 @@ table and the options. But in addition to the options given by `ets:new/2`,
     mode or not, for the applicable functions, e.g.: `select`, `match`, etc. By
     default is set to `false`.
 
+  * `{parallel_timeout, timeout()}` - When `parallel` is set to `true`, it
+    specifies the max timeout for a parallel execution. Defaults to `infinity`.
+
 Wen a new table is created, the [metadata][shards_meta] is created for that
 table as well. The purpose of the **metadata** is to store information related
 to that table, such as: number of partitions, keyslot function, etc. To learn

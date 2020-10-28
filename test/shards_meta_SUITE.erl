@@ -44,15 +44,24 @@ t_getters(_Config) ->
   true = ?PARTITIONS == shards_meta:partitions(Meta0),
   true = fun erlang:phash2/2 == shards_meta:keyslot_fun(Meta0),
   false = shards_meta:parallel(Meta0),
+  infinity = shards_meta:parallel_timeout(Meta0),
   [] = shards_meta:ets_opts(Meta0),
 
-  Meta1 = shards_meta:from_map(#{keypos => 2, partitions => 4, parallel => true}),
+  Meta1 =
+    shards_meta:from_map(#{
+      keypos           => 2,
+      partitions       => 4,
+      parallel         => true,
+      parallel_timeout => 5000
+    }),
+
   Self = self(),
   Self = shards_meta:tab_pid(Meta1),
   2 = shards_meta:keypos(Meta1),
   4 = shards_meta:partitions(Meta1),
   true = fun erlang:phash2/2 == shards_meta:keyslot_fun(Meta1),
   true = shards_meta:parallel(Meta1),
+  5000 = shards_meta:parallel_timeout(Meta1),
   [] = shards_meta:ets_opts(Meta1),
   ok.
 
@@ -68,6 +77,7 @@ t_getters_with_table(_Config) ->
   true = ?PARTITIONS == shards_meta:partitions(Tab),
   true = fun erlang:phash2/2 == shards_meta:keyslot_fun(Tab),
   false = shards_meta:parallel(Tab),
+  infinity = shards_meta:parallel_timeout(Tab),
   [] = shards_meta:ets_opts(Tab),
 
   true = shards:delete(Tab).
@@ -78,12 +88,13 @@ t_to_map(_Config) ->
   Parts = ?PARTITIONS,
 
   #{
-    tab_pid     := undefined,
-    keypos      := 1,
-    partitions  := Parts,
-    keyslot_fun := KeyslotFun,
-    parallel    := false,
-    ets_opts    := []
+    tab_pid          := undefined,
+    keypos           := 1,
+    partitions       := Parts,
+    keyslot_fun      := KeyslotFun,
+    parallel         := false,
+    parallel_timeout := infinity,
+    ets_opts         := []
   } = shards_meta:to_map(Meta0),
 
   true = fun erlang:phash2/2 == KeyslotFun.

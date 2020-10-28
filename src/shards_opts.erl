@@ -56,6 +56,9 @@ parse_opts([{keyslot_fun, Val} | Opts], Acc) when is_function(Val, 2) ->
   parse_opts(Opts, Acc#{keyslot_fun := Val});
 parse_opts([{parallel, Val} | Opts], Acc) when is_boolean(Val) ->
   parse_opts(Opts, Acc#{parallel := Val});
+parse_opts([{parallel_timeout, Val} | Opts], Acc)
+    when (is_integer(Val) andalso Val >= 0) orelse Val == infinity ->
+  parse_opts(Opts, Acc#{parallel_timeout := Val});
 parse_opts([{restore, _, _} = Opt | Opts], #{ets_opts := NOpts} = Acc) ->
   parse_opts(Opts, Acc#{ets_opts := [Opt | NOpts]});
 parse_opts([{heir, _, _} = Opt | Opts], #{ets_opts := NOpts} = Acc) ->

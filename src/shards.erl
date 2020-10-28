@@ -903,6 +903,10 @@ member(Tab, Key, Meta) ->
 %% or not, for the applicable functions, e.g.: `select', `match', etc. By
 %% default is set to `false'.
 %% </li>
+%% <li>
+%% `{parallel_timeout, T}' - When `parallel' is set to `true', it specifies
+%% the max timeout for a parallel execution. Defaults to `infinity'.
+%% </li>
 %% </ul>
 %%
 %% <h3>Access:</h3>
@@ -1562,19 +1566,20 @@ mapred(Tab, Map, Meta) ->
 mapred(Tab, Map, nil, Meta) ->
   mapred(Tab, Map, fun(E, Acc) -> [E | Acc] end, Meta);
 mapred(Tab, Map, Reduce, {PartitionFun, Meta}) ->
-  Partitions = shards_meta:partitions(Meta),
-  Parallel = shards_meta:parallel(Meta),
-  do_mapred(Tab, Map, Reduce, PartitionFun, Partitions, Parallel);
+  do_mapred(Tab, Map, Reduce, PartitionFun, Meta);
 mapred(Tab, Map, Reduce, Meta) ->
-  Partitions = shards_meta:partitions(Meta),
-  Parallel = shards_meta:parallel(Meta),
-  do_mapred(Tab, Map, Reduce, tid, Partitions, Parallel).
+  do_mapred(Tab, Map, Reduce, tid, Meta).
 
 %% @private
-do_mapred(Tab, Map, Reduce, PartFun, Partitions, true) when Partitions > 1 ->
-  p_mapred(Tab, Map, Reduce, PartFun, Partitions);
-do_mapred(Tab, Map, Reduce, PartFun, Partitions, _Parallel) ->
-  s_mapred(Tab, Map, Reduce, PartFun, Partitions).
+do_mapred(Tab, Map, Reduce, PartFun, Meta) ->
+  case {shards_meta:partitions(Meta), shards_meta:parallel(Meta)} of
+    {Partitions, true} when Partitions > 1 ->
+      ParallelTimeout = shards_meta:parallel_timeout(Meta),
+      p_mapred(Tab, Map, Reduce, PartFun, Partitions, ParallelTimeout);
+
+    {Partitions, false} ->
+      s_mapred(Tab, Map, Reduce, PartFun, Partitions)
+  end.
 
 %% @private
 s_mapred(Tab, {MapFun, Args}, {ReduceFun, AccIn}, PartFun, Partitions) ->
@@ -1588,17 +1593,17 @@ s_mapred(Tab, MapFun, ReduceFun, PartFun, Partitions) ->
   s_mapred(Tab, Map, Reduce, PartFun, Partitions).
 
 %% @private
-p_mapred(Tab, {MapFun, Args}, {ReduceFun, AccIn}, PartFun, Partitions) ->
+p_mapred(Tab, {MapFun, Args}, {ReduceFun, AccIn}, PartFun, Partitions, ParallelTimeout) ->
   MapResults =
     shards_enum:pmap(fun(Idx) ->
       PartitionId = shards_partition:PartFun(Tab, Idx),
       apply(MapFun, [PartitionId | Args])
-    end, lists:seq(0, Partitions - 1)),
+    end, ParallelTimeout, lists:seq(0, Partitions - 1)),
 
   lists:foldl(ReduceFun, AccIn, MapResults);
-p_mapred(Tab, MapFun, ReduceFun, PartFun, Partitions) ->
+p_mapred(Tab, MapFun, ReduceFun, PartFun, Partitions, ParallelTimeout) ->
   {Map, Reduce} = mapred_funs(MapFun, ReduceFun),
-  p_mapred(Tab, Map, Reduce, PartFun, Partitions).
+  p_mapred(Tab, Map, Reduce, PartFun, Partitions, ParallelTimeout).
 
 %% @private
 mapred_funs(MapFun, ReduceFun) ->

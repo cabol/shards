@@ -9,6 +9,7 @@
 ![CI](https://github.com/cabol/shards/workflows/CI/badge.svg)
 [![Codecov](https://codecov.io/gh/cabol/shards/branch/master/graphs/badge.svg)](https://codecov.io/gh/cabol/shards/branch/master/graphs/badge.svg)
 [![Hex Version](https://img.shields.io/hexpm/v/shards.svg)](https://hex.pm/packages/shards)
+[![Docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://hexdocs.pm/shards)
 
 Why might we need **Sharding/Partitioning** for the ETS tables? The main reason
 is to keep the lock contention under control enabling ETS tables to scale out

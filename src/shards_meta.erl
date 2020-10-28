@@ -34,6 +34,7 @@
   partitions/1,
   keyslot_fun/1,
   parallel/1,
+  parallel_timeout/1,
   ets_opts/1
 ]).
 
@@ -62,12 +63,13 @@
 
 %% Metadata definition
 -record(meta, {
-  tab_pid     = undefined           :: pid() | undefined,
-  keypos      = 1                   :: pos_integer(),
-  partitions  = ?PARTITIONS         :: pos_integer(),
-  keyslot_fun = fun erlang:phash2/2 :: keyslot_fun(),
-  parallel    = false               :: boolean(),
-  ets_opts    = []                  :: [term()]
+  tab_pid          = undefined           :: pid() | undefined,
+  keypos           = 1                   :: pos_integer(),
+  partitions       = ?PARTITIONS         :: pos_integer(),
+  keyslot_fun      = fun erlang:phash2/2 :: keyslot_fun(),
+  parallel         = false               :: boolean(),
+  parallel_timeout = infinity            :: timeout(),
+  ets_opts         = []                  :: [term()]
 }).
 
 %% @type t() = #meta{}.
@@ -76,22 +78,24 @@
 -type t() :: #meta{}.
 
 %% @type meta_map() = #{
-%%         tab_pid     => pid(),
-%%         keypos      => pos_integer(),
-%%         partitions  => pos_integer(),
-%%         keyslot_fun => keyslot_fun(),
-%%         parallel    => boolean(),
-%%         ets_opts    => [term()]
+%%         tab_pid          => pid(),
+%%         keypos           => pos_integer(),
+%%         partitions       => pos_integer(),
+%%         keyslot_fun      => keyslot_fun(),
+%%         parallel         => boolean(),
+%%         parallel_timeout => timeout(),
+%%         ets_opts         => [term()]
 %%       }.
 %%
 %% Defines the map representation for the metadata data type.
 -type meta_map() :: #{
-        tab_pid     => pid(),
-        keypos      => pos_integer(),
-        partitions  => pos_integer(),
-        keyslot_fun => keyslot_fun(),
-        parallel    => boolean(),
-        ets_opts    => [term()]
+        tab_pid          => pid(),
+        keypos           => pos_integer(),
+        partitions       => pos_integer(),
+        keyslot_fun      => keyslot_fun(),
+        parallel         => boolean(),
+        parallel_timeout => timeout(),
+        ets_opts         => [term()]
       }.
 
 %% Exported types
@@ -117,12 +121,13 @@ new() -> #meta{}.
 -spec from_map(Map :: #{atom() => term()}) -> t().
 from_map(Map) ->
   #meta{
-    tab_pid     = maps:get(tab_pid, Map, self()),
-    keypos      = maps:get(keypos, Map, 1),
-    partitions  = maps:get(partitions, Map, ?PARTITIONS),
-    keyslot_fun = maps:get(keyslot_fun, Map, fun erlang:phash2/2),
-    parallel    = maps:get(parallel, Map, false),
-    ets_opts    = maps:get(ets_opts, Map, [])
+    tab_pid          = maps:get(tab_pid, Map, self()),
+    keypos           = maps:get(keypos, Map, 1),
+    partitions       = maps:get(partitions, Map, ?PARTITIONS),
+    keyslot_fun      = maps:get(keyslot_fun, Map, fun erlang:phash2/2),
+    parallel         = maps:get(parallel, Map, false),
+    parallel_timeout = maps:get(parallel_timeout, Map, infinity),
+    ets_opts         = maps:get(ets_opts, Map, [])
   }.
 
 %% @doc
@@ -131,12 +136,13 @@ from_map(Map) ->
 -spec to_map(t()) -> meta_map().
 to_map(Meta) ->
   #{
-    tab_pid     => Meta#meta.tab_pid,
-    keypos      => Meta#meta.keypos,
-    partitions  => Meta#meta.partitions,
-    keyslot_fun => Meta#meta.keyslot_fun,
-    parallel    => Meta#meta.parallel,
-    ets_opts    => Meta#meta.ets_opts
+    tab_pid          => Meta#meta.tab_pid,
+    keypos           => Meta#meta.keypos,
+    partitions       => Meta#meta.partitions,
+    keyslot_fun      => Meta#meta.keyslot_fun,
+    parallel         => Meta#meta.parallel,
+    parallel_timeout => Meta#meta.parallel_timeout,
+    ets_opts         => Meta#meta.ets_opts
   }.
 
 %% @doc
@@ -229,37 +235,43 @@ partitions_info(Tab, KeyPrefix) ->
 %%%===================================================================
 
 -spec tab_pid(t() | shards:tab()) -> pid().
-tab_pid(#meta{tab_pid = TabPid}) ->
-  TabPid;
+tab_pid(#meta{tab_pid = Value}) ->
+  Value;
 tab_pid(Tab) when is_atom(Tab); is_reference(Tab) ->
   tab_pid(?MODULE:get(Tab)).
 
 -spec keypos(t() | shards:tab()) -> pos_integer().
-keypos(#meta{keypos = Keypos}) ->
-  Keypos;
+keypos(#meta{keypos = Value}) ->
+  Value;
 keypos(Tab) when is_atom(Tab); is_reference(Tab) ->
   keypos(?MODULE:get(Tab)).
 
 -spec partitions(t() | shards:tab()) -> pos_integer().
-partitions(#meta{partitions = Partitions}) ->
-  Partitions;
+partitions(#meta{partitions = Value}) ->
+  Value;
 partitions(Tab) when is_atom(Tab); is_reference(Tab) ->
   partitions(?MODULE:get(Tab)).
 
 -spec keyslot_fun(t() | shards:tab()) -> keyslot_fun().
-keyslot_fun(#meta{keyslot_fun = KeyslotFun}) ->
-  KeyslotFun;
+keyslot_fun(#meta{keyslot_fun = Value}) ->
+  Value;
 keyslot_fun(Tab) when is_atom(Tab); is_reference(Tab) ->
   keyslot_fun(?MODULE:get(Tab)).
 
 -spec parallel(t() | shards:tab()) -> boolean().
-parallel(#meta{parallel = Parallel}) ->
-  Parallel;
+parallel(#meta{parallel = Value}) ->
+  Value;
 parallel(Tab) when is_atom(Tab); is_reference(Tab) ->
   parallel(?MODULE:get(Tab)).
 
+-spec parallel_timeout(t() | shards:tab()) -> timeout().
+parallel_timeout(#meta{parallel_timeout = Value}) ->
+  Value;
+parallel_timeout(Tab) when is_atom(Tab); is_reference(Tab) ->
+  parallel_timeout(?MODULE:get(Tab)).
+
 -spec ets_opts(t() | shards:tab()) -> [term()].
-ets_opts(#meta{ets_opts = EtsOpts}) ->
-  EtsOpts;
+ets_opts(#meta{ets_opts = Value}) ->
+  Value;
 ets_opts(Tab) when is_atom(Tab); is_reference(Tab) ->
   ets_opts(?MODULE:get(Tab)).
