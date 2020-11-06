@@ -1616,7 +1616,7 @@ mapred_funs(MapFun, ReduceFun) ->
   {Map, {ReduceFun, []}}.
 
 %% @private
-q(_, Tab, MatchSpec, Limit, _, 0, Shard, {Acc, Continuation}) ->
+q(_, Tab, MatchSpec, Limit, _, I, Shard, {Acc, Continuation}) when I =< 0 ->
   {Acc, {Tab, MatchSpec, Limit, Shard, Continuation}};
 q(_, _, _, _, _, _, Shard, {[], _}) when Shard < 0 ->
   '$end_of_table';
@@ -1635,10 +1635,10 @@ q(F, Tab, MatchSpec, Limit, QFun, I, Shard, {Acc, _}) ->
   end.
 
 %% @private
-q(_, {Tab, MatchSpec, Limit, Shard, Continuation}, _, 0, Acc) ->
+q(_, {Tab, MatchSpec, Limit, Shard, Continuation}, _, I, Acc) when I =< 0 ->
   {Acc, {Tab, MatchSpec, Limit, Shard, Continuation}};
-q(F, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}, QFun, I, Acc) ->
-  q(F, Tab, MatchSpec, Limit, QFun, I, Shard - 1, {Acc, nil});
+q(F, {Tab, MatchSpec, Limit, Shard, '$end_of_table'}, QFun, _I, Acc) ->
+  q(F, Tab, MatchSpec, Limit, QFun, Limit, Shard - 1, {Acc, nil});
 q(F, {Tab, MatchSpec, Limit, Shard, Continuation}, QFun, I, Acc) ->
   case ets:F(Continuation) of
     {L, Cont} ->

@@ -16,6 +16,7 @@
 -include_lib("mixer/include/mixer.hrl").
 -mixin([{shards_tests, [
   t_basic_ops/1,
+  t_query_ops/1,
   t_match_ops/1,
   t_select_ops/1,
   t_select_replace/1,
@@ -59,7 +60,7 @@ all() ->
 
 -spec init_per_suite(shards_ct:config()) -> shards_ct:config().
 init_per_suite(Config) ->
-  [{module, shards} | Config].
+  Config.
 
 -spec end_per_suite(shards_ct:config()) -> shards_ct:config().
 end_per_suite(Config) ->
