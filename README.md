@@ -10,6 +10,7 @@
 [![Codecov](https://codecov.io/gh/cabol/shards/branch/master/graphs/badge.svg)](https://codecov.io/gh/cabol/shards/branch/master/graphs/badge.svg)
 [![Hex Version](https://img.shields.io/hexpm/v/shards.svg)](https://hex.pm/packages/shards)
 [![Docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://hexdocs.pm/shards)
+[![License](https://img.shields.io/hexpm/l/shards.svg)](LICENSE)
 
 Why might we need **Sharding/Partitioning** for the ETS tables? The main reason
 is to keep the lock contention under control enabling ETS tables to scale out
@@ -43,7 +44,7 @@ In your `rebar.config`:
 
 ```erlang
 {deps, [
-  {shards, "1.0.0"}
+  {shards, "1.0.1"}
 ]}.
 ```
 
@@ -120,4 +121,4 @@ ensure all checks run successfully.
 
 Copyright (c) 2016 Carlos Andres Bolaños R.A.
 
-**Shards** source code is licensed under the [MIT License](LICENSE.md).
+**Shards** source code is licensed under the [MIT License](LICENSE).
