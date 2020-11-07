@@ -146,8 +146,8 @@ t_query_ops_({EtsTab, Tab, {Op, MS}}) ->
     R1 = length(element(1, shards:Op(Tab, MS, N)))
   end, [100, 1000, 2000]),
 
-  R11 = lists:usort(element(1, ets:Op(EtsTab, MS, 100000))),
-  R11 = lists:usort(element(1, shards:Op(Tab, MS, 100000))),
+  R11 = lists:sort(element(1, ets:Op(EtsTab, MS, 100000))),
+  R11 = lists:sort(element(1, shards:Op(Tab, MS, 100000))),
 
   F = fun(Mod, AccIn) ->
     try
@@ -166,8 +166,8 @@ t_query_ops_({EtsTab, Tab, {Op, MS}}) ->
   {R2, C2} = ets:Op(EtsTab, MS, 10),
   {R22, C22} = shards:Op(Tab, MS, 10),
 
-  R3 = lists:usort(F(ets, {R2, C2})),
-  R3 = lists:usort(F(shards, {R22, C22})).
+  R3 = lists:sort(F(ets, {R2, C2})),
+  R3 = lists:sort(F(shards, {R22, C22})).
 
 -spec t_match_ops(shards_ct:config()) -> any().
 t_match_ops(_Config) ->
@@ -249,8 +249,8 @@ t_select_replace_({Tab, EtsTab}) ->
   Count = ets:select_replace(EtsTab, MS),
   Count = shards:select_replace(Tab, MS),
 
-  L = lists:usort(ets:tab2list(EtsTab)),
-  L = lists:usort(shards:tab2list(Tab)).
+  L = lists:sort(ets:tab2list(EtsTab)),
+  L = lists:sort(shards:tab2list(Tab)).
 
 -spec t_paginated_ops(shards_ct:config()) -> any().
 t_paginated_ops(_Config) ->
@@ -470,13 +470,13 @@ t_fold_ops_({Tab, EtsTab}) ->
 
   % foldl
   Foldl = fun({_, V}, Acc) -> [V | Acc] end,
-  R1 = lists:usort(shards:foldl(Foldl, [], Tab)),
-  R1 = lists:usort(ets:foldl(Foldl, [], EtsTab)),
+  R1 = lists:sort(shards:foldl(Foldl, [], Tab)),
+  R1 = lists:sort(ets:foldl(Foldl, [], EtsTab)),
 
   % foldr
   Foldr = fun({_, V}, Acc) -> [V | Acc] end,
-  R2 = lists:usort(shards:foldr(Foldr, [], Tab)),
-  R2 = lists:usort(ets:foldr(Foldr, [], EtsTab)).
+  R2 = lists:sort(shards:foldr(Foldr, [], Tab)),
+  R2 = lists:sort(ets:foldr(Foldr, [], EtsTab)).
 
 -spec t_info_ops(shards_ct:config()) -> any().
 t_info_ops(_Config) ->
@@ -518,8 +518,8 @@ t_tab2list_({Tab, EtsTab}) ->
   true = shards:insert(Tab, KVPairs),
 
   % check tab2list/1
-  R1 = lists:usort(shards:tab2list(Tab)),
-  R1 = lists:usort(ets:tab2list(EtsTab)),
+  R1 = lists:sort(shards:tab2list(Tab)),
+  R1 = lists:sort(ets:tab2list(EtsTab)),
   100 = length(R1).
 
 -spec t_tab2file_file2tab_tabfile_info(shards_ct:config()) -> any().
@@ -624,9 +624,9 @@ t_equivalent_ops_({Tab, _EtsTab}) ->
   R4 = shards:test_ms({k1, 1}, MS),
 
   Ids = shards_meta:get_partition_tids(Tab),
-  R5 = lists:usort([ets:table(Id) || {_, Id} <- Ids]),
-  R5 = lists:usort(shards:table(Tab)),
-  R5 = lists:usort(shards:table(Tab, [])),
+  R5 = lists:sort([ets:table(Id) || {_, Id} <- Ids]),
+  R5 = lists:sort(shards:table(Tab)),
+  R5 = lists:sort(shards:table(Tab, [])),
 
   true = shards:setopts(Tab, [{heir, none}]),
   true = shards:setopts(Tab, []),
@@ -753,7 +753,7 @@ lookup_keys(Mod, Tab, Keys) ->
 maybe_sort(Tab, List) when Tab == ?ORDERED_SET; Tab == ?ETS_ORDERED_SET ->
   List;
 maybe_sort(_Tab, List) ->
-  lists:usort(List).
+  lists:sort(List).
 
 %% @private
 shards_created(TabL) when is_list(TabL) ->

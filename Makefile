@@ -2,7 +2,7 @@ REBAR = $(shell which rebar3)
 
 EPMD_PROC_NUM = $(shell ps -ef | grep epmd | grep -v "grep")
 
-.PHONY: all compile clean distclean test test_suite covertool dialyzer xref check shell docs
+.PHONY: all compile clean distclean test qc test_suite covertool dialyzer xref check shell docs
 
 all: check_rebar compile
 
@@ -24,7 +24,10 @@ xref: check_rebar
 	$(REBAR) xref
 
 test: check_rebar
-	$(REBAR) do ct, cover
+	$(REBAR) do proper, ct, cover
+
+qc: check_rebar
+	$(REBAR) do proper
 
 test_suite: check_rebar
 	$(REBAR) do ct --suite=test/$(SUITE)_SUITE, cover
