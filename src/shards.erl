@@ -93,12 +93,6 @@
 %%%-------------------------------------------------------------------
 -module(shards).
 
-%% Helpers
--export([
-  meta/1,
-  partition_owners/1
-]).
-
 %% ETS API
 -export([
   all/0,
@@ -143,6 +137,15 @@
   update_counter/3, update_counter/4, update_counter/5,
   update_element/3, update_element/4
 ]).
+
+%% Helpers
+-export([
+  meta/1,
+  partition_owners/1
+]).
+
+%% Inline-compiled functions
+-compile({inline, [meta/1]}).
 
 %%%===================================================================
 %%% Types & Macros

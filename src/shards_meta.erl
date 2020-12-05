@@ -38,6 +38,15 @@
   ets_opts/1
 ]).
 
+%% Inline-compiled functions
+-compile({inline, [
+  lookup/2,
+  put/3,
+  get/1,
+  get_partition_tids/1,
+  get_partition_pids/1
+]}).
+
 %%%===================================================================
 %%% Types & Macros
 %%%===================================================================

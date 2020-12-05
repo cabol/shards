@@ -31,6 +31,9 @@
   handle_info/2
 ]).
 
+%% Inline-compiled functions
+-compile({inline, [tid/2, tid/3, pid/2]}).
+
 %% State
 -record(state, {
   tab           :: atom() | ets:tid(),
