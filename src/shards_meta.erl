@@ -23,6 +23,8 @@
   lookup/2,
   put/3,
   get/1,
+  get/2,
+  get/3,
   get_partition_tids/1,
   get_partition_pids/1
 ]).
@@ -214,10 +216,33 @@ put(Tab, Key, Val) ->
   ok.
 
 %% @doc
-%% Returns the metadata.
+%% Returns the `tab_info' within the metadata.
 %% @end
 -spec get(Tab :: shards:tab()) -> t() | no_return().
-get(Tab) -> lookup(Tab, meta).
+get(Tab) -> lookup(Tab, '$tab_info').
+
+%% @equiv get(Tab, Key, undefined)
+get(Tab, Key) ->
+  get(Tab, Key, undefined).
+
+%% @doc
+%% Returns the value for the given `Key' in the metadata,
+%% or `Def' if `Key' is not set.
+%% @end
+-spec get(Tab, Key, Def) -> Val when
+      Tab :: shards:tab(),
+      Key :: term(),
+      Def :: term(),
+      Val :: term().
+get(Tab, Key, Def) ->
+  try
+    case ets:lookup(Tab, Key) of
+      [{Key, Val}] -> Val;
+      []           -> Def
+    end
+  catch
+    error:badarg -> error({unknown_table, Tab})
+  end.
 
 %% @doc
 %% Returns a list with the partition TIDs.

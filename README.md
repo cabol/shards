@@ -44,7 +44,7 @@ In your `rebar.config`:
 
 ```erlang
 {deps, [
-  {shards, "1.0.1"}
+  {shards, "~> 1.0"}
 ]}.
 ```
 

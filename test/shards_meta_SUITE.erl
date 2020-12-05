@@ -116,7 +116,14 @@ t_retrieve_tids_pids(_Config) ->
 t_store_and_retrieve_from_meta_table(_Config) ->
   shards_ct:with_table(fun(Tab) ->
     ok = shards_meta:put(Tab, foo, bar),
-    bar = shards_meta:lookup(Tab, foo)
+    bar = shards_meta:lookup(Tab, foo),
+    bar = shards_meta:get(Tab, foo),
+    undefined = shards_meta:get(Tab, foo_foo),
+    bar_bar = shards_meta:get(Tab, foo_foo, bar_bar),
+
+    shards_ct:assert_error(fun() ->
+      shards_meta:get(unknown, foo)
+    end, {unknown_table, unknown})
   end, meta_table, []).
 
 -spec t_errors(shards_ct:config()) -> any().

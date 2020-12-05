@@ -491,7 +491,7 @@ t_info_ops_({Tab, EtsTab}) ->
   R11 = shards:info(Tab),
   undefined = shards:info(invalid),
 
-  Meta = shards:meta(Tab),
+  Meta = shards:table_meta(Tab),
   Partitions = shards_meta:partitions(Meta),
 
   lists:foreach(fun
@@ -687,7 +687,7 @@ init_shards_new(Opts) ->
       | Opts
     ]),
 
-  StateSet = shards:meta(?SET),
+  StateSet = shards:table_meta(?SET),
   SetPartitions = shards_meta:partitions(StateSet),
   SetPartitions = ?PARTITIONS,
 
@@ -702,7 +702,7 @@ init_shards_new(Opts) ->
       | Opts
     ]),
 
-  StateDupBag = shards:meta(?DUPLICATE_BAG),
+  StateDupBag = shards:table_meta(?DUPLICATE_BAG),
   5 = shards_meta:partitions(StateDupBag),
 
   ?ORDERED_SET =
@@ -712,7 +712,7 @@ init_shards_new(Opts) ->
       | Opts
     ]),
 
-  StateOrderedSet = shards:meta(?ORDERED_SET),
+  StateOrderedSet = shards:table_meta(?ORDERED_SET),
   1 =  shards_meta:partitions(StateOrderedSet).
 
 -spec cleanup_shards() -> true | no_return().

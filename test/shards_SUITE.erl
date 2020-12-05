@@ -35,6 +35,7 @@
 
 %% Tests
 -export([
+  t_metadata_function_wrappers/1,
   t_table_deleted_when_partition_goes_down/1,
   t_shards_table_unhandled_callbacks/1,
   t_table_creation_errors/1
@@ -84,6 +85,19 @@ end_per_testcase(_, Config) ->
 %%%===================================================================
 %%% Tests Cases
 %%%===================================================================
+
+-spec t_metadata_function_wrappers(shards_ct:config()) -> any().
+t_metadata_function_wrappers(_Config) ->
+  shards_ct:with_table(fun(Tab) ->
+    ok = shards:put_meta(Tab, foo, bar),
+    bar = shards:get_meta(Tab, foo),
+    undefined = shards:get_meta(Tab, foo_foo),
+    bar_bar = shards:get_meta(Tab, foo_foo, bar_bar),
+
+    shards_ct:assert_error(fun() ->
+      shards:get_meta(unknown, foo)
+    end, {unknown_table, unknown})
+  end, meta_table, []).
 
 -spec t_table_deleted_when_partition_goes_down(shards_ct:config()) -> any().
 t_table_deleted_when_partition_goes_down(_Config) ->

@@ -122,7 +122,7 @@ init({restore, PartitionFilenames, Opts}, #state{partition = Partition} = State)
       {stop, {restore_error, Error}}
   end;
 init(Opts, State) ->
-  NewOpts = lists:delete(named_table, [public | Opts]),
+  NewOpts = lists:delete(named_table, lists:usort([public | Opts])),
   Tid = ets:new(?MODULE, NewOpts),
   NewState = register(State#state{partition_tid = Tid}),
   {ok, NewState}.

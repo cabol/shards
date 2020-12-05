@@ -29,7 +29,7 @@ In your `rebar.config`:
 
 ```erlang
 {deps, [
-  {shards, "1.0.1"}
+  {shards, "~> 1.0"}
 ]}.
 ```
 
@@ -364,6 +364,51 @@ iex> MyApp.DynamicShards.delete(:t1)
 
 ## Advanced topics
 
+## Storing and retrieving custom metadata entries
+
+Since `shards` uses an internal ETS table for the metadata, it also provides
+helper functions for storing and retrieving custom metadata entries.
+
+```erlang
+> Tab = shards:new(mytab, [named_table, {partitions, 4}]).
+mytab
+
+> shards:put_meta(Tab, foo, bar).
+ok
+
+> shards:get_meta(Tab, foo).
+bar
+
+% Non-existing key
+> shards:get_meta(Tab, foo_foo).
+undefined
+
+% With default
+> shards:get_meta(Tab, foo_foo, bar_bar).
+bar_bar
+```
+
+**Elixir:**
+
+```elixir
+iex> tab = :shards.new(:mytab, [:named_table, partitions: 4])
+:mytab
+
+iex> :shards.put_meta(tab, "foo", "bar")
+:ok
+
+iex> :shards.get_meta(tab, "foo")
+"bar"
+
+# Non-existing key
+iex> :shards.get_meta(tab, "foo foo")
+:undefined
+
+# With default
+iex> :shards.get_meta(tab, "foo foo", "bar bar")
+"bar bar"
+```
+
 ### Caching the metadata
 
 Like it is explained in [shards module](https://hexdocs.pm/shards/shards.html),
@@ -389,9 +434,9 @@ In case you want to cache the metadata:
 
 ```erlang
 > Tab = shards:new(mytab, [named_table, {partitions, 4}]).
-named_table
+mytab
 
-> Meta = shards:meta(Tab).
+> Meta = shards:table_meta(Tab).
 {meta,<0.174.0>,1,4,fun erlang:phash2/2,false,[named_table]}
 ```
 

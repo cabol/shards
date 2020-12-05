@@ -140,12 +140,20 @@
 
 %% Helpers
 -export([
-  meta/1,
+  table_meta/1,
+  get_meta/2,
+  get_meta/3,
+  put_meta/3,
   partition_owners/1
 ]).
 
 %% Inline-compiled functions
--compile({inline, [meta/1]}).
+-compile({inline, [
+  table_meta/1,
+  get_meta/2,
+  get_meta/3,
+  put_meta/3
+]}).
 
 %%%===================================================================
 %%% Types & Macros
@@ -287,9 +295,29 @@
 %%%===================================================================
 
 %% @doc Returns the metadata associated with the given table `Tab'.
--spec meta(Tab :: tab()) -> shards_meta:t().
-meta(Tab) ->
-  shards_meta:get(Tab).
+-spec table_meta(Tab :: tab()) -> shards_meta:t().
+table_meta(Tab) -> shards_meta:get(Tab).
+
+%% @equiv get_meta(Tab, Key, undefined)
+get_meta(Tab, Key) ->
+  get_meta(Tab, Key, undefined).
+
+%% @doc Wrapper for `shards_meta:get/3'.
+-spec get_meta(Tab, Key, Def) -> Val when
+      Tab :: tab(),
+      Key :: term(),
+      Def :: term(),
+      Val :: term().
+get_meta(Tab, Key, Def) ->
+  shards_meta:get(Tab, Key, Def).
+
+%% @doc Wrapper for `shards_meta:put/3'.
+-spec put_meta(Tab, Key, Val) -> ok when
+      Tab :: shards:tab(),
+      Key :: term(),
+      Val :: term().
+put_meta(Tab, Key, Val) ->
+  shards_meta:put(Tab, Key, Val).
 
 %% @doc Returns the partition PIDs associated with the given table `TabOrPid'.
 -spec partition_owners(TabOrPid) -> [OwnerPid] when

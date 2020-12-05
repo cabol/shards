@@ -83,7 +83,7 @@ init_meta(Name, Opts, EtsOpts, Partitions) ->
   try
     Tab = shards_meta:init(Name, EtsOpts),
     Meta = shards_meta:from_map(Opts#{tab_pid => self(), partitions => Partitions}),
-    true = ets:insert(Tab, {meta, Meta}),
+    ok = shards_meta:put(Tab, '$tab_info', Meta),
     Tab
   catch
     error:badarg -> error({conflict, Name})
