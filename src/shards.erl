@@ -159,8 +159,6 @@
 %%% Types & Macros
 %%%===================================================================
 
-%% @type tab() = atom() | ets:tid().
-%%
 %% Table parameter
 -type tab() :: atom() | ets:tid().
 
@@ -172,35 +170,18 @@
         | {tab(), integer(), integer(), ets:comp_match_spec(), list(), integer()}
         | {tab(), _, _, integer(), ets:comp_match_spec(), list(), integer(), integer()}.
 
-%% @type tweaks() =
-%%         {write_concurrency, boolean()}
-%%         | {read_concurrency, boolean()}
-%%         | compressed.
-%%
 %% ETS tweaks option
 -type tweaks() ::
         {write_concurrency, boolean()}
         | {read_concurrency, boolean()}
         | compressed.
 
-%% @type shards_opt() =
-%%         {partitions, pos_integer()}
-%%         | {keyslot_fun, shards_meta:keyslot_fun()}
-%%         | {restore, term(), term()}.
-%%
 %% Shards extended options.
 -type shards_opt() ::
         {partitions, pos_integer()}
         | {keyslot_fun, shards_meta:keyslot_fun()}
         | {restore, term(), term()}.
 
-%% @type option() =
-%%         type() | access() | named_table
-%%         | {keypos, pos_integer()}
-%%         | {heir, pid(), HeirData :: term()}
-%%         | {heir, none} | tweaks()
-%%         | shards_opt().
-%%
 %% Create table options – used by `new/2'.
 -type option() ::
         type()
@@ -249,14 +230,6 @@
         | {version, {Major :: non_neg_integer(), Minor :: non_neg_integer()}}
         | {shards, [atom()]}.
 
-%% @type continuation() = {
-%%         Tab          :: tab(),
-%%         MatchSpec    :: ets:match_spec(),
-%%         Limit        :: pos_integer(),
-%%         Partition    :: non_neg_integer(),
-%%         Continuation :: ets_continuation()
-%%       }.
-%%
 %% Defines the convention for the query functions:
 %% <ul>
 %% <li>`Tab': Table reference.</li>
@@ -273,7 +246,7 @@
         Continuation :: ets_continuation()
       }.
 
-%% @type filename() = string() | binary() | atom().
+%% Filename type.
 -type filename() :: string() | binary() | atom().
 
 % Exported Types

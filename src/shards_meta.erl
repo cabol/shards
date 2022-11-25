@@ -56,18 +56,12 @@
 %% Default number of partitions
 -define(PARTITIONS, erlang:system_info(schedulers_online)).
 
-%% @type partition_tids() = [{non_neg_integer(), ets:tid()}].
-%%
 %% Defines a tuple-list with the partition number and the ETS TID.
 -type partition_tids() :: [{non_neg_integer(), ets:tid()}].
 
-%% @type partition_pids() = [{non_neg_integer(), pid()}].
-%%
 %% Defines a tuple-list with the partition number and the partition owner PID.
 -type partition_pids() :: [{non_neg_integer(), pid()}].
 
-%% @type keyslot_fun() = fun((Key :: term(), Range :: pos_integer()) -> non_neg_integer()).
-%%
 %% Defines spec function to pick or compute the partition and/or node.
 %% The function returns a value for `Key' within the range `0..Range-1'.
 -type keyslot_fun() :: fun((Key :: term(), Range :: pos_integer()) -> non_neg_integer()).
@@ -83,21 +77,9 @@
   ets_opts         = []                  :: [term()]
 }).
 
-%% @type t() = #meta{}.
-%%
 %% Defines `shards' metadata.
 -type t() :: #meta{}.
 
-%% @type meta_map() = #{
-%%         tab_pid          => pid(),
-%%         keypos           => pos_integer(),
-%%         partitions       => pos_integer(),
-%%         keyslot_fun      => keyslot_fun(),
-%%         parallel         => boolean(),
-%%         parallel_timeout => timeout(),
-%%         ets_opts         => [term()]
-%%       }.
-%%
 %% Defines the map representation for the metadata data type.
 -type meta_map() :: #{
         tab_pid          => pid(),

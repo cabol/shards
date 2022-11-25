@@ -4,7 +4,8 @@
   assert_error/2,
   assert_values/3,
   wait_for_msg/1,
-  with_table/3
+  with_table/3,
+  pick_shard/2
 ]).
 
 -type config() :: proplists:proplist().
@@ -51,3 +52,7 @@ with_table(Fun, Name, Opts) ->
   after
     shards:delete(Tab)
   end.
+
+-spec pick_shard(term(), pos_integer()) -> non_neg_integer().
+pick_shard(Key, N) ->
+  erlang:phash2(Key, N).

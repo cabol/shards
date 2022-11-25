@@ -14,6 +14,8 @@
   pmap/3
 ]).
 
+-dialyzer({nowarn_function, pmap_collect/3}).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -176,7 +178,7 @@ pmap_collect([{Pid, MRef} | Next], Timeout, {Acc, Err}) ->
       erlang:demonitor(MRef, [flush]),
       pmap_collect(Next, Timeout, {[Res | Acc], Err});
 
-    {'DOWN', MRef, process, _Pid, Reason} ->
+    {'DOWN', MRef, process, Pid, Reason} ->
       pmap_collect(Next, Timeout, {Acc, {error, Reason}})
   after Timeout ->
     exit(pmap_timeout)

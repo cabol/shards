@@ -1,8 +1,4 @@
-<h1>
-  <img align="left" height="60px" src="guides/images/shards.png">
-  Shards
-</h1>
-
+# Shards :sparkles:
 > ### ETS tables on steroids!
 > Sharding for ETS tables out-of-box.
 
