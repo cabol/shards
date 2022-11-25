@@ -1,4 +1,4 @@
-# Shards :sparkles:
+# Shards
 > ### ETS tables on steroids!
 > Sharding for ETS tables out-of-box.
 
@@ -30,7 +30,7 @@ and the **[online documentation](https://hexdocs.pm/shards/)**.
 [partitioning]: https://en.wikipedia.org/wiki/Partition_(database)
 [dht]: https://en.wikipedia.org/wiki/Distributed_hash_table
 [shards]: https://hexdocs.pm/shards/shards.html
-[getting_started]: guides/getting-started.md
+[getting_started]: https://hexdocs.pm/shards/getting-started.md
 
 ## Installation
 
@@ -59,18 +59,16 @@ end
 
 ## Important links
 
-  * [Documentation](https://hexdocs.pm/shards) - Hex Docs.
-
   * [Blog Post](http://cabol.github.io/posts/2016/04/14/sharding-support-for-ets.html) -
     Transparent and out-of-box sharding support for ETS tables in Erlang/Elixir.
 
   * Projects using **shards**:
     * [shards_dist](https://github.com/cabol/shards_dist) - Distributed version
       of `shards`. It was moved to a separate repo since `v1.0.0`.
-    * [ExShards](https://github.com/cabol/ex_shards) – Elixir wrapper for
-      `shards`; with extra and nicer functions.
     * [Nebulex](https://github.com/cabol/nebulex) – Distributed Caching
       framework for Elixir.
+    * [ExShards](https://github.com/cabol/ex_shards) – Elixir wrapper for
+      `shards`; with extra and nicer functions.
     * [KVX](https://github.com/cabol/kvx) – Simple Elixir in-memory Key/Value
       Store using `shards` (default adapter).
     * [Cacherl](https://github.com/ferigis/cacherl) Distributed Cache

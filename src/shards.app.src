@@ -9,9 +9,8 @@
   {env, []},
   {licenses, ["MIT"]},
   {build_tools, ["rebar3", "make"]},
+  {doc, "doc"},
   {links, [
-    {"GitHub", "https://github.com/cabol/shards"},
-    {"Getting Started", "https://github.com/cabol/shards/blob/master/guides/getting-started.md"},
-    {"Blog Post", "http://cabol.github.io/posts/2016/04/14/sharding-support-for-ets.html"}
+    {"GitHub", "https://github.com/cabol/shards"}
   ]}
 ]}.

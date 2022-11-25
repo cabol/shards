@@ -36,7 +36,7 @@ covertool: check_rebar
 	$(REBAR) as test covertool generate
 
 docs: check_rebar
-	$(REBAR) edoc
+	$(REBAR) ex_doc
 
 check: test covertool dialyzer xref docs
 	@echo "OK!"
