@@ -1,6 +1,6 @@
 {application, shards, [
   {description, "Erlang/Elixir library for partitioned or sharded ETS tables."},
-  {vsn, "1.0.1"},
+  {vsn, "1.1.0"},
   {registered, []},
   {applications, [
     kernel,

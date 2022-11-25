@@ -30,7 +30,7 @@ and the **[online documentation](https://hexdocs.pm/shards/)**.
 [partitioning]: https://en.wikipedia.org/wiki/Partition_(database)
 [dht]: https://en.wikipedia.org/wiki/Distributed_hash_table
 [shards]: https://hexdocs.pm/shards/shards.html
-[getting_started]: https://hexdocs.pm/shards/getting-started.md
+[getting_started]: https://hexdocs.pm/shards/getting-started.html
 
 ## Installation
 
@@ -40,7 +40,7 @@ In your `rebar.config`:
 
 ```erlang
 {deps, [
-  {shards, "~> 1.0"}
+  {shards, "1.1.0"}
 ]}.
 ```
 
@@ -50,7 +50,7 @@ In your `mix.exs`:
 
 ```elixir
 def deps do
-  [{:shards, "~> 1.0"}]
+  [{:shards, "~> 1.1"}]
 end
 ```
 

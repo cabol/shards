@@ -1,5 +1,22 @@
 # Changelog
 
+All notable changes to this project will be documented in this file.
+
+This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [v1.1.0](https://github.com/cabol/shards/tree/v1.1.0) (2022-11-25)
+
+[Full Changelog](https://github.com/cabol/shards/compare/v1.0.1...v1.1.0)
+
+**Implemented enhancements:**
+
+- Add helper functions for storing and retrieving custom metadata
+  [814ebf1](https://github.com/cabol/shards/commit/814ebf1f12e0a9e17ee2788ad8dbe4627b5c1d9b).
+- Overall fixes, updates, and improvements
+  [474ca04](https://github.com/cabol/shards/commit/474ca045d26e38aa33ca19b65d9ec180eb31b0c5).
+- Add rebar3_ex_doc for generating docs
+  [5070f4a](https://github.com/cabol/shards/commit/5070f4a9538ae8280f28860738579b8c8678ebd5).
+
 ## [v1.0.1](https://github.com/cabol/shards/tree/v1.0.1) (2020-11-07)
 
 [Full Changelog](https://github.com/cabol/shards/compare/v1.0.0...v1.0.1)
