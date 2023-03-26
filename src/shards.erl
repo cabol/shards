@@ -1503,6 +1503,8 @@ update_element(Tab, Key, ElementSpec) ->
       Tab         :: tab(),
       Key         :: term(),
       ElementSpec :: {Pos, Value} | [{Pos, Value}],
+      Pos         :: pos_integer(),
+      Value       :: term(),
       Meta        :: shards_meta:t().
 update_element(Tab, Key, ElementSpec, Meta) ->
   PartTid = shards_partition:tid(Tab, Key, Meta),
