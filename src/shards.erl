@@ -144,7 +144,8 @@
   get_meta/2,
   get_meta/3,
   put_meta/3,
-  partition_owners/1
+  partition_owners/1,
+  with_meta_cache/2
 ]).
 
 %% Inline-compiled functions
@@ -286,7 +287,7 @@ get_meta(Tab, Key, Def) ->
 
 %% @doc Wrapper for `shards_meta:put/3'.
 -spec put_meta(Tab, Key, Val) -> ok when
-      Tab :: shards:tab(),
+      Tab :: tab(),
       Key :: term(),
       Val :: term().
 put_meta(Tab, Key, Val) ->
@@ -297,9 +298,51 @@ put_meta(Tab, Key, Val) ->
       TabOrPid :: pid() | tab(),
       OwnerPid :: pid().
 partition_owners(TabOrPid) when is_pid(TabOrPid) ->
-  [Child || {_, Child, _, _} <- supervisor:which_children(TabOrPid)];
+  [Child || {_, Child, _, [shards_partition]} <- supervisor:which_children(TabOrPid)];
 partition_owners(TabOrPid) when is_atom(TabOrPid); is_reference(TabOrPid) ->
-  partition_owners(shards_meta:tab_pid(TabOrPid)).
+  partition_owners(shards_meta:get_owner(TabOrPid)).
+
+%% @doc
+%% Executes the given `Fun' by providing the table metadata retrieved from the
+%% cache or the meta table. In the last case, the metadata is stored in the
+%% cache and can be fetched from there on upcoming calls.
+%%
+%% <h3>Examples:</h3>
+%%
+%% ```
+%% shards:with_meta_cache(Tab, fun(Meta) ->
+%%   true = shards:insert(Tab, {foo, bar}, Meta)
+%% end)
+%% '''
+%%
+%% The metadata will be in the cache from this moment on.
+%%
+%% See the "Metadata Cache" section in the module docs for more information.
+%% @end
+-spec with_meta_cache(Tab, Fun) -> Res when
+      Tab :: tab(),
+      Fun :: fun((shards_meta:t()) -> term()),
+      Res :: term().
+with_meta_cache(Tab, Fun) ->
+  case shards_meta_cache:get_meta(Tab) of
+    undefined ->
+      % Get the metadata
+      Meta = shards_meta:get(Tab),
+
+      % Execute the given function with the retrieved metadata
+      Result = Fun(Meta),
+
+      % The function was executed successfully, hence, cache the metadata
+      ok = shards_meta_cache:put_meta(Tab, Meta),
+
+      % Finally, return the function's result
+      Result;
+
+    Meta ->
+      % The metadata is already in the cache, call the function with
+      % the returned value
+      Fun(Meta)
+  end.
 
 %%%===================================================================
 %%% ETS API
@@ -316,8 +359,7 @@ all() ->
 %% @end
 -spec delete(Tab :: tab()) -> true.
 delete(Tab) ->
-  Meta = shards_meta:get(Tab),
-  TabPid = shards_meta:tab_pid(Meta),
+  TabPid = shards_meta:get_owner(Tab),
   ok = shards_partition_sup:stop(TabPid),
   true.
 
@@ -335,8 +377,8 @@ delete(Tab, Key) ->
       Key  :: term(),
       Meta :: shards_meta:t().
 delete(Tab, Key, Meta) ->
-  PartTid = shards_partition:tid(Tab, Key, Meta),
-  ets:delete(PartTid, Key).
+  PartTab = shards_partition:table(Tab, Key, Meta),
+  ets:delete(PartTab, Key).
 
 %% @equiv delete_all_objects(Tab, shards_meta:get(Tab))
 delete_all_objects(Tab) ->
@@ -351,7 +393,7 @@ delete_all_objects(Tab) ->
       Tab  :: tab(),
       Meta :: shards_meta:t().
 delete_all_objects(Tab, Meta) ->
-  _ = mapred(Tab, fun ets:delete_all_objects/1, Meta),
+  _ = map_reduce(Tab, fun ets:delete_all_objects/1, Meta),
   true.
 
 %% @equiv delete_object(Tab, Object, shards_meta:get(Tab))
@@ -369,8 +411,8 @@ delete_object(Tab, Object) ->
       Meta   :: shards_meta:t().
 delete_object(Tab, Object, Meta) when is_tuple(Object) ->
   Key = shards_lib:object_key(Object, Meta),
-  PartTid = shards_partition:tid(Tab, Key, Meta),
-  ets:delete_object(PartTid, Object).
+  PartTab = shards_partition:table(Tab, Key, Meta),
+  ets:delete_object(PartTab, Object).
 
 %% @equiv file2tab(Filename, [])
 file2tab(Filename) ->
@@ -397,15 +439,15 @@ file2tab(Filename, Options) when ?is_filename(Filename) ->
     TabName = maps:get(name, Header),
     Meta = maps:get(metadata, Header),
     Partitions = maps:get(partitions, Header),
+    EtsOpts = maps:get(ets_opts, Header),
 
     TabOpts = [
       {partitions, shards_meta:partitions(Meta)},
       {keyslot_fun, shards_meta:keyslot_fun(Meta)}
-      | shards_meta:ets_opts(Meta)
+      | EtsOpts
     ],
 
-    Return = new(TabName, [{restore, Partitions, Options} | TabOpts]),
-    {ok, Return}
+    {ok, new(TabName, [{restore, Partitions, Options} | TabOpts])}
   catch
     throw:Error ->
       Error;
@@ -436,12 +478,12 @@ first(Tab) ->
 first(Tab, Meta) ->
   N = shards_meta:partitions(Meta),
   Partition = N - 1,
-  first(Tab, ets:first(shards_partition:tid(Tab, Partition)), Partition).
+  first(Tab, ets:first(shards_partition:table(Tab, Partition)), Partition).
 
 %% @private
 first(Tab, '$end_of_table', Partition) when Partition > 0 ->
   NextPartition = Partition - 1,
-  first(Tab, ets:first(shards_partition:tid(Tab, NextPartition)), NextPartition);
+  first(Tab, ets:first(shards_partition:table(Tab, NextPartition)), NextPartition);
 first(_, '$end_of_table', _) ->
   '$end_of_table';
 first(_, Key, _) ->
@@ -495,7 +537,7 @@ foldr(Fun, Acc, Tab, Meta) ->
 
 %% @private
 fold(Fold, Fun, Acc, Tab, Partition) when Partition >= 0 ->
-  NewAcc = ets:Fold(Fun, Acc, shards_partition:tid(Tab, Partition)),
+  NewAcc = ets:Fold(Fun, Acc, shards_partition:table(Tab, Partition)),
   fold(Fold, Fun, NewAcc, Tab, Partition - 1);
 fold(_Fold, _Fun, Acc, _Tab, _Partition) ->
   Acc.
@@ -551,7 +593,7 @@ info(Tab, Item) when is_atom(Item) ->
 
 %% @private
 do_info(Tab, Meta) ->
-  InfoLists = mapred(Tab, fun ets:info/1, Meta),
+  InfoLists = map_reduce(Tab, fun ets:info/1, Meta),
 
   [
     {partitions, shards_meta:partitions(Meta)},
@@ -585,7 +627,7 @@ insert(Tab, ObjOrObjs, Meta) when is_list(ObjOrObjs) ->
     Acc = ets:insert(Partition, Group)
   end, true, group_keys_by_partition(Tab, ObjOrObjs, Meta));
 insert(Tab, ObjOrObjs, Meta) when is_tuple(ObjOrObjs) ->
-  ets:insert(get_part_tid(Tab, ObjOrObjs, Meta), ObjOrObjs).
+  ets:insert(get_part_table(Tab, ObjOrObjs, Meta), ObjOrObjs).
 
 %% @equiv insert_new(Tab, ObjOrObjs, shards_meta:get(Tab))
 insert_new(Tab, ObjOrObjs) ->
@@ -639,7 +681,7 @@ insert_new(Tab, ObjOrObjs, Meta) when is_list(ObjOrObjs) ->
     _     -> true
   end;
 insert_new(Tab, ObjOrObjs, Meta) when is_tuple(ObjOrObjs) ->
-  ets:insert_new(get_part_tid(Tab, ObjOrObjs, Meta), ObjOrObjs).
+  ets:insert_new(get_part_table(Tab, ObjOrObjs, Meta), ObjOrObjs).
 
 %% @private
 rollback_insert(Tab, Entries, Meta) ->
@@ -664,7 +706,7 @@ is_compiled_ms(Term) ->
       Tab :: tab(),
       Key :: term().
 last(Tab) ->
-  Partition0 = shards_partition:tid(Tab, 0),
+  Partition0 = shards_partition:table(Tab, 0),
 
   case ets:info(Partition0, type) of
     ordered_set -> ets:last(Partition0);
@@ -686,8 +728,8 @@ lookup(Tab, Key) ->
       Meta   :: shards_meta:t(),
       Object :: tuple().
 lookup(Tab, Key, Meta) ->
-  PartTid = shards_partition:tid(Tab, Key, Meta),
-  ets:lookup(PartTid, Key).
+  PartTab = shards_partition:table(Tab, Key, Meta),
+  ets:lookup(PartTab, Key).
 
 %% @equiv lookup_element(Tab, Key, Pos, shards_meta:get(Tab))
 lookup_element(Tab, Key, Pos) ->
@@ -705,8 +747,8 @@ lookup_element(Tab, Key, Pos) ->
       Meta :: shards_meta:t(),
       Elem :: term() | [term()].
 lookup_element(Tab, Key, Pos, Meta) ->
-  PartTid = shards_partition:tid(Tab, Key, Meta),
-  ets:lookup_element(PartTid, Key, Pos).
+  PartTab = shards_partition:table(Tab, Key, Meta),
+  ets:lookup_element(PartTab, Key, Pos).
 
 %% @equiv match(Tab, Pattern, shards_meta:get(Tab))
 match(Tab, Pattern) ->
@@ -735,7 +777,7 @@ match(Tab, Pattern, Limit) when is_integer(Limit), Limit > 0 ->
 match(Tab, Pattern, Meta) ->
   Map = {fun ets:match/2, [Pattern]},
   Reduce = fun erlang:'++'/2,
-  mapred(Tab, Map, Reduce, Meta).
+  map_reduce(Tab, Map, Reduce, Meta).
 
 %% @doc
 %% Equivalent to `ets:match/3'.
@@ -786,7 +828,7 @@ match_delete(Tab, Pattern) ->
 match_delete(Tab, Pattern, Meta) ->
   Map = {fun ets:match_delete/2, [Pattern]},
   Reduce = {fun erlang:'and'/2, true},
-  mapred(Tab, Map, Reduce, Meta).
+  map_reduce(Tab, Map, Reduce, Meta).
 
 %% @equiv match_object(Tab, Pattern, shards_meta:get(Tab))
 match_object(Tab, Pattern) ->
@@ -814,7 +856,7 @@ match_object(Tab, Pattern, Limit) when is_integer(Limit), Limit > 0 ->
 match_object(Tab, Pattern, Meta) ->
   Map = {fun ets:match_object/2, [Pattern]},
   Reduce = fun erlang:'++'/2,
-  mapred(Tab, Map, Reduce, Meta).
+  map_reduce(Tab, Map, Reduce, Meta).
 
 %% @doc
 %% Equivalent to `ets:match_object/3'.
@@ -871,8 +913,8 @@ member(Tab, Key) ->
       Key  :: term(),
       Meta :: shards_meta:t().
 member(Tab, Key, Meta) ->
-  PartTid = shards_partition:tid(Tab, Key, Meta),
-  ets:member(PartTid, Key).
+  PartTab = shards_partition:table(Tab, Key, Meta),
+  ets:member(PartTab, Key).
 
 %% @doc
 %% This operation is equivalent to `ets:new/2', but when is called,
@@ -904,12 +946,17 @@ member(Tab, Key, Meta) ->
 %% </li>
 %% <li>
 %% `{parallel, P}' - Specifies whether `shards' should work in parallel mode
-%% or not, for the applicable functions, e.g.: `select', `match', etc. By
-%% default is set to `false'.
+%% or not, for the applicable functions, e.g.: `select', `match', etc.
+%% Defaults to `false'.
 %% </li>
 %% <li>
 %% `{parallel_timeout, T}' - When `parallel' is set to `true', it specifies
 %% the max timeout for a parallel execution. Defaults to `infinity'.
+%% </li>
+%% <li>
+%% `{cache, Bool}' - Specifies whether `shards' should use the metadata cache
+%% (`persistent_term') for storing the table metadata. See the "Metadata Cache"
+%% section below. Defaults to `false'.
 %% </li>
 %% </ul>
 %%
@@ -937,7 +984,7 @@ member(Tab, Key, Meta) ->
 %%
 %% @see ets:new/2.
 %% @end
--spec new(Name, Options) -> Tab when
+-spec new(Name, Options) -> Tab | no_return() when
       Name    :: atom(),
       Options :: [option()],
       Tab     :: tab().
@@ -945,13 +992,20 @@ new(Name, Options) ->
   with_trap_exit(fun() ->
     ParsedOpts = shards_opts:parse(Options),
     StartResult = shards_partition_sup:start_link(Name, ParsedOpts),
+
     do_new(StartResult, Name, ParsedOpts)
   end).
 
 %% @private
 do_new({ok, Pid}, Name, Options) ->
+  % If it is a named table register it
   ok = maybe_register(Name, Pid, maps:get(ets_opts, Options)),
-  shards_partition:retrieve_tab(shards_lib:get_sup_child(Pid, 0));
+
+  % Wait for the message indicating the partitioned table was created
+  % successfully
+  receive
+    {reply, Pid, Tab} -> Tab
+  end;
 do_new({error, {shutdown, {_, _, {restore_error, Error}}}}, _Name, _Options) ->
   ok = wrap_exit(),
   error(Error);
@@ -970,6 +1024,15 @@ maybe_register(Name, Pid, Options) ->
       ok
   end.
 
+-ifndef(OTP_RELEASE).
+%% OTP 20 or lower.
+-define(OTP_RELEASE, 20).
+-endif.
+
+-if(?OTP_RELEASE >= 26).
+%% @private
+wrap_exit() -> ok.
+-else.
 %% @private
 wrap_exit() ->
   % We wait for the 'EXIT' signal from the partition supervisor knowing
@@ -978,6 +1041,7 @@ wrap_exit() ->
   receive
     {'EXIT', _Pid, _Reason} -> ok
   end.
+-endif.
 
 %% @equiv next(Tab, Key1, shards_meta:get(Tab))
 next(Tab, Key1) ->
@@ -1000,13 +1064,13 @@ next(Tab, Key1, Meta) ->
   KeyslotFun = shards_meta:keyslot_fun(Meta),
   Partitions = shards_meta:partitions(Meta),
   Idx = KeyslotFun(Key1, Partitions),
-  PartTid = shards_partition:tid(Tab, Idx),
-  next_(Tab, ets:next(PartTid, Key1), Idx).
+  PartTab = shards_partition:table(Tab, Idx),
+  next_(Tab, ets:next(PartTab, Key1), Idx).
 
 %% @private
 next_(Tab, '$end_of_table', Partition) when Partition > 0 ->
   NextPartition = Partition - 1,
-  next_(Tab, ets:first(shards_partition:tid(Tab, NextPartition)), NextPartition);
+  next_(Tab, ets:first(shards_partition:table(Tab, NextPartition)), NextPartition);
 next_(_, '$end_of_table', _) ->
   '$end_of_table';
 next_(_, Key2, _) ->
@@ -1025,7 +1089,7 @@ next_(_, Key2, _) ->
       Key1 :: term(),
       Key2 :: term().
 prev(Tab, Key1) ->
-  Partition0 = shards_partition:tid(Tab, 0),
+  Partition0 = shards_partition:table(Tab, 0),
 
   case ets:info(Partition0, type) of
     ordered_set -> ets:prev(Partition0, Key1);
@@ -1034,7 +1098,7 @@ prev(Tab, Key1) ->
 
 %% @equiv rename(Tab, Name, shards_meta:get(Tab))
 rename(Tab, Name) ->
-  rename(Tab, Name, shards_meta:get(Tab)).
+  rename(Tab, Name, shards_meta:get_owner(Tab)).
 
 %% @doc
 %% Equivalent to `ets:rename/2'.
@@ -1045,15 +1109,18 @@ rename(Tab, Name) ->
 %%
 %% @see ets:rename/2.
 %% @end
--spec rename(Tab, Name, Meta) -> Name when
-      Tab  :: tab(),
-      Name :: atom(),
-      Meta :: shards_meta:t().
-rename(Tab, Name, Meta) ->
-  Pid = shards_meta:tab_pid(Meta),
-  true = unregister(Tab),
-  true = register(Name, Pid),
-  Name = shards_meta:rename(Tab, Name).
+-spec rename(Tab, Name, TabPid) -> Name when
+      Tab    :: tab(),
+      Name   :: atom(),
+      TabPid :: pid().
+rename(Tab, Name, TabPid) when is_pid(TabPid) ->
+  try
+    true = unregister(Tab),
+    true = register(Name, TabPid),
+    Name = shards_meta:rename(Tab, Name)
+  after
+    ok = shards_meta_cache:del_meta(Tab)
+  end.
 
 %% @equiv safe_fixtable(Tab, Fix, shards_meta:get(Tab))
 safe_fixtable(Tab, Fix) ->
@@ -1074,7 +1141,7 @@ safe_fixtable(Tab, Fix) ->
 safe_fixtable(Tab, Fix, Meta) ->
   Map = {fun ets:safe_fixtable/2, [Fix]},
   Reduce = {fun erlang:'and'/2, true},
-  mapred(Tab, Map, Reduce, Meta).
+  map_reduce(Tab, Map, Reduce, Meta).
 
 %% @equiv select(Tab, MatchSpec, shards_meta:get(Tab))
 select(Tab, MatchSpec) ->
@@ -1102,7 +1169,7 @@ select(Tab, MatchSpec, Limit) when is_integer(Limit) ->
 select(Tab, MatchSpec, Meta) ->
   Map = {fun ets:select/2, [MatchSpec]},
   Reduce = fun erlang:'++'/2,
-  mapred(Tab, Map, Reduce, Meta).
+  map_reduce(Tab, Map, Reduce, Meta).
 
 %% @doc
 %% Equivalent to `ets:select/3'.
@@ -1154,7 +1221,7 @@ select_count(Tab, MatchSpec) ->
 select_count(Tab, MatchSpec, Meta) ->
   Map = {fun ets:select_count/2, [MatchSpec]},
   Reduce = {fun erlang:'+'/2, 0},
-  mapred(Tab, Map, Reduce, Meta).
+  map_reduce(Tab, Map, Reduce, Meta).
 
 %% @equiv select_delete(Tab, MatchSpec, shards_meta:get(Tab))
 select_delete(Tab, MatchSpec) ->
@@ -1173,7 +1240,7 @@ select_delete(Tab, MatchSpec) ->
 select_delete(Tab, MatchSpec, Meta) ->
   Map = {fun ets:select_delete/2, [MatchSpec]},
   Reduce = {fun erlang:'+'/2, 0},
-  mapred(Tab, Map, Reduce, Meta).
+  map_reduce(Tab, Map, Reduce, Meta).
 
 %% @equiv select_replace(Tab, MatchSpec, shards_meta:get(Tab))
 select_replace(Tab, MatchSpec) ->
@@ -1192,7 +1259,7 @@ select_replace(Tab, MatchSpec) ->
 select_replace(Tab, MatchSpec, Meta) ->
   Map = {fun ets:select_replace/2, [MatchSpec]},
   Reduce = {fun erlang:'+'/2, 0},
-  mapred(Tab, Map, Reduce, Meta).
+  map_reduce(Tab, Map, Reduce, Meta).
 
 %% @equiv select_reverse(Tab, MatchSpec, shards_meta:get(Tab))
 select_reverse(Tab, MatchSpec) ->
@@ -1220,7 +1287,7 @@ select_reverse(Tab, MatchSpec, Limit) when is_integer(Limit) ->
 select_reverse(Tab, MatchSpec, Meta) ->
   Map = {fun ets:select_reverse/2, [MatchSpec]},
   Reduce = fun erlang:'++'/2,
-  mapred(Tab, Map, Reduce, Meta).
+  map_reduce(Tab, Map, Reduce, Meta).
 
 %% @doc
 %% Equivalent to `ets:select_reverse/3'.
@@ -1276,7 +1343,7 @@ setopts(Tab, Opts) ->
 setopts(Tab, Opts, Meta) ->
   Map = {fun shards_partition:apply_ets_fun/3, [setopts, [Opts]]},
   Reduce = {fun erlang:'and'/2, true},
-  mapred(Tab, Map, Reduce, {pid, Meta}).
+  map_reduce(Tab, Map, Reduce, {pid, Meta}).
 
 %% @equiv tab2file(Tab, Filename, [])
 tab2file(Tab, Filename) ->
@@ -1313,14 +1380,14 @@ tab2file(Tab, Filename, Options) when ?is_filename(Filename) ->
         {error, _} = Error ->
           {halt, Error}
       end
-    end, #{}, shards_meta:get_partition_tids(Tab)),
+    end, #{}, shards_meta:get_partition_tables(Tab)),
 
   case PartitionFilenamePairs of
     {error, _} = Error ->
       Error;
 
     _ ->
-      TabInfo = maps:from_list(shards:info(Tab)),
+      TabInfo = maps:from_list(?MODULE:info(Tab)),
 
       Header = #{
         name          => maps:get(name, TabInfo),
@@ -1330,6 +1397,7 @@ tab2file(Tab, Filename, Options) when ?is_filename(Filename) ->
         size          => maps:get(size, TabInfo),
         named_table   => maps:get(named_table, TabInfo),
         extended_info => maps:get(extended_info, TabInfo, []),
+        ets_opts      => shards_meta:get_ets_opts(Tab),
         metadata      => Metadata,
         partitions    => PartitionFilenamePairs
       },
@@ -1351,7 +1419,7 @@ tab2list(Tab) ->
       Meta   :: shards_meta:t(),
       Object :: tuple().
 tab2list(Tab, Meta) ->
-  mapred(Tab, fun ets:tab2list/1, fun erlang:'++'/2, Meta).
+  map_reduce(Tab, fun ets:tab2list/1, fun erlang:'++'/2, Meta).
 
 %% @doc
 %% Equivalent to `ets:tabfile_info/1'.
@@ -1370,8 +1438,8 @@ tabfile_info(Filename) when ?is_filename(Filename) ->
     Header = shards_lib:read_tabfile(StrFilename),
 
     TabName = maps:get(name, Header),
-    Metadata = maps:get(metadata, Header),
-    NamedTable = lists:member(named_table, shards_meta:ets_opts(Metadata)),
+    EtsOpts = maps:get(ets_opts, Header),
+    NamedTable = lists:member(named_table, EtsOpts),
     Partitions = maps:get(partitions, Header),
 
     ShardsTabInfo =
@@ -1422,7 +1490,7 @@ table(Tab, Options) ->
       MatchSpec      :: ets:match_spec(),
       TraverseMethod :: first_next | last_prev | select | {select, MatchSpec}.
 table(Tab, Options, Meta) ->
-  mapred(Tab, {fun ets:table/2, [Options]}, Meta).
+  map_reduce(Tab, {fun ets:table/2, [Options]}, Meta).
 
 %% @equiv ets:test_ms(Tuple, MatchSpec)
 test_ms(Tuple, MatchSpec) ->
@@ -1443,8 +1511,8 @@ take(Tab, Key) ->
       Meta   :: shards_meta:t(),
       Object :: tuple().
 take(Tab, Key, Meta) ->
-  PartTid = shards_partition:tid(Tab, Key, Meta),
-  ets:take(PartTid, Key).
+  PartTab = shards_partition:table(Tab, Key, Meta),
+  ets:take(PartTab, Key).
 
 %% @equiv update_counter(Tab, Key, UpdateOp, shards_meta:get(Tab))
 update_counter(Tab, Key, UpdateOp) ->
@@ -1467,8 +1535,8 @@ update_counter(Tab, Key, UpdateOp) ->
 update_counter(Tab, Key, UpdateOp, DefaultOrMeta) ->
   case shards_meta:is_metadata(DefaultOrMeta) of
     true ->
-      PartTid = shards_partition:tid(Tab, Key, DefaultOrMeta),
-      ets:update_counter(PartTid, Key, UpdateOp);
+      PartTab = shards_partition:table(Tab, Key, DefaultOrMeta),
+      ets:update_counter(PartTab, Key, UpdateOp);
 
     false ->
       update_counter(Tab, Key, UpdateOp, DefaultOrMeta, shards_meta:get(Tab))
@@ -1487,8 +1555,8 @@ update_counter(Tab, Key, UpdateOp, DefaultOrMeta) ->
       Meta     :: shards_meta:t(),
       Result   :: integer().
 update_counter(Tab, Key, UpdateOp, Default, Meta) ->
-  PartTid = shards_partition:tid(Tab, Key, Meta),
-  ets:update_counter(PartTid, Key, UpdateOp, Default).
+  PartTab = shards_partition:table(Tab, Key, Meta),
+  ets:update_counter(PartTab, Key, UpdateOp, Default).
 
 %% @equiv update_element(Tab, Key, ElementSpec, shards_meta:get(Tab))
 update_element(Tab, Key, ElementSpec) ->
@@ -1502,13 +1570,13 @@ update_element(Tab, Key, ElementSpec) ->
 -spec update_element(Tab, Key, ElementSpec, Meta) -> boolean() when
       Tab         :: tab(),
       Key         :: term(),
-      ElementSpec :: {Pos, Value} | [{Pos, Value}],
       Pos         :: pos_integer(),
       Value       :: term(),
+      ElementSpec :: {Pos, Value} | [{Pos, Value}],
       Meta        :: shards_meta:t().
 update_element(Tab, Key, ElementSpec, Meta) ->
-  PartTid = shards_partition:tid(Tab, Key, Meta),
-  ets:update_element(PartTid, Key, ElementSpec).
+  PartTab = shards_partition:table(Tab, Key, Meta),
+  ets:update_element(PartTab, Key, ElementSpec).
 
 %%%===================================================================
 %%% Internal functions
@@ -1533,15 +1601,15 @@ with_meta(Tab, Fun) ->
   end.
 
 %% @private
-get_part_tid(Tab, Object, Meta) ->
+get_part_table(Tab, Object, Meta) ->
   Key = shards_lib:object_key(Object, Meta),
-  shards_partition:tid(Tab, Key, Meta).
+  shards_partition:table(Tab, Key, Meta).
 
 %% @private
 group_keys_by_partition(Tab, Objects, Meta) ->
   lists:foldr(fun(Object, Acc) ->
-    PartTid = get_part_tid(Tab, Object, Meta),
-    Acc#{PartTid => [Object | maps:get(PartTid, Acc, [])]}
+    PartTab = get_part_table(Tab, Object, Meta),
+    Acc#{PartTab => [Object | maps:get(PartTab, Acc, [])]}
   end, #{}, Objects).
 
 %% @private
@@ -1565,41 +1633,41 @@ parts_info(Tab, [FirstInfo | RestInfoLists], ExtraAttrs) ->
   end, FirstInfo1, RestInfoLists).
 
 %% @private
-mapred(Tab, Map, Meta) ->
-  mapred(Tab, Map, nil, Meta).
+map_reduce(Tab, Map, Meta) ->
+  map_reduce(Tab, Map, nil, Meta).
 
 %% @private
-mapred(Tab, Map, nil, Meta) ->
-  mapred(Tab, Map, fun(E, Acc) -> [E | Acc] end, Meta);
-mapred(Tab, Map, Reduce, {PartitionFun, Meta}) ->
-  do_mapred(Tab, Map, Reduce, PartitionFun, Meta);
-mapred(Tab, Map, Reduce, Meta) ->
-  do_mapred(Tab, Map, Reduce, tid, Meta).
+map_reduce(Tab, Map, nil, Meta) ->
+  map_reduce(Tab, Map, fun(E, Acc) -> [E | Acc] end, Meta);
+map_reduce(Tab, Map, Reduce, {PartitionFun, Meta}) ->
+  do_map_reduce(Tab, Map, Reduce, PartitionFun, Meta);
+map_reduce(Tab, Map, Reduce, Meta) ->
+  do_map_reduce(Tab, Map, Reduce, table, Meta).
 
 %% @private
-do_mapred(Tab, Map, Reduce, PartFun, Meta) ->
+do_map_reduce(Tab, Map, Reduce, PartFun, Meta) ->
   case {shards_meta:partitions(Meta), shards_meta:parallel(Meta)} of
     {Partitions, true} when Partitions > 1 ->
       ParallelTimeout = shards_meta:parallel_timeout(Meta),
-      p_mapred(Tab, Map, Reduce, PartFun, Partitions, ParallelTimeout);
+      p_map_reduce(Tab, Map, Reduce, PartFun, Partitions, ParallelTimeout);
 
     {Partitions, false} ->
-      s_mapred(Tab, Map, Reduce, PartFun, Partitions)
+      s_map_reduce(Tab, Map, Reduce, PartFun, Partitions)
   end.
 
 %% @private
-s_mapred(Tab, {MapFun, Args}, {ReduceFun, AccIn}, PartFun, Partitions) ->
+s_map_reduce(Tab, {MapFun, Args}, {ReduceFun, AccIn}, PartFun, Partitions) ->
   shards_enum:reduce(fun(Part, Acc) ->
     PartitionId = shards_partition:PartFun(Tab, Part),
     MapRes = apply(MapFun, [PartitionId | Args]),
     ReduceFun(MapRes, Acc)
   end, AccIn, Partitions);
-s_mapred(Tab, MapFun, ReduceFun, PartFun, Partitions) ->
-  {Map, Reduce} = mapred_funs(MapFun, ReduceFun),
-  s_mapred(Tab, Map, Reduce, PartFun, Partitions).
+s_map_reduce(Tab, MapFun, ReduceFun, PartFun, Partitions) ->
+  {Map, Reduce} = map_reduce_funs(MapFun, ReduceFun),
+  s_map_reduce(Tab, Map, Reduce, PartFun, Partitions).
 
 %% @private
-p_mapred(Tab, {MapFun, Args}, {ReduceFun, AccIn}, PartFun, Partitions, ParallelTimeout) ->
+p_map_reduce(Tab, {MapFun, Args}, {ReduceFun, AccIn}, PartFun, Partitions, ParallelTimeout) ->
   MapResults =
     shards_enum:pmap(fun(Idx) ->
       PartitionId = shards_partition:PartFun(Tab, Idx),
@@ -1607,12 +1675,12 @@ p_mapred(Tab, {MapFun, Args}, {ReduceFun, AccIn}, PartFun, Partitions, ParallelT
     end, ParallelTimeout, lists:seq(0, Partitions - 1)),
 
   lists:foldl(ReduceFun, AccIn, MapResults);
-p_mapred(Tab, MapFun, ReduceFun, PartFun, Partitions, ParallelTimeout) ->
-  {Map, Reduce} = mapred_funs(MapFun, ReduceFun),
-  p_mapred(Tab, Map, Reduce, PartFun, Partitions, ParallelTimeout).
+p_map_reduce(Tab, MapFun, ReduceFun, PartFun, Partitions, ParallelTimeout) ->
+  {Map, Reduce} = map_reduce_funs(MapFun, ReduceFun),
+  p_map_reduce(Tab, Map, Reduce, PartFun, Partitions, ParallelTimeout).
 
 %% @private
-mapred_funs(MapFun, ReduceFun) ->
+map_reduce_funs(MapFun, ReduceFun) ->
   Map =
     case is_function(MapFun) of
       true -> {MapFun, []};
@@ -1631,7 +1699,7 @@ q(_, Tab, MatchSpec, Limit, _, _, Shard, {Acc, _}) when Shard < 0 ->
 q(F, Tab, MatchSpec, Limit, QFun, I, Shard, {Acc, '$end_of_table'}) ->
   q(F, Tab, MatchSpec, Limit, QFun, I, Shard - 1, {Acc, nil});
 q(F, Tab, MatchSpec, Limit, QFun, I, Shard, {Acc, _}) ->
-  case ets:F(shards_partition:tid(Tab, Shard), MatchSpec, I) of
+  case ets:F(shards_partition:table(Tab, Shard), MatchSpec, I) of
     {L, Cont} ->
       NewAcc = {QFun(L, Acc), Cont},
       q(F, Tab, MatchSpec, Limit, QFun, I - length(L), Shard, NewAcc);

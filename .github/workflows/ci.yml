@@ -17,15 +17,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - otp: '25.x'
+          - otp: '26.x'
             os: 'ubuntu-latest'
             coverage: true
             xref: true
             dialyzer: true
+          - otp: '25.x'
+            os: 'ubuntu-latest'
           - otp: '24.x'
             os: 'ubuntu-latest'
-          - otp: '23.x'
-            os: 'ubuntu-20.04'
 
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

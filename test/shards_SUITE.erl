@@ -37,23 +37,9 @@
   t_metadata_function_wrappers/1,
   t_table_deleted_when_partition_goes_down/1,
   t_shards_table_unhandled_callbacks/1,
-  t_table_creation_errors/1
+  t_table_creation_errors/1,
+  t_with_meta_cache/1
 ]).
-
-% %% Test Cases Helpers
-% -export([
-%   t_basic_ops_/1,
-%   t_match_ops_/1,
-%   t_select_ops_/1
-% ]).
-
-% %% Helpers
-% -export([
-%   init_shards/0,
-%   init_shards/1,
-%   cleanup_shards/0,
-%   delete_shards/0
-% ]).
 
 -define(EXCLUDED_FUNS, [
   module_info,
@@ -545,7 +531,7 @@ t_info_ops_({Tab, EtsTab}) ->
     ({memory, V})      -> V = shards_lib:keyfind(memory, R1) * Partitions;
     ({name, V})        -> V = ets:info(Tab, name);
     ({id, V})          -> V = ets:info(Tab, id);
-    ({owner, V})       -> V = shards_meta:tab_pid(Meta);
+    ({owner, V})       -> V = shards_meta:get_owner(Tab);
     ({K, V})           -> V = shards_lib:keyfind(K, R1)
   end, R11).
 
@@ -667,7 +653,7 @@ t_equivalent_ops_({Tab, _EtsTab}) ->
   R4 = ets:test_ms({k1, 1}, MS),
   R4 = shards:test_ms({k1, 1}, MS),
 
-  Ids = shards_meta:get_partition_tids(Tab),
+  Ids = shards_meta:get_partition_tables(Tab),
   R5 = lists:sort([ets:table(Id) || {_, Id} <- Ids]),
   R5 = lists:sort(shards:table(Tab)),
   R5 = lists:sort(shards:table(Tab, [])),
@@ -758,6 +744,26 @@ t_table_creation_errors(_Config) ->
   shards_ct:assert_error(fun() ->
     shards:new(another_table, [wrongarg])
   end, {badoption, wrongarg}).
+
+-spec t_with_meta_cache(shards_ct:config()) -> any().
+t_with_meta_cache(_Config) ->
+  shards_ct:with_table(fun(Tab) ->
+    ExpectedMeta = shards_meta:get(Tab),
+
+    undefined = shards_meta_cache:get_meta(Tab),
+
+    shards:with_meta_cache(Tab, fun(Meta) ->
+      true = shards:insert(Tab, {foo, bar}, Meta)
+    end),
+
+    ExpectedMeta = shards_meta_cache:get_meta(Tab),
+
+    shards:with_meta_cache(Tab, fun(Meta) ->
+      bar = shards:lookup_element(Tab, foo, 2, Meta)
+    end),
+
+    ExpectedMeta = shards_meta_cache:get_meta(Tab)
+  end, meta_cache_test, [named_table]).
 
 %%%===================================================================
 %%% Helpers
@@ -868,7 +874,7 @@ shards_created(TabL) when is_list(TabL) ->
 shards_created(Tab) ->
   lists:foreach(fun({_, Tid}) ->
     true = lists:member(Tid, shards:all())
-  end, shards_meta:get_partition_tids(Tab)).
+  end, shards_meta:get_partition_tables(Tab)).
 
 %% @private
 select_by({Mod, Fun} = ModFun, Continuation, Limit) ->

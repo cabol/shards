@@ -28,7 +28,7 @@
 %%% API
 %%%===================================================================
 
--spec parse([shards:option()]) -> shards_meta:meta_map().
+-spec parse([shards:option()]) -> map().
 parse(Opts) ->
   MetaMap = shards_meta:to_map(shards_meta:new()),
   ParsedOpts = parse_opts(Opts, MetaMap#{ets_opts => []}),
@@ -59,6 +59,8 @@ parse_opts([{parallel, Val} | Opts], Acc) when is_boolean(Val) ->
 parse_opts([{parallel_timeout, Val} | Opts], Acc)
     when (is_integer(Val) andalso Val >= 0) orelse Val == infinity ->
   parse_opts(Opts, Acc#{parallel_timeout := Val});
+parse_opts([{cache, Val} | Opts], Acc) when is_boolean(Val) ->
+  parse_opts(Opts, Acc#{cache := Val});
 parse_opts([{restore, _, _} = Opt | Opts], #{ets_opts := NOpts} = Acc) ->
   parse_opts(Opts, Acc#{ets_opts := [Opt | NOpts]});
 parse_opts([{heir, _, _} = Opt | Opts], #{ets_opts := NOpts} = Acc) ->

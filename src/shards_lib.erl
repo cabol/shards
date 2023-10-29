@@ -7,8 +7,8 @@
 
 %% API
 -export([
+  partition_name/2,
   object_key/2,
-  get_sup_child/2,
   keyfind/2,
   keyfind/3,
   keyupdate/3,
@@ -20,6 +20,7 @@
   write_tabfile/2
 ]).
 
+%% Defines a key/value tuple list.
 -type kv_list() :: [{term(), term()}].
 
 -export_type([kv_list/0]).
@@ -27,6 +28,22 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+%% @doc
+%% Builds the partition name for the given table `Tab'
+%% and partition `Partition'.
+%% <ul>
+%% <li>`TabName': Table name from which the shard name is generated.</li>
+%% <li>`Partition': Partition number – from `0' to `(NumShards - 1)'</li>
+%% </ul>
+%% @end
+-spec partition_name(Tab, Partition) -> PartitionName when
+      Tab           :: atom(),
+      Partition     :: non_neg_integer(),
+      PartitionName :: atom().
+partition_name(Tab, Partition) ->
+  Bin = <<(atom_to_binary(Tab, utf8))/binary, ".ptn", (integer_to_binary(Partition))/binary>>,
+  binary_to_atom(Bin, utf8).
 
 %% @doc
 %% Returns the key for the given object or list of objects.
@@ -39,19 +56,6 @@ object_key(ObjOrObjs, Meta) when is_tuple(ObjOrObjs) ->
 object_key(ObjOrObjs, Meta) when is_list(ObjOrObjs) ->
   element(shards_meta:keypos(Meta), hd(ObjOrObjs)).
 
-
-%% @doc
-%% Searches the childern of the supervisor `SupPid' for a child whose Nth
-%% element compares equal to `Id'.
-%% @end
--spec get_sup_child(SupPid, Id) -> Child when
-      SupPid :: pid(),
-      Id     :: term(),
-      Child  :: pid() | undefined | restarting.
-get_sup_child(SupPid, Id) ->
-  {Id, Child, _, _} = lists:keyfind(Id, 1, supervisor:which_children(SupPid)),
-  Child.
-
 %% @equiv keyfind(Key, KVList, undefined)
 keyfind(Key, KVList) ->
   keyfind(Key, KVList, undefined).
@@ -63,7 +67,7 @@ keyfind(Key, KVList) ->
 keyfind(Key, KVList, Default) ->
   case lists:keyfind(Key, 1, KVList) of
     {Key, Value} -> Value;
-    _            -> Default
+    false        -> Default
   end.
 
 %% @equiv keyupdate(Fun, Keys, undefined, TupleList)

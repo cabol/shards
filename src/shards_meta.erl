@@ -2,12 +2,12 @@
 %%% @doc
 %%% This module encapsulates the partitioned table metadata.
 %%%
-%%% Different properties must be stored somewhere so  `shards'
-%%% can work properly. Shards perform logic on top of ETS tables,
-%%% for example, compute the partition based on the `Key' where
-%%% the action will be applied. To do so, it needs the number of
-%%% partitions, the function to select the partition, and also the
-%%% partition identifier to perform the ETS action.
+%%% Different properties must be stored somewhere so `shards' can work
+%%% properly. Shards performs its logic on top of ETS tables, for
+%%% example, computing the partition based on the `Key' where the
+%%% action will be applied. To do so, it needs the number of
+%%% partitions, the function to select the partition, and also
+%%% the partition identifier to perform the ETS action.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(shards_meta).
@@ -21,31 +21,36 @@
   init/2,
   rename/2,
   lookup/2,
+  put/2,
   put/3,
   get/1,
   get/2,
   get/3,
-  get_partition_tids/1,
+  get_owner/1,
+  get_ets_opts/1,
+  fetch/2,
+  get_partition_tables/1,
   get_partition_pids/1
 ]).
 
 %% API – Getters
 -export([
-  tab_pid/1,
   keypos/1,
   partitions/1,
   keyslot_fun/1,
   parallel/1,
   parallel_timeout/1,
-  ets_opts/1
+  cache/1
 ]).
 
-%% Inline-compiled functions
+%% Inline common instructions
 -compile({inline, [
   lookup/2,
   put/3,
   get/1,
-  get_partition_tids/1,
+  get_owner/1,
+  get_ets_opts/1,
+  get_partition_tables/1,
   get_partition_pids/1
 ]}).
 
@@ -56,8 +61,8 @@
 %% Default number of partitions
 -define(PARTITIONS, erlang:system_info(schedulers_online)).
 
-%% Defines a tuple-list with the partition number and the ETS TID.
--type partition_tids() :: [{non_neg_integer(), ets:tid()}].
+%% Defines a tuple-list with the partition number and the table reference.
+-type partition_tables() :: [{non_neg_integer(), shards:tab()}].
 
 %% Defines a tuple-list with the partition number and the partition owner PID.
 -type partition_pids() :: [{non_neg_integer(), pid()}].
@@ -68,13 +73,12 @@
 
 %% Metadata definition
 -record(meta, {
-  tab_pid          = undefined           :: pid() | undefined,
   keypos           = 1                   :: pos_integer(),
   partitions       = ?PARTITIONS         :: pos_integer(),
   keyslot_fun      = fun erlang:phash2/2 :: keyslot_fun(),
   parallel         = false               :: boolean(),
   parallel_timeout = infinity            :: timeout(),
-  ets_opts         = []                  :: [term()]
+  cache            = false               :: boolean()
 }).
 
 %% Defines `shards' metadata.
@@ -82,13 +86,12 @@
 
 %% Defines the map representation for the metadata data type.
 -type meta_map() :: #{
-        tab_pid          => pid(),
         keypos           => pos_integer(),
         partitions       => pos_integer(),
         keyslot_fun      => keyslot_fun(),
         parallel         => boolean(),
         parallel_timeout => timeout(),
-        ets_opts         => [term()]
+        cache            => boolean()
       }.
 
 %% Exported types
@@ -114,13 +117,12 @@ new() -> #meta{}.
 -spec from_map(Map :: #{atom() => term()}) -> t().
 from_map(Map) ->
   #meta{
-    tab_pid          = maps:get(tab_pid, Map, self()),
     keypos           = maps:get(keypos, Map, 1),
     partitions       = maps:get(partitions, Map, ?PARTITIONS),
     keyslot_fun      = maps:get(keyslot_fun, Map, fun erlang:phash2/2),
     parallel         = maps:get(parallel, Map, false),
     parallel_timeout = maps:get(parallel_timeout, Map, infinity),
-    ets_opts         = maps:get(ets_opts, Map, [])
+    cache            = maps:get(cache, Map, false)
   }.
 
 %% @doc
@@ -129,13 +131,12 @@ from_map(Map) ->
 -spec to_map(t()) -> meta_map().
 to_map(Meta) ->
   #{
-    tab_pid          => Meta#meta.tab_pid,
     keypos           => Meta#meta.keypos,
     partitions       => Meta#meta.partitions,
     keyslot_fun      => Meta#meta.keyslot_fun,
     parallel         => Meta#meta.parallel,
     parallel_timeout => Meta#meta.parallel_timeout,
-    ets_opts         => Meta#meta.ets_opts
+    cache            => Meta#meta.cache
   }.
 
 %% @doc
@@ -160,7 +161,7 @@ init(Tab, Opts) ->
       false -> []
     end,
 
-  ets:new(Tab, [set, public, {read_concurrency, true}] ++ ExtraOpts).
+  ets:new(Tab, [set, public, {read_concurrency, true} | ExtraOpts]).
 
 %% @doc
 %% Renames the metadata ETS table.
@@ -175,15 +176,26 @@ rename(Tab, Name) ->
 %% Returns the value associated to the key `Key' in the metadata table `Tab'.
 %% If `Key' is not found, the error `{unknown_table, Tab}' is raised.
 %% @end
--spec lookup(Tab, Key) -> term() when
+-spec lookup(Tab, Key) -> Val when
       Tab :: shards:tab(),
-      Key :: term().
+      Key :: term(),
+      Val :: term().
 lookup(Tab, Key) ->
   try
     ets:lookup_element(Tab, Key, 2)
   catch
     error:badarg -> error({unknown_table, Tab})
   end.
+
+%% @doc
+%% Inserts the given entries `TupleList' into the metadata table `Tab'.
+%% @end
+-spec put(Tab, TupleList) -> ok when
+      Tab       :: shards:tab(),
+      TupleList :: [tuple()].
+put(Tab, TupleList) ->
+  true = ets:insert(Tab, TupleList),
+  ok.
 
 %% @doc
 %% Stores the value `Val' under the given key `Key' into the metadata table
@@ -198,10 +210,27 @@ put(Tab, Key, Val) ->
   ok.
 
 %% @doc
-%% Returns the `tab_info' within the metadata.
+%% Returns the table metadata.
 %% @end
 -spec get(Tab :: shards:tab()) -> t() | no_return().
-get(Tab) -> lookup(Tab, '$tab_info').
+get(Tab) ->
+  case shards_meta_cache:get_meta(Tab) of
+    undefined ->
+      case lookup(Tab, '$tab_meta') of
+        #meta{cache = true} = Meta ->
+          % Caching is enabled, hence, cache the metadata
+          ok = shards_meta_cache:put_meta(Tab, Meta),
+
+          % Return the metadata
+          Meta;
+
+        Meta ->
+          Meta
+      end;
+
+    Meta ->
+      Meta
+  end.
 
 %% @equiv get(Tab, Key, undefined)
 get(Tab, Key) ->
@@ -217,26 +246,64 @@ get(Tab, Key) ->
       Def :: term(),
       Val :: term().
 get(Tab, Key, Def) ->
+  case fetch(Tab, Key) of
+    {ok, Val} ->
+      Val;
+
+    {error, not_found} ->
+      Def;
+
+    {error, unknown_table} ->
+      error({unknown_table, Tab})
+  end.
+
+%% @doc
+%% Fetches the value for a specific `Key' in the metadata.
+%%
+%% If the metadata contains the given `Key', its value is returned in
+%% the shape of `{ok, Value}'. If the metadata doesn't contain `Key',
+%% `{error, Reason}' is returned.
+%% @end
+-spec fetch(Tab, Key) -> {ok, Value} | {error, Reason} when
+      Tab    :: shards:tab(),
+      Key    :: term(),
+      Value  :: term(),
+      Reason :: not_found | unknown_table.
+fetch(Tab, Key) ->
   try
     case ets:lookup(Tab, Key) of
-      [{Key, Val}] -> Val;
-      []           -> Def
+      [{Key, Val}] -> {ok, Val};
+      []           -> {error, not_found}
     end
   catch
-    error:badarg -> error({unknown_table, Tab})
+    error:badarg -> {error, unknown_table}
   end.
+
+%% @doc Returns the owner PID for the table `Tab'.
+%% @equiv lookup(Tab, '$tab_owner')
+-spec get_owner(Tab :: shards:tab()) -> pid().
+get_owner(Tab) ->
+  lookup(Tab, '$tab_owner').
+
+%% @doc Returns the ETS options for the table `Tab'.
+%% @equiv lookup(Tab, '$ets_opts')
+-spec get_ets_opts(Tab :: shards:tab()) -> [term()].
+get_ets_opts(Tab) ->
+  lookup(Tab, '$ets_opts').
 
 %% @doc
 %% Returns a list with the partition TIDs.
 %% @end
--spec get_partition_tids(Tab :: shards:tab()) -> partition_tids().
-get_partition_tids(Tab) -> partitions_info(Tab, tid).
+-spec get_partition_tables(Tab :: shards:tab()) -> partition_tables().
+get_partition_tables(Tab) ->
+  partitions_info(Tab, table).
 
 %% @doc
 %% Returns a list with the partition PIDs.
 %% @end
 -spec get_partition_pids(Tab :: shards:tab()) -> partition_pids().
-get_partition_pids(Tab) -> partitions_info(Tab, pid).
+get_partition_pids(Tab) ->
+  partitions_info(Tab, pid).
 
 %% @private
 partitions_info(Tab, KeyPrefix) ->
@@ -249,12 +316,6 @@ partitions_info(Tab, KeyPrefix) ->
 %%%===================================================================
 %%% Getters
 %%%===================================================================
-
--spec tab_pid(t() | shards:tab()) -> pid().
-tab_pid(#meta{tab_pid = Value}) ->
-  Value;
-tab_pid(Tab) when is_atom(Tab); is_reference(Tab) ->
-  tab_pid(?MODULE:get(Tab)).
 
 -spec keypos(t() | shards:tab()) -> pos_integer().
 keypos(#meta{keypos = Value}) ->
@@ -286,8 +347,8 @@ parallel_timeout(#meta{parallel_timeout = Value}) ->
 parallel_timeout(Tab) when is_atom(Tab); is_reference(Tab) ->
   parallel_timeout(?MODULE:get(Tab)).
 
--spec ets_opts(t() | shards:tab()) -> [term()].
-ets_opts(#meta{ets_opts = Value}) ->
+-spec cache(t() | shards:tab()) -> boolean().
+cache(#meta{cache = Value}) ->
   Value;
-ets_opts(Tab) when is_atom(Tab); is_reference(Tab) ->
-  ets_opts(?MODULE:get(Tab)).
+cache(Tab) when is_atom(Tab); is_reference(Tab) ->
+  cache(?MODULE:get(Tab)).

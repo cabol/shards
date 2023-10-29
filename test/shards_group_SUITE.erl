@@ -1,8 +1,5 @@
 -module(shards_group_SUITE).
 
--include_lib("common_test/include/ct.hrl").
--include("shards_ct.hrl").
-
 %% Common Test
 -export([
   all/0
@@ -50,13 +47,14 @@ t_start_group_without_name(_Config) ->
 t_adding_removing_tables(_Config) ->
   with_group(fun(SupPid) ->
     {ok, Pid1, T1} = shards_group:new_table(SupPid, t1, []),
+    [Pid1] = children_pids(SupPid),
     T1 = shards:info(T1, id),
 
     {ok, Pid2, T2} = shards_group:new_table(SupPid, t2, []),
-    [Pid1, Pid2] = shards:partition_owners(SupPid),
+    [Pid1, Pid2] = children_pids(SupPid),
 
     ok = shards_group:del_table(SupPid, T2),
-    [Pid1] = shards:partition_owners(SupPid)
+    [Pid1] = children_pids(SupPid)
   end, dynamic_sup).
 
 -spec t_child_spec(shards_ct:config()) -> any().
@@ -79,3 +77,6 @@ with_group(Fun, Name) ->
   after
     shards_group:stop(SupPid)
   end.
+
+children_pids(SupPid) ->
+  [Child || {_, Child, _, _} <- supervisor:which_children(SupPid)].
