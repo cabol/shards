@@ -1,7 +1,5 @@
 -module(shards_opts_SUITE).
 
--include_lib("common_test/include/ct.hrl").
-
 %% Common Test
 -export([
   all/0
@@ -43,7 +41,7 @@ t_parse(_Config) ->
     keyslot_fun := KeyslotFun,
     parallel := true,
     partitions := 2,
-    tab_pid := undefined,
+    cache := true,
     ets_opts := [
       set,
       ordered_set,
@@ -79,7 +77,8 @@ t_parse(_Config) ->
     {decentralized_counters, true},
     {partitions, 2},
     {keyslot_fun, KeyslotFun},
-    {parallel, true}
+    {parallel, true},
+    {cache, true}
   ]).
 
 -spec t_parse_with_defaults(shards_ct:config()) -> any().
@@ -92,8 +91,7 @@ t_parse_with_defaults(_Config) ->
     keypos := 1,
     keyslot_fun := KeyslotFun,
     parallel := false,
-    partitions := Partitions,
-    tab_pid := undefined
+    partitions := Partitions
   } = shards_opts:parse([{restore, nil, nil}]).
 
 -spec t_parse_ordered_set(shards_ct:config()) -> any().
@@ -105,8 +103,7 @@ t_parse_ordered_set(_Config) ->
     keypos := 1,
     keyslot_fun := KeyslotFun,
     parallel := false,
-    partitions := 1,
-    tab_pid := undefined
+    partitions := 1
   } = shards_opts:parse([ordered_set]).
 
 -spec t_parse_errors(shards_ct:config()) -> any().

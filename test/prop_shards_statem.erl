@@ -11,7 +11,6 @@
   next_state/3
 ]).
 
--include_lib("common_test/include/ct_property_test.hrl").
 -include_lib("proper/include/proper.hrl").
 
 %%%===================================================================

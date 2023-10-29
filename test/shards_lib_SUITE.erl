@@ -1,7 +1,5 @@
 -module(shards_lib_SUITE).
 
--include_lib("common_test/include/ct.hrl").
-
 %% Common Test
 -export([
   all/0
@@ -9,8 +7,8 @@
 
 %% Test Cases
 -export([
+  t_partition_name/1,
   t_object_key/1,
-  t_get_sup_child/1,
   t_keyfind/1,
   t_keyupdate/1,
   t_keypop/1,
@@ -36,19 +34,17 @@ all() ->
 %%% Test Cases
 %%%===================================================================
 
+-spec t_partition_name(shards_ct:config()) -> any().
+t_partition_name(_Config) ->
+  't.ptn0' = shards_lib:partition_name(t, 0),
+  't.ptn1' = shards_lib:partition_name(t, 1).
+
 -spec t_object_key(shards_ct:config()) -> any().
 t_object_key(_Config) ->
   1 = shards_lib:object_key([{1, 1}, {2, 2}, {3, 3}], shards_meta:new()),
 
   State = shards_meta:from_map(#{tab_pid => self(), keypos => 2}),
   "foo" = shards_lib:object_key({abc, "foo", "bar"}, State).
-
--spec t_get_sup_child(shards_ct:config()) -> any().
-t_get_sup_child(_Config) ->
-  Tab = shards:new(shards_lib_test, []),
-  Part0 = shards_lib:get_sup_child(shards_meta:tab_pid(Tab), 0),
-  true = is_pid(Part0),
-  true = shards:delete(Tab).
 
 -spec t_keyfind(shards_ct:config()) -> any().
 t_keyfind(_Config) ->

@@ -39,7 +39,7 @@
         Opts    :: opts(),
         OnStart :: {ok, pid()} | ignore | {error, term()}.
 start_link(Name, Opts) ->
-  supervisor:start_link(?MODULE, {Name, Opts}).
+  supervisor:start_link(?MODULE, {self(), Name, Opts}).
 
 %% @equiv stop(Pid, 5000)
 stop(SupRef) ->
@@ -56,17 +56,27 @@ stop(SupRef, Timeout) ->
 %%%===================================================================
 
 %% @hidden
-init({Name, Opts}) ->
+init({ParentPid, Name, Opts}) ->
   EtsOpts = maps:get(ets_opts, Opts, []),
   Partitions = maps:get(partitions, Opts, ?PARTITIONS),
 
-  % init metadata
+  % Init metadata
   Tab = init_meta(Name, Opts, EtsOpts, Partitions),
 
-  Children =
-    shards_enum:map(fun(Partition) ->
-      child(shards_partition, [Tab, self(), Partition, EtsOpts], #{id => Partition})
+  % Send a reply with the table reference to the client that called `new/2`
+  _ = ParentPid ! {reply, self(), Tab},
+
+  % Build the parrtition owner specs
+  PartitionOwners =
+    shards_enum:map(fun(PartitionIdx) ->
+      shards_partition:child_spec(Name, Tab, self(), PartitionIdx, EtsOpts)
     end, Partitions),
+
+  % The children list contains the partition owners plus the metadata cache
+  Children = [
+    shards_meta_cache:child_spec(Tab, self())
+    | PartitionOwners
+  ],
 
   {ok, {{one_for_all, 1, 5}, Children}}.
 
@@ -75,15 +85,19 @@ init({Name, Opts}) ->
 %%%===================================================================
 
 %% @private
-child(Module, Args, Spec) ->
-  Spec#{start => {Module, start_link, Args}}.
-
-%% @private
 init_meta(Name, Opts, EtsOpts, Partitions) ->
   try
     Tab = shards_meta:init(Name, EtsOpts),
-    Meta = shards_meta:from_map(Opts#{tab_pid => self(), partitions => Partitions}),
-    ok = shards_meta:put(Tab, '$tab_info', Meta),
+    Meta = shards_meta:from_map(Opts#{partitions => Partitions}),
+
+    % Store the metadata
+    ok =
+      shards_meta:put(Tab, [
+        {'$tab_meta', Meta},
+        {'$tab_owner', self()},
+        {'$ets_opts', EtsOpts}
+      ]),
+
     Tab
   catch
     error:badarg -> error({conflict, Name})
