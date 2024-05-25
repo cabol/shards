@@ -17,27 +17,36 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - otp: '25.x'
+          - otp: '26.x'
             os: 'ubuntu-latest'
+            rebar3_version: "3.23.0"
             coverage: true
             xref: true
             dialyzer: true
+          - otp: '25.x'
+            os: 'ubuntu-latest'
+            rebar3_version: "3.23.0"
           - otp: '24.x'
             os: 'ubuntu-latest'
+            rebar3_version: "3.23.0"
           - otp: '23.x'
             os: 'ubuntu-20.04'
+            rebar3_version: "3.20.0"
 
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       OTP_VERSION: ${{ matrix.otp }}
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install OTP and Elixir
         uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ matrix.otp }}
+          rebar3-version: ${{ matrix.rebar3_version }}
+          version-type: loose
 
       - name: Cache deps
         uses: actions/cache@v3
@@ -82,7 +91,7 @@ jobs:
         if: ${{ matrix.dialyzer && steps.plt-cache.outputs.cache-hit != 'true' }}
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           file: _build/test/covertool/shards.covertool.xml
           flags: otp-${{ matrix.otp }}

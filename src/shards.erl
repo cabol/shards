@@ -970,6 +970,15 @@ maybe_register(Name, Pid, Options) ->
       ok
   end.
 
+-ifndef(OTP_RELEASE).
+%% OTP 20 or lower.
+-define(OTP_RELEASE, 20).
+-endif.
+
+-if(?OTP_RELEASE >= 26).
+%% @private
+wrap_exit() -> ok.
+-else.
 %% @private
 wrap_exit() ->
   % We wait for the 'EXIT' signal from the partition supervisor knowing
@@ -978,6 +987,7 @@ wrap_exit() ->
   receive
     {'EXIT', _Pid, _Reason} -> ok
   end.
+-endif.
 
 %% @equiv next(Tab, Key1, shards_meta:get(Tab))
 next(Tab, Key1) ->

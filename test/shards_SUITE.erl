@@ -40,21 +40,6 @@
   t_table_creation_errors/1
 ]).
 
-% %% Test Cases Helpers
-% -export([
-%   t_basic_ops_/1,
-%   t_match_ops_/1,
-%   t_select_ops_/1
-% ]).
-
-% %% Helpers
-% -export([
-%   init_shards/0,
-%   init_shards/1,
-%   cleanup_shards/0,
-%   delete_shards/0
-% ]).
-
 -define(EXCLUDED_FUNS, [
   module_info,
   all,
