@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.1.1](https://github.com/cabol/shards/tree/v1.1.1) (2024-05-25)
+
+[Full Changelog](https://github.com/cabol/shards/compare/v1.1.0...v1.1.1)
+
+**Closed issues:**
+
+- Compilation error with OTP 26
+  [#63](https://github.com/cabol/shards/issues/63)
+- `shards:info/1` bad argument crash
+  [#60](https://github.com/cabol/shards/issues/60)
+
 ## [v1.1.0](https://github.com/cabol/shards/tree/v1.1.0) (2022-11-25)
 
 [Full Changelog](https://github.com/cabol/shards/compare/v1.0.1...v1.1.0)
